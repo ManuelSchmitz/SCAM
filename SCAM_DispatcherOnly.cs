@@ -227,9 +227,9 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					switch (key)
 					{
 						case "log-message":
-							var cd = minerController?.fwReferenceBlock;
-							if (cd != null)
-								cd.CustomData = "";
+							//var cd = minerController?.fwReferenceBlock;
+							//if (cd != null)
+							//	cd.CustomData = "";
 							break;
 					}
 				}
@@ -291,15 +291,15 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 								}
 							}
 						},
-						{
-							"create-task", (parts) => minerController?.CreateTask()
-						},
-						{
-							"mine", (parts) => minerController?.MineCommandHandler()
-						},
-						{
-							"skip", (parts) => minerController?.SkipCommandHandler()
-						},
+						//{
+						//	"create-task", (parts) => minerController?.CreateTask()
+						//},
+						//{
+						//	"mine", (parts) => minerController?.MineCommandHandler()
+						//},
+						//{
+						//	"skip", (parts) => minerController?.SkipCommandHandler()
+						//},
 						{
 							"set-role", (parts) => CreateRole(parts[2])
 						},
@@ -312,40 +312,40 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						{
 							"create-task-gps", (parts) => GPStaskHandler(parts)
 						},
-						{
-							"force-finish", (parts) => minerController?.FinishAndDockHandler()
-						},
+						//{
+						//	"force-finish", (parts) => minerController?.FinishAndDockHandler()
+						//},
 						{
 							"recall", (parts) => dispatcherService?.Recall()
 						},
-						{
-							"static-dock", (parts) => minerController?.SetStaticDockOverrideHandler(parts)
-						},
-						{
-							"set-state", (parts) => minerController?.TrySetState(parts[2])
-						},
-						{
-							"halt", (parts) => minerController?.Halt()
-						},
+						//{
+						//	"static-dock", (parts) => minerController?.SetStaticDockOverrideHandler(parts)
+						//},
+						//{
+						//	"set-state", (parts) => minerController?.TrySetState(parts[2])
+						//},
+						//{
+						//	"halt", (parts) => minerController?.Halt()
+						//},
 						{
 							"clear-storage-state", (parts) => stateWrapper?.ClearPersistentState()
 						},
 						{
 							"save", (parts) => stateWrapper?.Save()
 						},
-						{
-							"static-dock-gps", (parts) => {
-									if ((minerController != null) && (minerController.fwReferenceBlock != null))
-									{
-										minerController.fwReferenceBlock.CustomData = "GPS:static-dock:" +
-											(stateWrapper.PState.StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(
-												stateWrapper.PState.StaticDockOverride.Value) : "-") + ":";
-									}
-								}
-						},
-						{
-							"dispatch", (parts) => minerController?.Dispatch()
-						},
+						//{
+						//	"static-dock-gps", (parts) => {
+						//			if ((minerController != null) && (minerController.fwReferenceBlock != null))
+						//			{
+						//				minerController.fwReferenceBlock.CustomData = "GPS:static-dock:" +
+						//					(stateWrapper.PState.StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(
+						//						stateWrapper.PState.StaticDockOverride.Value) : "-") + ":";
+						//			}
+						//		}
+						//},
+						//{
+						//	"dispatch", (parts) => minerController?.Dispatch()
+						//},
 						{
 							"global", (parts) => {
 								var cmdParts = parts.Skip(2).ToArray();
@@ -368,93 +368,94 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		void CreateRole(string role)
 		{
 			Role newRole;
-			if (Enum.TryParse(role, out newRole))
+			if (!Enum.TryParse(role, out newRole))
+				throw new Exception("Failed to parse role in command:set-role.");
+
+			CurrentRole = newRole;
+			E.DebugLog("Assigned role: " + newRole);
+
+			if (newRole == Role.Dispatcher)
 			{
-				CurrentRole = newRole;
-				E.DebugLog("Assigned role: " + newRole);
+				dispatcherService = new Dispatcher(IGC, stateWrapper);
+				var dockingPoints = new List<IMyShipConnector>();
+				GridTerminalSystem.GetBlocksOfType(dockingPoints, c => c.IsSameConstructAs(Me) && c.CustomName.Contains(DockHostTag));
+				if (ClearDocksOnReload)
+					dockingPoints.ForEach(d => d.CustomData = "");
+				dockHost = new DockHost(dockingPoints, stateWrapper.PState, GridTerminalSystem);
 
-				if (newRole == Role.Dispatcher)
+				if (stateWrapper.PState.ShaftStates.Count > 0)
 				{
-					dispatcherService = new Dispatcher(IGC, stateWrapper);
-					var dockingPoints = new List<IMyShipConnector>();
-					GridTerminalSystem.GetBlocksOfType(dockingPoints, c => c.IsSameConstructAs(Me) && c.CustomName.Contains(DockHostTag));
-					if (ClearDocksOnReload)
-						dockingPoints.ForEach(d => d.CustomData = "");
-					dockHost = new DockHost(dockingPoints, stateWrapper.PState, GridTerminalSystem);
-
-					if (stateWrapper.PState.ShaftStates.Count > 0)
+					var cap = stateWrapper.PState.ShaftStates;
+					dispatcherService.CreateTask(stateWrapper.PState.shaftRadius.Value, stateWrapper.PState.corePoint.Value,
+							stateWrapper.PState.miningPlaneNormal.Value, stateWrapper.PState.MaxGenerations, stateWrapper.PState.CurrentTaskGroup);
+					for (int n = 0; n < dispatcherService.CurrentTask.Shafts.Count; n++)
 					{
-						var cap = stateWrapper.PState.ShaftStates;
-						dispatcherService.CreateTask(stateWrapper.PState.shaftRadius.Value, stateWrapper.PState.corePoint.Value,
-								stateWrapper.PState.miningPlaneNormal.Value, stateWrapper.PState.MaxGenerations, stateWrapper.PState.CurrentTaskGroup);
-						for (int n = 0; n < dispatcherService.CurrentTask.Shafts.Count; n++)
-						{
-							dispatcherService.CurrentTask.Shafts[n].State = (ShaftState)cap[n];
-						}
-						stateWrapper.PState.ShaftStates = dispatcherService.CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
-						E.DebugLog($"Restored task from pstate, shaft count: {cap.Count}");
+						dispatcherService.CurrentTask.Shafts[n].State = (ShaftState)cap[n];
 					}
-
-					BroadcastToChannel("miners", "dispatcher-change");
+					stateWrapper.PState.ShaftStates = dispatcherService.CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
+					E.DebugLog($"Restored task from pstate, shaft count: {cap.Count}");
 				}
-				else
-				{
-					var b = new List<IMyProgrammableBlock>();
-					GridTerminalSystem.GetBlocksOfType(b, pb => pb.CustomName.Contains("core") && pb.IsSameConstructAs(Me) && pb.Enabled);
-					pillockCore = b.FirstOrDefault();
-					minerController = new MinerController(newRole, GridTerminalSystem, IGC, stateWrapper, GetNTV, Me);
-					if (pillockCore != null)
-					{
-						minerController.SetControlledUnit(pillockCore);
-					}
-					else
-					{
-						coreUnit = new APckUnit(Me, stateWrapper.PState, GridTerminalSystem, IGC, GetNTV);
-						minerController.SetControlledUnit(coreUnit);
-						minerController.ApckRegistry = new CommandRegistry(
-							new Dictionary<string, Action<string[]>>
-								{
-									{
-										"create-wp", (parts) => CreateWP(parts)
-									},
-									{
-										"pillock-mode", (parts) => coreUnit?.TrySetState(parts[2])
-									},
-									{
-										"request-docking", (parts) => {
-											E.DebugLog("Embedded lone mode is not supported");
-										}
-									},
-									{
-										"request-depart", (parts) => {
-											E.DebugLog("Embedded lone mode is not supported");
-										}
-									}
-								}
-							);
-					}
 
-					if (!string.IsNullOrEmpty(stateWrapper.PState.lastAPckCommand))
-					{
-						Scheduler.C.After(5000).RunCmd(() => minerController.CommandAutoPillock(stateWrapper.PState.lastAPckCommand));
-					}
+				BroadcastToChannel("miners", "dispatcher-change");
+			}
+			else
+			{
+				throw new Exception("This script is for dispatcher only (command:set-role:dispatcher).");
+				//var b = new List<IMyProgrammableBlock>();
+				//GridTerminalSystem.GetBlocksOfType(b, pb => pb.CustomName.Contains("core") && pb.IsSameConstructAs(Me) && pb.Enabled);
+				//pillockCore = b.FirstOrDefault();
+				//minerController = new MinerController(newRole, GridTerminalSystem, IGC, stateWrapper, GetNTV, Me);
+				//if (pillockCore != null)
+				//{
+				//	minerController.SetControlledUnit(pillockCore);
+				//}
+				//else
+				//{
+				//	coreUnit = new APckUnit(Me, stateWrapper.PState, GridTerminalSystem, IGC, GetNTV);
+				//	minerController.SetControlledUnit(coreUnit);
+				//	minerController.ApckRegistry = new CommandRegistry(
+				//		new Dictionary<string, Action<string[]>>
+				//			{
+				//				{
+				//					"create-wp", (parts) => CreateWP(parts)
+				//				},
+				//				{
+				//					"pillock-mode", (parts) => coreUnit?.TrySetState(parts[2])
+				//				},
+				//				{
+				//					"request-docking", (parts) => {
+				//						E.DebugLog("Embedded lone mode is not supported");
+				//					}
+				//				},
+				//				{
+				//					"request-depart", (parts) => {
+				//						E.DebugLog("Embedded lone mode is not supported");
+				//					}
+				//				}
+				//			}
+				//		);
+				//}
 
-					if (newRole == Role.Lone)
-					{
-						minerController.LocalDispatcher = new Dispatcher(IGC, stateWrapper);
-					}
+				//if (!string.IsNullOrEmpty(stateWrapper.PState.lastAPckCommand))
+				//{
+				//	Scheduler.C.After(5000).RunCmd(() => minerController.CommandAutoPillock(stateWrapper.PState.lastAPckCommand));
+				//}
 
-					if (newRole == Role.Agent)
-					{
-						Scheduler.C.RepeatWhile(() => !minerController.DispatcherId.HasValue).After(1000)
-							.RunCmd(() => BroadcastToChannel("miners.handshake", Variables.Get<string>("group-constraint")));
-					}
+				//if (newRole == Role.Lone)
+				//{
+				//	minerController.LocalDispatcher = new Dispatcher(IGC, stateWrapper);
+				//}
 
-					if (stateWrapper.PState.miningEntryPoint.HasValue)
-					{
-						minerController.ResumeJobOnWorldLoad();
-					}
-				}
+				//if (newRole == Role.Agent)
+				//{
+				//	Scheduler.C.RepeatWhile(() => !minerController.DispatcherId.HasValue).After(1000)
+				//		.RunCmd(() => BroadcastToChannel("miners.handshake", Variables.Get<string>("group-constraint")));
+				//}
+
+				//if (stateWrapper.PState.miningEntryPoint.HasValue)
+				//{
+				//	minerController.ResumeJobOnWorldLoad();
+				//}
 			}
 		}
 
@@ -484,7 +485,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 		public enum ShaftState { Planned, InProgress, Complete, Cancelled }
 
-		Role CurrentRole;
+		Role CurrentRole; // Current role, always Role.Dispatcher (after config load)
 		public enum Role : byte { None = 0, Dispatcher, Agent, Lone }
 
 		public enum ApckState
@@ -744,10 +745,10 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					var igcDto = (MyTuple<MyTuple<string, long, long, byte, byte>, Vector3D, Vector3D, MatrixD, BoundingBoxD>)m.Data;
 					var name = igcDto.Item1.Item1;
 					UpdateNTV(name, igcDto);
-					if (minerController?.pCore != null)
-					{
-						IGC.SendUnicastMessage(minerController.pCore.EntityId, "apck.ntv.update", igcDto);
-					}
+					//if (minerController?.pCore != null)
+					//{
+					//	IGC.SendUnicastMessage(minerController.pCore.EntityId, "apck.ntv.update", igcDto);
+					//}
 				}
 				else if (m.Tag == "apck.depart.complete")
 				{
@@ -763,16 +764,16 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				}
 				else if (m.Tag == "apck.depart.complete")
 				{
-					if (minerController?.DispatcherId != null)
-						IGC.SendUnicastMessage(minerController.DispatcherId.Value, "apck.depart.complete", "");
+					//if (minerController?.DispatcherId != null)
+					//	IGC.SendUnicastMessage(minerController.DispatcherId.Value, "apck.depart.complete", "");
 				}
 				else if (m.Tag == "apck.docking.approach" || m.Tag == "apck.depart.approach")
 				{
-					if (minerController?.pCore != null)
-					{
-						IGC.SendUnicastMessage(minerController.pCore.EntityId, m.Tag, (ImmutableArray<Vector3D>)m.Data);
-					}
-					else
+					//if (minerController?.pCore != null)
+					//{
+					//	IGC.SendUnicastMessage(minerController.pCore.EntityId, m.Tag, (ImmutableArray<Vector3D>)m.Data);
+					//}
+					//else
 					{
 						if (m.Tag.Contains("depart"))
 						{
@@ -842,40 +843,40 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			}
 			else if ((CurrentRole == Role.Agent) || (CurrentRole == Role.Lone))
 			{
-				minerController.Handle(uniMsgs);
-				E.Echo("Min3r state: " + minerController.GetState());
-				E.Echo("Static dock override: " + (stateWrapper.PState.StaticDockOverride.HasValue ? "ON" : "OFF"));
-				E.Echo("Dispatcher: " + minerController.DispatcherId);
-				E.Echo("Echelon: " + minerController.Echelon);
-				E.Echo("HoldingLock: " + minerController.ObtainedLock);
-				E.Echo("WaitedSection: " + minerController.WaitedSection);
-				E.Echo($"Estimated shaft radius: {Variables.Get<float>("circular-pattern-shaft-radius"):f2}");
-				E.Echo("LifetimeAcceptedTasks: " + stateWrapper.PState.LifetimeAcceptedTasks);
-				E.Echo("LifetimeOreAmount: " + FormatNumberToNeatString(stateWrapper.PState.LifetimeOreAmount));
-				E.Echo("LifetimeOperationTime: " + TimeSpan.FromSeconds(stateWrapper.PState.LifetimeOperationTime).ToString());
-				E.Echo("LifetimeWentToMaintenance: " + stateWrapper.PState.LifetimeWentToMaintenance);
+				//	minerController.Handle(uniMsgs);
+				//	E.Echo("Min3r state: " + minerController.GetState());
+				//	E.Echo("Static dock override: " + (stateWrapper.PState.StaticDockOverride.HasValue ? "ON" : "OFF"));
+				//	E.Echo("Dispatcher: " + minerController.DispatcherId);
+				//	E.Echo("Echelon: " + minerController.Echelon);
+				//	E.Echo("HoldingLock: " + minerController.ObtainedLock);
+				//	E.Echo("WaitedSection: " + minerController.WaitedSection);
+				//	E.Echo($"Estimated shaft radius: {Variables.Get<float>("circular-pattern-shaft-radius"):f2}");
+				//	E.Echo("LifetimeAcceptedTasks: " + stateWrapper.PState.LifetimeAcceptedTasks);
+				//	E.Echo("LifetimeOreAmount: " + FormatNumberToNeatString(stateWrapper.PState.LifetimeOreAmount));
+				//	E.Echo("LifetimeOperationTime: " + TimeSpan.FromSeconds(stateWrapper.PState.LifetimeOperationTime).ToString());
+				//	E.Echo("LifetimeWentToMaintenance: " + stateWrapper.PState.LifetimeWentToMaintenance);
 
-				if (coreUnit != null)
-				{
-					if (coreUnit.pc.Pip != Vector3D.Zero)
-						EmitProjection("agent-dest", coreUnit.pc.Pip, "");
-					if (coreUnit.pc.PosShift != Vector3D.Zero)
-						EmitProjection("agent-vel", coreUnit.pc.PosShift, coreUnit.pc.DBG);
-				}
+				//	if (coreUnit != null)
+				//	{
+				//		if (coreUnit.pc.Pip != Vector3D.Zero)
+				//			EmitProjection("agent-dest", coreUnit.pc.Pip, "");
+				//		if (coreUnit.pc.PosShift != Vector3D.Zero)
+				//			EmitProjection("agent-vel", coreUnit.pc.PosShift, coreUnit.pc.DBG);
+				//	}
 
-				if (rawPanel != null)
-				{
-					SendFeedback($"Version: {Ver}");
-					SendFeedback($"LifetimeAcceptedTasks: {stateWrapper.PState.LifetimeAcceptedTasks}");
-					SendFeedback($"LifetimeOreAmount: {FormatNumberToNeatString(stateWrapper.PState.LifetimeOreAmount)}");
-					SendFeedback($"LifetimeOperationTime: {TimeSpan.FromSeconds(stateWrapper.PState.LifetimeOperationTime)}");
-					SendFeedback($"LifetimeWentToMaintenance: {stateWrapper.PState.LifetimeWentToMaintenance}");
-					SendFeedback("\n");
-					SendFeedback($"CurrentJobMaxShaftYield: {FormatNumberToNeatString(stateWrapper.PState.CurrentJobMaxShaftYield)}");
-					SendFeedback($"CurrentShaftYield: " + minerController?.CurrentJob?.GetShaftYield());
-					SendFeedback(minerController?.CurrentJob?.ToString());
-					FlushFeedbackBuffer();
-				}
+				//	if (rawPanel != null)
+				//	{
+				//		SendFeedback($"Version: {Ver}");
+				//		SendFeedback($"LifetimeAcceptedTasks: {stateWrapper.PState.LifetimeAcceptedTasks}");
+				//		SendFeedback($"LifetimeOreAmount: {FormatNumberToNeatString(stateWrapper.PState.LifetimeOreAmount)}");
+				//		SendFeedback($"LifetimeOperationTime: {TimeSpan.FromSeconds(stateWrapper.PState.LifetimeOperationTime)}");
+				//		SendFeedback($"LifetimeWentToMaintenance: {stateWrapper.PState.LifetimeWentToMaintenance}");
+				//		SendFeedback("\n");
+				//		SendFeedback($"CurrentJobMaxShaftYield: {FormatNumberToNeatString(stateWrapper.PState.CurrentJobMaxShaftYield)}");
+				//		SendFeedback($"CurrentShaftYield: " + minerController?.CurrentJob?.GetShaftYield());
+				//		SendFeedback(minerController?.CurrentJob?.ToString());
+				//		FlushFeedbackBuffer();
+				//	}
 			}
 			if (Toggle.C.Check("show-pstate"))
 				E.Echo(stateWrapper.PState.ToString());
@@ -1022,18 +1023,18 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 							}
 							else if (minerController != null)
 							{
-								if (minerController.LocalDispatcher != null)
-								{
-									dispatcherService.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"),
-											castedSurfacePoint.Value - castedNormal.Value * 10, castedNormal.Value,
-											Variables.Get<int>("max-generations"), "LocalDispatcher");
-									minerController.MineCommandHandler();
-								}
-								else if (minerController.DispatcherId.HasValue)
-									IGC.SendUnicastMessage(minerController.DispatcherId.Value, "create-task",
-											new MyTuple<float, Vector3D, Vector3D>(Variables.Get<float>("circular-pattern-shaft-radius"),
-											castedSurfacePoint.Value - castedNormal.Value * 10,
-											castedNormal.Value));
+								//if (minerController.LocalDispatcher != null)
+								//{
+								//	dispatcherService.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"),
+								//			castedSurfacePoint.Value - castedNormal.Value * 10, castedNormal.Value,
+								//			Variables.Get<int>("max-generations"), "LocalDispatcher");
+								//	minerController.MineCommandHandler();
+								//}
+								//else if (minerController.DispatcherId.HasValue)
+								//	IGC.SendUnicastMessage(minerController.DispatcherId.Value, "create-task",
+								//			new MyTuple<float, Vector3D, Vector3D>(Variables.Get<float>("circular-pattern-shaft-radius"),
+								//			castedSurfacePoint.Value - castedNormal.Value * 10,
+								//			castedNormal.Value));
 							}
 						}
 						else
@@ -1431,1445 +1432,1445 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			}
 		}
 
-		MinerController minerController;
+		MinerController minerController;//TODO: Only used by drones/agents. (Always NULL)
 		public class MinerController
 		{
-			public Dispatcher LocalDispatcher { get; set; }
-			TimerTriggerService tts;
+			//	public Dispatcher LocalDispatcher { get; set; }
+			//	TimerTriggerService tts;
 
-			public MiningJob CurrentJob { get; private set; }
+			//	public MiningJob CurrentJob { get; private set; }
 
-			public Role CurrentRole;
-			public long? DispatcherId;
-			public float? Echelon;
-			public string ObtainedLock = "";
-			public string WaitedSection = "";
-			public bool WaitingForLock;
+			//	public Role CurrentRole;
+			//	public long? DispatcherId;
+			//	public float? Echelon;
+			//	public string ObtainedLock = "";
+			//	public string WaitedSection = "";
+			//	public bool WaitingForLock;
 
-			public bool DockingHandled;
+			//	public bool DockingHandled;
 
-			public Vector3D GetMiningPlaneNormal()
-			{
-				if (!pState.miningPlaneNormal.HasValue)
-				{
-					var ng = remCon.GetNaturalGravity();
-					if (ng == Vector3D.Zero)
-						throw new Exception("Need either natural gravity or miningPlaneNormal");
-					else
-						return Vector3D.Normalize(ng);
-				}
-				return pState.miningPlaneNormal.Value;
-			}
+			//	public Vector3D GetMiningPlaneNormal()
+			//	{
+			//		if (!pState.miningPlaneNormal.HasValue)
+			//		{
+			//			var ng = remCon.GetNaturalGravity();
+			//			if (ng == Vector3D.Zero)
+			//				throw new Exception("Need either natural gravity or miningPlaneNormal");
+			//			else
+			//				return Vector3D.Normalize(ng);
+			//		}
+			//		return pState.miningPlaneNormal.Value;
+			//	}
 
-			public MinerState GetState()
-			{
-				return pState.MinerState;
-			}
+			//	public MinerState GetState()
+			//	{
+			//		return pState.MinerState;
+			//	}
 
-			public PersistentState pState
-			{
-				get
-				{
-					return stateWrapper.PState;
-				}
-			}
+			//	public PersistentState pState
+			//	{
+			//		get
+			//		{
+			//			return stateWrapper.PState;
+			//		}
+			//	}
 
-			Func<string, TargetTelemetry> ntv;
-			StateWrapper stateWrapper;
-			public MinerController(Role role, IMyGridTerminalSystem gts, IMyIntergridCommunicationSystem igc, StateWrapper stateWrapper,
-					Func<string, TargetTelemetry> GetNTV, IMyTerminalBlock me)
-			{
-				ntv = GetNTV;
-				this.CurrentRole = role;
-				this.gts = gts;
-				IGC = igc;
-				//CurrentJob = new MiningJob(this);
-				this.stateWrapper = stateWrapper;
+			//	Func<string, TargetTelemetry> ntv;
+			//	StateWrapper stateWrapper;
+			//	public MinerController(Role role, IMyGridTerminalSystem gts, IMyIntergridCommunicationSystem igc, StateWrapper stateWrapper, 
+			//			Func<string, TargetTelemetry> GetNTV, IMyTerminalBlock me)
+			//	{
+			//		ntv = GetNTV;
+			//		this.CurrentRole = role;
+			//		this.gts = gts;
+			//		IGC = igc;
+			//CurrentJob = new MiningJob(this);
+			//		this.stateWrapper = stateWrapper;
 
-				fwReferenceBlock = GetSingleBlock<IMyGyro>(b => b.CustomName.Contains(ForwardGyroTag) && b.IsSameConstructAs(me));
-				remCon = GetSingleBlock<IMyRemoteControl>(b => b.IsSameConstructAs(me));
-				docker = GetSingleBlock<IMyShipConnector>(b => b.IsSameConstructAs(me));
-				gts.GetBlocksOfType(drills, d => d.IsSameConstructAs(me));
-				gts.GetBlocksOfType(allContainers, d => d.IsSameConstructAs(me) && d.HasInventory && ((d is IMyCargoContainer) || (d is IMyShipDrill) || (d is IMyShipConnector)));
-				gts.GetBlocksOfType(batteries, b => b.IsSameConstructAs(me));
-				gts.GetBlocksOfType(tanks, b => b.IsSameConstructAs(me));
+			//		fwReferenceBlock = GetSingleBlock<IMyGyro>(b => b.CustomName.Contains(ForwardGyroTag) && b.IsSameConstructAs(me));
+			//		remCon = GetSingleBlock<IMyRemoteControl>(b => b.IsSameConstructAs(me));
+			//		docker = GetSingleBlock<IMyShipConnector>(b => b.IsSameConstructAs(me));
+			//		gts.GetBlocksOfType(drills, d => d.IsSameConstructAs(me));
+			//		gts.GetBlocksOfType(allContainers, d => d.IsSameConstructAs(me) && d.HasInventory && ((d is IMyCargoContainer) || (d is IMyShipDrill) || (d is IMyShipConnector)));
+			//		gts.GetBlocksOfType(batteries, b => b.IsSameConstructAs(me));
+			//		gts.GetBlocksOfType(tanks, b => b.IsSameConstructAs(me));
 
-				List<IMyTimerBlock> triggers = new List<IMyTimerBlock>();
-				gts.GetBlocksOfType(triggers, b => b.IsSameConstructAs(me));
-				tts = new TimerTriggerService(triggers);
+			//		List<IMyTimerBlock> triggers = new List<IMyTimerBlock>();
+			//		gts.GetBlocksOfType(triggers, b => b.IsSameConstructAs(me));
+			//		tts = new TimerTriggerService(triggers);
 
-				float maxR = 0;
-				float padding = me.CubeGrid.GridSizeEnum == MyCubeSize.Large ? 2f : 1.5f;
-				foreach (var d in drills)
-				{
-					var r = Vector3D.Reject(d.GetPosition() - fwReferenceBlock.GetPosition(), fwReferenceBlock.WorldMatrix.Forward).Length();
-					maxR = (float)Math.Max(r + padding, maxR);
-				}
-				Variables.Set("circular-pattern-shaft-radius", maxR);
+			//		float maxR = 0;
+			//		float padding = me.CubeGrid.GridSizeEnum == MyCubeSize.Large ? 2f : 1.5f;
+			//		foreach (var d in drills)
+			//		{
+			//			var r = Vector3D.Reject(d.GetPosition() - fwReferenceBlock.GetPosition(), fwReferenceBlock.WorldMatrix.Forward).Length();
+			//			maxR = (float)Math.Max(r + padding, maxR);
+			//		}
+			//		Variables.Set("circular-pattern-shaft-radius", maxR);
 
-				var bs = new List<IMyRadioAntenna>();
-				gts.GetBlocksOfType(bs, b => b.IsSameConstructAs(me));
-				antenna = bs.FirstOrDefault();
+			//		var bs = new List<IMyRadioAntenna>();
+			//		gts.GetBlocksOfType(bs, b => b.IsSameConstructAs(me));
+			//		antenna = bs.FirstOrDefault();
 
-				var ls = new List<IMyLightingBlock>();
-				gts.GetBlocksOfType(ls, b => b.IsSameConstructAs(me));
-				refLight = ls.FirstOrDefault();
+			//		var ls = new List<IMyLightingBlock>();
+			//		gts.GetBlocksOfType(ls, b => b.IsSameConstructAs(me));
+			//		refLight = ls.FirstOrDefault();
 
-				gts.GetBlocksOfType(allFunctionalBlocks, b => b.IsSameConstructAs(me));
-			}
-			public void SetControlledUnit(IMyProgrammableBlock pCore)
-			{
-				this.pCore = pCore;
-			}
-			public void SetControlledUnit(APckUnit unit)
-			{
-				embeddedUnit = unit;
-			}
+			//		gts.GetBlocksOfType(allFunctionalBlocks, b => b.IsSameConstructAs(me));
+			//	}
+			//	public void SetControlledUnit(IMyProgrammableBlock pCore)
+			//	{
+			//		this.pCore = pCore;
+			//	}
+			//	public void SetControlledUnit(APckUnit unit)
+			//	{
+			//		embeddedUnit = unit;
+			//	}
 
-			public MinerState PrevState { get; private set; }
-			public void SetState(MinerState newState)
-			{
-				tts.TryTriggerNamedTimer(GetState() + ".OnExit");
-				Log("SetState: " + GetState() + "=>" + newState);
-				tts.TryTriggerNamedTimer(newState + ".OnEnter");
+			//	public MinerState PrevState { get; private set; }
+			//	public void SetState(MinerState newState)
+			//	{
+			//		tts.TryTriggerNamedTimer(GetState() + ".OnExit");
+			//		Log("SetState: " + GetState() + "=>" + newState);
+			//		tts.TryTriggerNamedTimer(newState + ".OnEnter");
 
-				PrevState = pState.MinerState;
-				pState.MinerState = newState;
+			//		PrevState = pState.MinerState;
+			//		pState.MinerState = newState;
 
-				if ((newState == MinerState.Disabled) || (newState == MinerState.Idle))
-				{
-					drills.ForEach(d => d.Enabled = false);
-					CommandAutoPillock("command:pillock-mode:Inert", u => u.SetState(ApckState.Inert));
-				}
-			}
+			//		if ((newState == MinerState.Disabled) || (newState == MinerState.Idle))
+			//		{
+			//			drills.ForEach(d => d.Enabled = false);
+			//			CommandAutoPillock("command:pillock-mode:Inert", u => u.SetState(ApckState.Inert));
+			//		}
+			//	}
 
-			public void Halt()
-			{
-				CheckBatteriesAndIntegrity(1, 1);
-				CommandAutoPillock("command:pillock-mode:Disabled", u => u.pc.SetState(PillockController.State.Disabled));
-				drills.ForEach(d => d.Enabled = false);
-				stateWrapper.ClearPersistentState();
-			}
+			//	public void Halt()
+			//	{
+			//		CheckBatteriesAndIntegrity(1, 1);
+			//		CommandAutoPillock("command:pillock-mode:Disabled", u => u.pc.SetState(PillockController.State.Disabled));
+			//		drills.ForEach(d => d.Enabled = false);
+			//		stateWrapper.ClearPersistentState();
+			//	}
 
-			public void TrySetState(string stateName)
-			{
-				MinerState newState;
-				if (Enum.TryParse(stateName, out newState))
-					SetState(newState);
-			}
+			//	public void TrySetState(string stateName)
+			//	{
+			//		MinerState newState;
+			//		if (Enum.TryParse(stateName, out newState))
+			//			SetState(newState);
+			//	}
 
-			public T GetSingleBlock<T>(Func<IMyTerminalBlock, bool> pred) where T : class
-			{
-				var blocks = new List<IMyTerminalBlock>();
-				gts.GetBlocksOfType(blocks, b => ((b is T) && pred(b)));
-				return blocks.First() as T;
-			}
+			//	public T GetSingleBlock<T>(Func<IMyTerminalBlock, bool> pred) where T : class
+			//	{
+			//		var blocks = new List<IMyTerminalBlock>();
+			//		gts.GetBlocksOfType(blocks, b => ((b is T) && pred(b)));
+			//		return blocks.First() as T;
+			//	}
 
-			public void CreateTask()
-			{
-				var ng = remCon.GetNaturalGravity();
-				if (ng != Vector3D.Zero)
-					pState.miningPlaneNormal = Vector3D.Normalize(ng);
-				else
-					pState.miningPlaneNormal = fwReferenceBlock.WorldMatrix.Forward;
+			//	public void CreateTask()
+			//	{
+			//		var ng = remCon.GetNaturalGravity();
+			//		if (ng != Vector3D.Zero)
+			//			pState.miningPlaneNormal = Vector3D.Normalize(ng);
+			//		else
+			//			pState.miningPlaneNormal = fwReferenceBlock.WorldMatrix.Forward;
 
-				double elevation;
-				if (remCon.TryGetPlanetElevation(MyPlanetElevation.Surface, out elevation))
-					pState.miningEntryPoint = fwReferenceBlock.WorldMatrix.Translation + pState.miningPlaneNormal.Value * (elevation - 5);
-				else
-					pState.miningEntryPoint = fwReferenceBlock.WorldMatrix.Translation;
+			//		double elevation;
+			//		if (remCon.TryGetPlanetElevation(MyPlanetElevation.Surface, out elevation))
+			//			pState.miningEntryPoint = fwReferenceBlock.WorldMatrix.Translation + pState.miningPlaneNormal.Value * (elevation - 5);
+			//		else
+			//			pState.miningEntryPoint = fwReferenceBlock.WorldMatrix.Translation;
 
-				if (CurrentRole == Role.Agent)
-				{
-					if (DispatcherId.HasValue)
-					{
-						IGC.SendUnicastMessage(DispatcherId.Value, "create-task",
-							new MyTuple<float, Vector3D, Vector3D>(Variables.Get<float>("circular-pattern-shaft-radius"), pState.miningEntryPoint.Value,
-							pState.miningPlaneNormal.Value));
-					}
-				}
-				else if (CurrentRole == Role.Lone)
-				{
-					var miningEntryPoint = pState.miningEntryPoint.Value;
-					// this clears pstate
-					LocalDispatcher.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"), miningEntryPoint, pState.miningPlaneNormal.Value,
-						Variables.Get<int>("max-generations"), "LocalDispatcher");
-					// this field refers to blank new pstate now...
-					pState.getAbovePt = miningEntryPoint - pState.miningPlaneNormal.Value * Variables.Get<float>("getAbove-altitude");
-					pState.miningEntryPoint = miningEntryPoint;
-				}
-			}
+			//		if (CurrentRole == Role.Agent)
+			//		{
+			//			if (DispatcherId.HasValue)
+			//			{
+			//				IGC.SendUnicastMessage(DispatcherId.Value, "create-task", 
+			//					new MyTuple<float, Vector3D, Vector3D>(Variables.Get<float>("circular-pattern-shaft-radius"), pState.miningEntryPoint.Value, 
+			//					pState.miningPlaneNormal.Value));
+			//			}
+			//		}
+			//		else if (CurrentRole == Role.Lone)
+			//		{
+			//			var miningEntryPoint = pState.miningEntryPoint.Value;
+			//			// this clears pstate
+			//			LocalDispatcher.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"), miningEntryPoint, pState.miningPlaneNormal.Value, 
+			//				Variables.Get<int>("max-generations"), "LocalDispatcher");
+			//			// this field refers to blank new pstate now...
+			//			pState.getAbovePt = miningEntryPoint - pState.miningPlaneNormal.Value * Variables.Get<float>("getAbove-altitude");
+			//			pState.miningEntryPoint = miningEntryPoint;
+			//		}
+			//	}
 
-			public void Handle(List<MyIGCMessage> uniMsgs)
-			{
-				E.Echo(embeddedUnit != null ? "Embedded APck" : pCore.CustomName);
-				embeddedUnit?.Handle(TickCount, E.Echo);
+			//	public void Handle(List<MyIGCMessage> uniMsgs)
+			//	{
+			//		E.Echo(embeddedUnit != null ? "Embedded APck" : pCore.CustomName);
+			//		embeddedUnit?.Handle(TickCount, E.Echo);
 
-				if ((CurrentJob != null) && (!WaitingForLock))
-				{
-					if ((CurrentRole != Role.Agent) || (DispatcherId.HasValue))
-						CurrentJob.HandleState(pState.MinerState);
-				}
+			//		if ((CurrentJob != null) && (!WaitingForLock))
+			//		{
+			//			if ((CurrentRole != Role.Agent) || (DispatcherId.HasValue))
+			//				CurrentJob.HandleState(pState.MinerState);
+			//		}
 
-				var j = CurrentJob;
+			//		var j = CurrentJob;
 
-				var minerChannel = IGC.RegisterBroadcastListener("miners");
+			//		var minerChannel = IGC.RegisterBroadcastListener("miners");
 
-				foreach (var msg in uniMsgs)
-				{
-					if (!msg.Tag.Contains("set-vectors"))
-						LogMsg(msg, false);
-					if ((msg.Tag == "miners.assign-shaft") && (msg.Data is MyTuple<int, Vector3D, Vector3D>) && (CurrentRole == Role.Agent))
-					{
-						var data = (MyTuple<int, Vector3D, Vector3D>)msg.Data;
-						if (j != null)
-						{
-							j.SetShaftVectors(data.Item1, data.Item2, data.Item3);
-							Log("Got new ShaftVectors");
-							Dispatch();
-						}
-					}
+			//		foreach (var msg in uniMsgs)
+			//		{
+			//			if (!msg.Tag.Contains("set-vectors"))
+			//				LogMsg(msg, false);
+			//			if ((msg.Tag == "miners.assign-shaft") && (msg.Data is MyTuple<int, Vector3D, Vector3D>) && (CurrentRole == Role.Agent))
+			//			{
+			//				var data = (MyTuple<int, Vector3D, Vector3D>)msg.Data;
+			//				if (j != null)
+			//				{
+			//					j.SetShaftVectors(data.Item1, data.Item2, data.Item3);
+			//					Log("Got new ShaftVectors");
+			//					Dispatch();
+			//				}
+			//			}
 
-					//"miners.handshake.reply"
+			//"miners.handshake.reply"
 
-					if (msg.Tag == "miners.handshake.reply")
-					{
-						Log("Received reply from dispatcher " + msg.Source);
-						DispatcherId = msg.Source;
-					}
+			//			if (msg.Tag == "miners.handshake.reply")
+			//			{
+			//				Log("Received reply from dispatcher " + msg.Source);
+			//				DispatcherId = msg.Source;
+			//			}
 
-					if (msg.Tag == "miners.echelon")
-					{
-						Log("Was assigned an echelon of " + msg.Data);
-						Echelon = (float)msg.Data;
-					}
+			//			if (msg.Tag == "miners.echelon")
+			//			{
+			//				Log("Was assigned an echelon of " + msg.Data);
+			//				Echelon = (float)msg.Data;
+			//			}
 
-					if (msg.Tag == "miners.normal")
-					{
-						var normal = (Vector3D)msg.Data;
-						Log("Was assigned a normal of " + normal);
-						pState.miningPlaneNormal = normal;
-					}
+			//			if (msg.Tag == "miners.normal")
+			//			{
+			//				var normal = (Vector3D)msg.Data;
+			//				Log("Was assigned a normal of " + normal);
+			//				pState.miningPlaneNormal = normal;
+			//			}
 
-					if (msg.Tag == "miners.resume")
-					{
-						var normal = (Vector3D)msg.Data;
-						Log("Received resume command. Clearing state, running MineCommandHandler, assigned a normal of " + normal);
-						stateWrapper.ClearPersistentState();
-						pState.miningPlaneNormal = normal;
-						MineCommandHandler();
-					}
+			//			if (msg.Tag == "miners.resume")
+			//			{
+			//				var normal = (Vector3D)msg.Data;
+			//				Log("Received resume command. Clearing state, running MineCommandHandler, assigned a normal of " + normal);
+			//				stateWrapper.ClearPersistentState();
+			//				pState.miningPlaneNormal = normal;
+			//				MineCommandHandler();
+			//			}
 
-					if (msg.Tag == "command")
-					{
-						if (msg.Data.ToString() == "force-finish")
-							FinishAndDockHandler();
-						if (msg.Data.ToString() == "mine")
-							MineCommandHandler();
-					}
+			//			if (msg.Tag == "command")
+			//			{
+			//				if (msg.Data.ToString() == "force-finish")
+			//					FinishAndDockHandler();
+			//				if (msg.Data.ToString() == "mine")
+			//					MineCommandHandler();
+			//			}
 
-					if (msg.Tag == "set-value")
-					{
-						var parts = ((string)msg.Data).Split(':');
-						Log($"Set value '{parts[0]}' to '{parts[1]}'");
-						Variables.Set(parts[0], parts[1]);
-					}
+			//			if (msg.Tag == "set-value")
+			//			{
+			//				var parts = ((string)msg.Data).Split(':');
+			//				Log($"Set value '{parts[0]}' to '{parts[1]}'");
+			//				Variables.Set(parts[0], parts[1]);
+			//			}
 
-					if (msg.Data.ToString().Contains("common-airspace-lock-granted"))
-					{
-						var sectionName = msg.Data.ToString().Split(':')[1];
+			//			if (msg.Data.ToString().Contains("common-airspace-lock-granted"))
+			//			{
+			//				var sectionName = msg.Data.ToString().Split(':')[1];
 
-						if (!string.IsNullOrEmpty(ObtainedLock) && (ObtainedLock != sectionName))
-						{
-							//ReleaseLock(ObtainedLock);
-							Log($"{sectionName} common-airspace-lock hides current ObtainedLock {ObtainedLock}!");
-						}
-						ObtainedLock = sectionName;
-						Log(sectionName + " common-airspace-lock-granted");
+			//				if (!string.IsNullOrEmpty(ObtainedLock) && (ObtainedLock != sectionName))
+			//				{
+			//					//ReleaseLock(ObtainedLock);
+			//					Log($"{sectionName} common-airspace-lock hides current ObtainedLock {ObtainedLock}!");
+			//				}
+			//				ObtainedLock = sectionName;
+			//				Log(sectionName + " common-airspace-lock-granted");
 
-						// can fly!
-						if (WaitedSection == sectionName)
-							Dispatch();
-					}
+			// can fly!
+			//				if (WaitedSection == sectionName)
+			//					Dispatch();
+			//			}
 
-					if (msg.Tag == "report.request")
-					{
-						var report = new AgentReport();
-						report.Id = IGC.Me;
-						report.WM = fwReferenceBlock.WorldMatrix;
-						report.ColorTag = refLight?.Color ?? Color.White;
-						CurrentJob?.UpdateReport(report, pState.MinerState);
-						IGC.SendBroadcastMessage("miners.report", report.ToIgc());
-					}
-				}
+			//			if (msg.Tag == "report.request")
+			//			{
+			//				var report = new AgentReport();
+			//				report.Id = IGC.Me;
+			//				report.WM = fwReferenceBlock.WorldMatrix;
+			//				report.ColorTag = refLight?.Color ?? Color.White;
+			//				CurrentJob?.UpdateReport(report, pState.MinerState);
+			//				IGC.SendBroadcastMessage("miners.report", report.ToIgc());
+			//			}
+			//		}
 
-				while (minerChannel.HasPendingMessage)
-				{
-					var msg = minerChannel.AcceptMessage();
-					LogMsg(msg, false);
-					// do some type checking
-					//if ((msg.Data != null) && (msg.Data is Vector3D))
-					if (msg.Data != null)
-					{
-						if (msg.Data.ToString().Contains("common-airspace-lock-released"))
-						{
-							var sectionName = msg.Data.ToString().Split(':')[1];
-							if (CurrentRole == Role.Agent)
-							{
-								Log("(Agent) received lock-released notification " + sectionName + " from " + msg.Source);
-							}
-						}
+			//		while (minerChannel.HasPendingMessage)
+			//		{
+			//			var msg = minerChannel.AcceptMessage();
+			//			LogMsg(msg, false);
+			// do some type checking
+			//if ((msg.Data != null) && (msg.Data is Vector3D))
+			//			if (msg.Data != null)
+			//			{
+			//				if (msg.Data.ToString().Contains("common-airspace-lock-released"))
+			//				{
+			//					var sectionName = msg.Data.ToString().Split(':')[1];
+			//					if (CurrentRole == Role.Agent)
+			//					{
+			//						Log("(Agent) received lock-released notification " + sectionName + " from " + msg.Source);
+			//					}
+			//				}
 
-						if (CurrentRole == Role.Agent)
-						{
-							if (msg.Data.ToString() == "dispatcher-change")
-							{
-								DispatcherId = null;
-								Scheduler.C.RepeatWhile(() => !DispatcherId.HasValue).After(1000).RunCmd(() =>
-										BroadcastToChannel("miners.handshake", Variables.Get<string>("group-constraint")));
-							}
-						}
-					}
-				}
+			//				if (CurrentRole == Role.Agent)
+			//				{
+			//					if (msg.Data.ToString() == "dispatcher-change")
+			//					{
+			//						DispatcherId = null;
+			//						Scheduler.C.RepeatWhile(() => !DispatcherId.HasValue).After(1000).RunCmd(() => 
+			//								BroadcastToChannel("miners.handshake", Variables.Get<string>("group-constraint")));
+			//					}
+			//				}
+			//			}
+			//		}
 
-			}
+			//	}
 
 			//Action<MinerController> callback;
-			Queue<Action<MinerController>> waitedActions = new Queue<Action<MinerController>>();
-			public void WaitForDispatch(string sectionName, Action<MinerController> callback)
-			{
-				WaitingForLock = true;
-				if (!string.IsNullOrEmpty(sectionName))
-					WaitedSection = sectionName;
-				waitedActions.Enqueue(callback);
-				Log("WaitForDispatch section \"" + sectionName + "\", callback chain: " + waitedActions.Count);
-			}
-
-			public void Dispatch()
-			{
-				WaitingForLock = false;
-				WaitedSection = "";
-				var count = waitedActions.Count;
-				if (count > 0)
-				{
-					Log("Dispatching, callback chain: " + count);
-					var a = waitedActions.Dequeue();
-					a.Invoke(this);
-				}
-				else
-					Log("WARNING: empty Dispatch()");
-			}
-
-			public void BroadcastToChannel<T>(string tag, T data)
-			{
-				IGC.SendBroadcastMessage(tag, data, TransmissionDistance.TransmissionDistanceMax);
-				LogMsg(data, true);
-			}
-
-			public void UnicastToDispatcher<T>(string tag, T data)
-			{
-				if (DispatcherId.HasValue)
-					IGC.SendUnicastMessage(DispatcherId.Value, tag, data);
-			}
-
-			public void Log(object msg)
-			{
-				E.DebugLog($"MinerController -> {msg}");
-			}
-
-			public void LogMsg(object msg, bool outgoing)
-			{
-				string data = msg.GetType().Name;
-				if (msg is string)
-					data = (string)msg;
-				else if ((msg is ImmutableArray<Vector3D>) || (msg is Vector3D))
-					data = "some vector(s)";
-
-				if (Toggle.C.Check("log-message"))
-				{
-					if (!outgoing)
-						E.DebugLog($"MinerController MSG-IN -> {data}");
-					else
-						E.DebugLog($"MinerController MSG-OUT -> {data}");
-				}
-			}
-
-			public Action InvalidateDockingDto;
-			public IMyProgrammableBlock pCore;
-			APckUnit embeddedUnit;
-			public IMyGridTerminalSystem gts;
-			public IMyIntergridCommunicationSystem IGC;
-			public IMyRemoteControl remCon;
-			public List<IMyTerminalBlock> allContainers = new List<IMyTerminalBlock>();
-			public IMyTerminalBlock fwReferenceBlock;
-			public List<IMyShipDrill> drills = new List<IMyShipDrill>();
-			public IMyShipConnector docker;
-			public IMyRadioAntenna antenna;
-			public List<IMyBatteryBlock> batteries = new List<IMyBatteryBlock>();
-			public List<IMyGasTank> tanks = new List<IMyGasTank>();
-			public IMyLightingBlock refLight;
-			public List<IMyTerminalBlock> allFunctionalBlocks = new List<IMyTerminalBlock>();
-
-			public void ResumeJobOnWorldLoad()
-			{
-				CurrentJob = new MiningJob(this);
-				CurrentJob.SessionStartedAt = DateTime.Now;
-				// TODO: restore some stats stuff
-			}
-
-			public void MineCommandHandler()
-			{
-				CurrentJob = new MiningJob(this);
-				CurrentJob.SessionStartedAt = DateTime.Now;
-				pState.LifetimeAcceptedTasks++;
-				pState.maxDepth = Variables.Get<float>("depth-limit");
-				pState.skipDepth = Variables.Get<float>("skip-depth");
-				if (!TryResumeFromDock())
-				{
-					CurrentJob.Start();
-				}
-			}
-
-			public void SkipCommandHandler()
-			{
-				if (CurrentJob != null)
-				{
-					CurrentJob.SkipShaft();
-				}
-			}
-
-			public void SetStaticDockOverrideHandler(string[] cmdString)
-			{
-				if ((cmdString.Length > 2) && (cmdString[2] == "clear"))
-					pState.StaticDockOverride = null;
-				else
-					pState.StaticDockOverride = fwReferenceBlock.WorldMatrix.Translation;
-			}
-
-			public Vector3D AddEchelonOffset(Vector3D pt)
-			{
-				if (Echelon.HasValue)
-				{
-					return pt - GetMiningPlaneNormal() * Echelon.Value;
-				}
-				return pt;
-			}
-
-			public Vector3D AddEchelonOffset(Vector3D pt, Vector3D normal)
-			{
-				if (Echelon.HasValue)
-				{
-					return pt - normal * Echelon.Value;
-				}
-				return pt;
-			}
-
-			public bool TryUsingStaticDock(bool generateApproachWp)
-			{
-				if (pState.StaticDockOverride.HasValue)
-				{
-					string dFinal = "command:create-wp:Name=StaticDock,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pState.StaticDockOverride.Value);
-
-					if (!WholeAirspaceLocking)
-						ReleaseLock(LOCK_NAME_GeneralSection);
-
-					if (Echelon.HasValue)
-					{
-						dFinal = "command:create-wp:Name=StaticDock.echelon,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(AddEchelonOffset(pState.StaticDockOverride.Value))
-							+ ":" + dFinal;
-					}
-
-					if (generateApproachWp)
-					{
-						if (pState.getAbovePt.HasValue)
-							CommandAutoPillock("command:create-wp:Name=StaticDock.getAbovePt,Ng=Forward,SpeedLimit=" + Variables.Get<float>("speed-clear")
-								+ ":" + VectorOpsHelper.V3DtoBroadcastString(
-								AddEchelonOffset(pState.getAbovePt.Value)) + ":" + dFinal);
-						else
-						{
-							/*
-							double elevaton;
-							remCon.TryGetPlanetElevation(MyPlanetElevation.Surface, out elevaton);
-							*/
-							// elevation below surface is Abs
-							var dockP = pState.StaticDockOverride.Value;
-							Vector3D plCenter;
-							remCon.TryGetPlanetPosition(out plCenter);
-							var dockAlt = dockP - plCenter;
-							var myAlt = (fwReferenceBlock.GetPosition() - plCenter);
-							var plNorm = Vector3D.Normalize(myAlt);
-							var alt = dockAlt.Length() > myAlt.Length() ? dockAlt : myAlt;
-							var approachP = plCenter + plNorm * (alt.Length() + 100f);
-							CommandAutoPillock("command:create-wp:Name=StaticDock.approachP,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(approachP) + ":" + dFinal);
-						}
-					}
-					else
-					{
-						CommandAutoPillock(dFinal);
-					}
-
-					return true;
-				}
-				return false;
-			}
-
-			public void ArrangeDocking()
-			{
-				bool finishSession = GetState() == MinerState.ForceFinish;
-				if (pState.StaticDockOverride.HasValue)
-				{
-					if (TryUsingStaticDock(finishSession))
-					{
-						// Static docking, we are safe at own echelon
-						if (!WholeAirspaceLocking)
-							ReleaseLock(LOCK_NAME_GeneralSection);
-						if (!finishSession)
-							SetState(MinerState.Docking);
-					}
-				}
-				else
-				{
-					if (DispatcherId.HasValue)
-					{
-						// Multi-agent mode, dynamic docking, respect shared space
-						// Release lock as we are safe at own echelon while sitting on WaitingForDocking
-						if (!WholeAirspaceLocking)
-							ReleaseLock(LOCK_NAME_GeneralSection);
-						InvalidateDockingDto?.Invoke();
-						IGC.SendUnicastMessage(DispatcherId.Value, "apck.docking.request", docker.GetPosition());
-						SetState(MinerState.WaitingForDocking);
-					}
-					else
-					{
-						// Lone mode, dynamic docking, don't care about shared space. Docking is arranged by APck.
-						if (!finishSession)
-						{
-							SetState(MinerState.Docking);
-							CommandAutoPillock("command:request-docking");
-						}
-						else
-						{
-							// to not end up hitting the shaft wall
-							CommandAutoPillock("[command:create-wp:Name=AutoDock.getAbovePt,Ng=Forward,SpeedLimit=" + Variables.Get<float>("speed-clear") + ":" +
-								VectorOpsHelper.V3DtoBroadcastString(AddEchelonOffset(pState.getAbovePt.HasValue ? pState.getAbovePt.Value :
-										(fwReferenceBlock.GetPosition() + fwReferenceBlock.WorldMatrix.Up * 50)))
-												+ ":command:request-docking]");
-						}
-					}
-				}
-			}
-
-			public void FinishAndDockHandler()
-			{
-				if (docker.Status == MyShipConnectorStatus.Connected)
-				{
-					batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
-					tanks.ForEach(b => b.Stockpile = true);
-					pState.lastAPckCommand = "";
-					SetState(MinerState.Disabled);
-				}
-				else
-				{
-					drills.ForEach(dr => dr.Enabled = false);
-					//ReleaseLock(LOCK_NAME_GeneralSection);
-					WaitedSection = "";
-					waitedActions.Clear();
-					EnterSharedSpace(LOCK_NAME_ForceFinishSection, (mc) =>
-					{
-						if (pState.MinerState == MinerState.ForceFinish || pState.MinerState == MinerState.Docking || docker.Status == MyShipConnectorStatus.Connected)
-						{
-							SetState(MinerState.ForceFinish);
-							Log("Started force-finish callback during docking in progress!");
-							ReleaseLock(LOCK_NAME_ForceFinishSection);
-							return;
-						}
-
-						SetState(MinerState.ForceFinish);
-						// TODO: redo ffs... Handle state for WaitingForDock requires job
-						CurrentJob = CurrentJob ?? new MiningJob(this);
-						ArrangeDocking();
-					});
-				}
-			}
-
-			public bool TryResumeFromDock()
-			{
-				if (docker.Status == MyShipConnectorStatus.Connected)
-				{
-					if (pState.getAbovePt.HasValue)
-					{
-						SetState(MinerState.Docking);
-						return true;
-					}
-					else
-					{
-						if (CurrentRole == Role.Agent)
-						{
-							UnicastToDispatcher("request-new", "");
-							WaitForDispatch("", mc => {
-								mc.SetState(MinerState.Docking);
-							});
-							return true;
-						}
-					}
-				}
-				return false;
-			}
-
-			public void EnterSharedSpace(string sectionName, Action<MinerController> task)
-			{
-				if (CurrentRole == Role.Agent)
-				{
-					BroadcastToChannel("miners", "common-airspace-ask-for-lock:" + sectionName);
-					WaitForDispatch(sectionName, task);
-				}
-				else
-				{
-					task(this);
-				}
-			}
-
-			public void ReleaseLock(string sectionName)
-			{
-				if (ObtainedLock == sectionName)
-				{
-					ObtainedLock = null;
-					if (CurrentRole == Role.Agent)
-					{
-						BroadcastToChannel("miners", "common-airspace-lock-released:" + sectionName);
-						Log($"Released lock: {sectionName}");
-					}
-				}
-				else
-				{
-					Log("Tried to release non-owned lock section " + sectionName);
-				}
-			}
-
-			public CommandRegistry ApckRegistry;
-			public void CommandAutoPillock(string cmd, Action<APckUnit> embeddedAction = null)
-			{
-				pState.lastAPckCommand = cmd;
-				E.DebugLog("CommandAutoPillock: " + cmd);
-				if (embeddedUnit != null)
-				{
-					if (embeddedAction != null)
-					{
-						embeddedAction(embeddedUnit);
-					}
-					else
-					{
-						//Log($"'{cmd}' is not support for embedded unit yet");
-
-						var cmds = cmd.Split(new[] { "],[" }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim('[', ']')).ToList();
-						foreach (var i in cmds)
-						{
-							string[] cmdParts = i.Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
-							if (cmdParts[0] == "command")
-							{
-								ApckRegistry.RunCommand(cmdParts[1], cmdParts);
-							}
-						}
-					}
-				}
-				else
-				{
-					if (IGC.IsEndpointReachable(pCore.EntityId))
-					{
-						IGC.SendUnicastMessage(pCore.EntityId, "apck.command", cmd);
-					}
-					else
-					{
-						throw new Exception($"APck {pCore.EntityId} is not reachable");
-					}
-				}
-				//if (!pCore.TryRun(cmd))
-				//throw new Exception("APck failure");
-			}
-
-
-			DateTime lastCheckStamp;
-			bool CheckBatteriesAndIntegrityThrottled(float desiredBatteryLevel, float desiredGasLevel)
-			{
-				var dtNow = DateTime.Now;
-				if ((dtNow - lastCheckStamp).TotalSeconds > 60)
-				{
-					lastCheckStamp = dtNow;
-					return CheckBatteriesAndIntegrity(desiredBatteryLevel, desiredGasLevel);
-				}
-				return true;
-			}
-
-			bool CheckBatteriesAndIntegrity(float desiredBatteryLevel, float desiredGasLevel)
-			{
-				allFunctionalBlocks.ForEach(x => TagDamagedTerminalBlocks(x, GetMyTerminalBlockHealth(x), PrevState != MinerState.ForceFinish));
-				if (allFunctionalBlocks.Any(b => !b.IsFunctional))
-				{
-					if (antenna != null)
-						antenna.CustomName = antenna.CubeGrid.CustomName + "> Damaged. Fix me asap!";
-					allFunctionalBlocks.Where(b => !b.IsFunctional).ToList().ForEach(b => E.DebugLog($"{b.CustomName} is damaged or destroyed"));
-					return false;
-				}
-				float storedPower = 0;
-				float maxPower = 0;
-				foreach (var b in batteries)
-				{
-					maxPower += b.MaxStoredPower;
-					storedPower += b.CurrentStoredPower;
-				}
-				double gasAvg = 0;
-				foreach (var b in tanks)
-				{
-					gasAvg += b.FilledRatio;
-				}
-
-				if (tanks.Any() && (gasAvg / tanks.Count < desiredGasLevel))
-				{
-					if (antenna != null)
-						antenna.CustomName = $"{antenna.CubeGrid.CustomName}> Maintenance. Gas level: {gasAvg / tanks.Count:f2}/{desiredGasLevel:f2}";
-					return false;
-				}
-				else if (storedPower / maxPower < desiredBatteryLevel)
-				{
-					if (antenna != null)
-						antenna.CustomName = $"{antenna.CubeGrid.CustomName}> Maintenance. Charge level: {storedPower / maxPower:f2}/{desiredBatteryLevel:f2}";
-					return false;
-				}
-				else
-				{
-					return true;
-				}
-			}
-
-			float GetMyTerminalBlockHealth(IMyTerminalBlock block)
-			{
-				IMySlimBlock slimblock = block.CubeGrid.GetCubeBlock(block.Position);
-				if (slimblock != null)
-					return (slimblock.BuildIntegrity - slimblock.CurrentDamage) / slimblock.MaxIntegrity;
-				else
-					return 1f;
-			}
-
-			void TagDamagedTerminalBlocks(IMyTerminalBlock myTerminalBlock, float health, bool onlyNonFunctional)
-			{
-				string name = myTerminalBlock.CustomName;
-				if ((health < 1f) && (!onlyNonFunctional || !myTerminalBlock.IsFunctional))
-				{
-					if (!(myTerminalBlock is IMyRadioAntenna) && !(myTerminalBlock is IMyBeacon))
-					{
-						myTerminalBlock.SetValue("ShowOnHUD", true);
-					}
-					string taggedName;
-					if (name.Contains("||"))
-					{
-						string pattern = @"(?<=DAMAGED: )(?<label>\d+)(?=%)";
-						System.Text.RegularExpressions.Regex r = new System.Text.RegularExpressions.Regex(pattern);
-						taggedName = r.Replace(
-							name,
-							delegate (System.Text.RegularExpressions.Match m)
-							{
-								return (health * 100).ToString("F0");
-							});
-					}
-					else
-					{
-						taggedName = string.Format("{0} || DAMAGED: {1}%", name, health.ToString("F0"));
-						Log($"{name} was damaged. Showing on HUD.");
-					}
-					myTerminalBlock.CustomName = taggedName;
-				}
-				else
-				{
-					UntagAndHide(myTerminalBlock);
-				}
-			}
-
-			void UntagAndHide(IMyTerminalBlock myTerminalBlock)
-			{
-				if (myTerminalBlock.CustomName.Contains("||"))
-				{
-					string name = myTerminalBlock.CustomName;
-					myTerminalBlock.CustomName = name.Split('|')[0].Trim();
-					if (!(myTerminalBlock is IMyRadioAntenna) && !(myTerminalBlock is IMyBeacon))
-					{
-						myTerminalBlock.SetValue("ShowOnHUD", false);
-					}
-
-					Log($"{myTerminalBlock.CustomName} was fixed.");
-				}
-			}
-
-			public class MiningJob
-			{
-				protected MinerController c;
-
-				bool CurrentWpReached(double tolerance)
-				{
-					return (!c.pState.currentWp.HasValue || (c.pState.currentWp.Value - c.fwReferenceBlock.WorldMatrix.Translation).Length() <= tolerance);
-				}
-
-				public MiningJob(MinerController minerController)
-				{
-					c = minerController;
-				}
-
-				public void Start()
-				{
-					if (c.CurrentRole == Role.Agent)
-					{
-						c.UnicastToDispatcher("request-new", "");
-						c.WaitForDispatch("", mc => {
-							c.EnterSharedSpace(LOCK_NAME_GeneralSection, x =>
-							{
-								x.SetState(MinerState.ChangingShaft);
-								x.drills.ForEach(d => d.Enabled = false);
-								var depth = -15;
-								var pt = x.AddEchelonOffset(c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth);
-								//x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-								var entryBeh = $"command:create-wp:Name=ChangingShaft,Ng=Forward,UpNormal=1;0;0," +
-									$"AimNormal={VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}" +
-									$":{VectorOpsHelper.V3DtoBroadcastString(pt)}";
-								c.CommandAutoPillock(entryBeh);
-								c.pState.currentWp = pt;
-							});
-						});
-					}
-					else if (c.CurrentRole == Role.Lone)
-					{
-						c.pState.maxDepth = Variables.Get<float>("depth-limit");
-						c.pState.skipDepth = Variables.Get<float>("skip-depth");
-						c.SetState(MinerState.GoingToEntry);
-						c.pState.currentWp = c.pState.miningEntryPoint;
-
-						//var entryBeh = $"command:create-wp:Name=drill entry,Ng=Forward:{VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value)}";
-						var entryBeh = $"command:create-wp:Name=drill entry,Ng=Forward," +
-							$"AimNormal={VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}" +
-							$":{VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value)}";
-
-						c.CommandAutoPillock(entryBeh);
-					}
-				}
-
-				public void SkipShaft()
-				{
-					if (c.pState.CurrentJobMaxShaftYield < prevTickValCount + currentShaftValTotal - preShaftValTotal)
-						c.pState.CurrentJobMaxShaftYield = prevTickValCount + currentShaftValTotal - preShaftValTotal;
-
-					if (Toggle.C.Check("adaptive-mining"))
-					{
-						// can CurrentJobMaxShaftYield be zero?
-						// does not work as the prevTickValCount reflects the whole ore amount, not only from the current shaft
-						if (!lastFoundOreDepth.HasValue || ((prevTickValCount + currentShaftValTotal - preShaftValTotal) / c.pState.CurrentJobMaxShaftYield < 0.5f))
-						{
-							if (c.CurrentRole == Role.Agent)
-							{
-								c.UnicastToDispatcher("ban-direction", c.pState.CurrentShaftId.Value);
-							}
-							else
-							{
-								c.LocalDispatcher.BanDirectionByPoint(c.pState.CurrentShaftId.Value);
-							}
-						}
-					}
-
-					AccountChangeShaft();
-					lastFoundOreDepth = null;
-
-					var depth = -15;
-					var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
-
-					if (c.CurrentRole == Role.Agent)
-					{
-						// WaitingForLockInShaft -> ChangingShaft
-
-						//c.SetState(State.WaitingForDispatch);
-
-						c.UnicastToDispatcher("shaft-complete-request-new", c.pState.CurrentShaftId.Value);
-
-						c.WaitForDispatch("", mc => {
-							c.EnterSharedSpace(LOCK_NAME_GeneralSection, x =>
-							{
-								x.SetState(MinerState.ChangingShaft);
-								x.drills.ForEach(d => d.Enabled = false);
-								x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-								c.pState.currentWp = pt;
-							});
-						});
-					}
-					else if (c.CurrentRole == Role.Lone)
-					{
-						int newShaftId = 0;
-						if (c.LocalDispatcher.AssignNewShaft(ref c.pState.miningEntryPoint, ref c.pState.getAbovePt, ref newShaftId))
-						{
-							c.SetState(MinerState.ChangingShaft);
-							c.drills.ForEach(d => d.Enabled = false);
-							c.pState.CurrentShaftId = newShaftId;
-
-							c.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-							c.pState.currentWp = pt;
-						}
-
-					}
-
-				}
-
-				public void SetShaftVectors(int id, Vector3D miningEntryPoint, Vector3D getAbovePt)
-				{
-					c.pState.miningEntryPoint = miningEntryPoint;
-					c.pState.getAbovePt = getAbovePt;
-					c.pState.CurrentShaftId = id;
-				}
-
-				public void HandleState(MinerState state)
-				{
-					if (state == MinerState.GoingToEntry)
-					{
-						if (CurrentWpReached(0.5f))
-						{
-							c.ReleaseLock(LOCK_NAME_GeneralSection);
-							c.drills.ForEach(d => d.Enabled = true);
-							c.SetState(MinerState.Drilling);
-							//c.CommandAutoPillock("command:create-wp:Name=drill,Ng=Forward,PosDirectionOverride=Forward,SpeedLimit=0.6:0:0:0");
-							c.CommandAutoPillock("command:create-wp:Name=drill,Ng=Forward,PosDirectionOverride=Forward" +
-								",AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') +
-								",UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-drill") + ":0:0:0");
-						}
-					}
-
-					if (state == MinerState.Drilling)
-					{
-						currentDepth = (float)(c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length();
-						E.Echo($"Depth: current: {currentDepth:f1} skip: {c.pState.skipDepth:f1}");
-						if (c.pState.maxDepth.HasValue && (currentDepth > c.pState.maxDepth.Value)
-							|| !c.CheckBatteriesAndIntegrityThrottled(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
-						{
-							GetOutTheShaft();
-						}
-
-						if ((!c.pState.skipDepth.HasValue) || (currentDepth > c.pState.skipDepth))
-						{
-							// skipped surface layer, checking for ore and caring about cargo level
-							c.drills.ForEach(d => d.UseConveyorSystem = true);
-
-							if (CargoIsGettingValuableOre())
-							{
-								// lastFoundOreDepth = currentDepth;
-								// this causes early shaft abandon when lastFoundOreDepth gets occasional inputs from shaft walls during consequental shaft entries
-								// lastFoundOreDepth scope is current shaft
-								lastFoundOreDepth = Math.Max(currentDepth, lastFoundOreDepth ?? 0);
-								// test this
-								if ((!MinFoundOreDepth.HasValue) || (MinFoundOreDepth > currentDepth))
-									MinFoundOreDepth = currentDepth;
-								if ((!MaxFoundOreDepth.HasValue) || (MaxFoundOreDepth < currentDepth))
-									MaxFoundOreDepth = currentDepth;
-								if (Toggle.C.Check("adaptive-mining"))
-								{
-									c.pState.skipDepth = MinFoundOreDepth.Value - 2f;
-									c.pState.maxDepth = MaxFoundOreDepth.Value + 2f;
-								}
-							}
-							else
-							{
-								if (lastFoundOreDepth.HasValue && (currentDepth - lastFoundOreDepth > 2))
-								{
-									GetOutTheShaft();
-								}
-							}
-
-							if (CargoIsFull())
-							{
-								GetOutTheShaft();
-							}
-						}
-						else
-						{
-							c.drills.ForEach(d => d.UseConveyorSystem = false);
-						}
-					}
-
-					if ((state == MinerState.GettingOutTheShaft) || (state == MinerState.WaitingForLockInShaft))
-					{
-						if (CurrentWpReached(0.5f))
-						{
-							// kinda expensive
-							if (CargoIsFull() || !c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
-							{
-								// we reached cargo limit
-								c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
-								{
-									mc.SetState(MinerState.GoingToUnload);
-									mc.drills.ForEach(d => d.Enabled = false);
-									var pt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
-									mc.CommandAutoPillock("command:create-wp:Name=GoingToUnload,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-									c.pState.currentWp = pt;
-								});
-							}
-							else
-							{
-								// we reached depth limit
-								SkipShaft();
-							}
-						}
-					}
-
-					if (state == MinerState.ChangingShaft)
-					{
-						// triggered 15m above old mining entry
-						if (CurrentWpReached(0.5f))
-						{
-							var depth = -15;
-							var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
-							c.AddEchelonOffset(pt);
-							c.CommandAutoPillock("command:create-wp:Name=GoingToEntry (ChangingShaft),Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-							c.pState.currentWp = pt;
-							//c.SetState(State.GoingToEntry);
-							c.SetState(MinerState.ReturningToShaft);
-						}
-					}
-
-					if (state == MinerState.ReturningToShaft)
-					{
-						if (CurrentWpReached(1))
-						{
-							c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
-							{
-								mc.SetState(MinerState.GoingToEntry);
-								c.drills.ForEach(d => d.Enabled = true);
-
-								var entry = $"command:create-wp:Name=drill entry,Ng=Forward,UpNormal=1;0;0,AimNormal=" +
-										$"{VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}:";
-
-								double elevation;
-								if (Toggle.C.Check("adjust-entry-by-elevation") && c.remCon.TryGetPlanetElevation(MyPlanetElevation.Surface, out elevation))
-								{
-									Vector3D plCenter;
-									c.remCon.TryGetPlanetPosition(out plCenter);
-									var plNorm = Vector3D.Normalize(c.pState.miningEntryPoint.Value - plCenter);
-									var h = (c.fwReferenceBlock.WorldMatrix.Translation - plCenter).Length() - elevation + 5f;
-
-									var elevationAdjustedEntryPoint = plCenter + plNorm * h;
-									mc.CommandAutoPillock(entry + VectorOpsHelper.V3DtoBroadcastString(elevationAdjustedEntryPoint));
-									c.pState.currentWp = elevationAdjustedEntryPoint;
-								}
-								else
-								{
-									mc.CommandAutoPillock(entry + VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value));
-									c.pState.currentWp = c.pState.miningEntryPoint;
-								}
-							});
-						}
-					}
-
-					if (state == MinerState.GoingToUnload)
-					{
-						if (CurrentWpReached(0.5f))
-						{
-							c.ArrangeDocking();
-						}
-					}
-
-					if (state == MinerState.WaitingForDocking)
-					{
-						var dv = c.ntv("docking");
-						if (dv.Position.HasValue)
-						{
-							if (c.PrevState == MinerState.ForceFinish)
-							{
-								Vector3D dockingTransEntryPt;
-								if (c.pState.getAbovePt.HasValue)
-								{
-									dockingTransEntryPt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
-								}
-								else // assuming we didn't mine and just want to RTB
-								{
-									var dockPosDiff = dv.Position.Value - c.docker.GetPosition();
-									var n = dv.OrientationUnit.Value.Backward;
-									var altDiff = Vector3D.ProjectOnVector(ref dockPosDiff, ref n);
-									dockingTransEntryPt = c.AddEchelonOffset(c.docker.GetPosition() + altDiff, n);
-								}
-
-								// releasing that when we leave mining area zone
-								//c.EnterSharedSpace("general", mc =>
-								//{
-								// getAboveShaft, then follow up with:
-								// ForceFinish.dock-echelon - vertical offset in assigned docks' local coordinates, then follow up with:
-								// DockingFinal behavior
-								c.CommandAutoPillock("command:create-wp:Name=ForceFinish.getAbovePt,SpeedLimit=" + Variables.Get<float>("speed-clear") + ",Ng=Forward:" +
-										VectorOpsHelper.V3DtoBroadcastString(dockingTransEntryPt)
-								+ ":command:create-wp:Name=ForceFinish.dock-echelon,Ng=Forward,TransformChannel=docking:"
-								+ VectorOpsHelper.V3DtoBroadcastString(Vector3D.Transform(
-										c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward) -
-												dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude"),
-												MatrixD.Invert(dv.OrientationUnit.Value)))
-								+ ":command:pillock-mode:DockingFinal");
-
-								c.SetState(MinerState.ForceFinish);
-								//});
-							}
-							else
-							{
-								//c.EnterSharedSpace("general", mc =>
-								//{
-								c.CommandAutoPillock("command:create-wp:Name=DynamicDock.echelon,Ng=Forward,AimNormal="
-								+ VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')
-								+ ",TransformChannel=docking:"
-								+ VectorOpsHelper.V3DtoBroadcastString(Vector3D.Transform(
-									c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward) -
-											dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude"),
-											MatrixD.Invert(dv.OrientationUnit.Value)))
-								+ ":command:pillock-mode:DockingFinal");
-								c.SetState(MinerState.Docking);
-								//});
-							}
-						}
-					}
-
-					if (state == MinerState.Docking)
-					{
-						if (c.docker.Status == MyShipConnectorStatus.Connected)
-						{
-							if (!c.DockingHandled)
-							{
-								c.DockingHandled = true;
-								E.DebugLog("Regular docking handled");
-
-								c.CommandAutoPillock("command:pillock-mode:Disabled");
-								c.remCon.DampenersOverride = false;
-								c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
-								c.docker.OtherConnector.CustomData = "";
-								c.InvalidateDockingDto?.Invoke();
-								c.tanks.ForEach(b => b.Stockpile = true);
-
-								if (c.ObtainedLock == LOCK_NAME_GeneralSection)
-									c.ReleaseLock(LOCK_NAME_GeneralSection);
-							}
-
-							E.Echo("Docking: Connected");
-							if (!CargoFlush())
-							{
-								E.Echo("Docking: still have items");
-							}
-							else
-							{
-								// Docking => Maintenance => Disabled => Docking
-								if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
-								{
-									c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
-									{
-										c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Auto);
-										c.tanks.ForEach(b => b.Stockpile = false);
-										//c.docker.OtherConnector.CustomData = "";
-										AccountUnload();
-										HandleUnload(c.docker.OtherConnector);
-										c.docker.Disconnect();
-										c.SetState(MinerState.ReturningToShaft);
-									});
-								}
-								else
-								{
-									c.SetState(MinerState.Maintenance);
-									c.pState.LifetimeWentToMaintenance++;
-									Scheduler.C.After(10000).RepeatWhile(() => c.GetState() == MinerState.Maintenance).RunCmd(() => {
-										if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-full-factor"), 0.99f))
-										{
-											c.SetState(MinerState.Docking);
-										}
-									});
-								}
-							}
-						}
-						else
-						{
-							if (c.DockingHandled)
-								c.DockingHandled = false;
-							if (c.pState.StaticDockOverride.HasValue)
-								c.docker.Connect();
-						}
-					}
-
-					if (state == MinerState.Maintenance)
-					{
-						// for world reload
-						if ((c.PrevState != MinerState.Docking) && (c.docker.Status == MyShipConnectorStatus.Connected))
-						{
-							c.CommandAutoPillock("command:pillock-mode:Disabled");
-							Scheduler.C.After(10000).RepeatWhile(() => c.GetState() == MinerState.Maintenance).RunCmd(() => {
-								if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-full-factor"), 0.99f))
-								{
-									c.SetState(MinerState.Docking);
-								}
-							});
-						}
-					}
-
-					if (state == MinerState.ForceFinish)
-					{
-						if (c.docker.Status == MyShipConnectorStatus.Connected)
-						{
-							if (!c.DockingHandled)
-							{
-								c.DockingHandled = true;
-								E.DebugLog("ForceFinish docking handled");
-
-								c.CommandAutoPillock("command:pillock-mode:Disabled");
-
-								c.remCon.DampenersOverride = false;
-								c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
-								c.docker.OtherConnector.CustomData = "";
-								c.InvalidateDockingDto?.Invoke();
-								c.tanks.ForEach(b => b.Stockpile = true);
-
-								c.ObtainedLock = LOCK_NAME_ForceFinishSection; // facepalm
-								c.ReleaseLock(LOCK_NAME_ForceFinishSection);
-								c.ObtainedLock = LOCK_NAME_GeneralSection; // facepalm
-								c.ReleaseLock(LOCK_NAME_GeneralSection);
-							}
-
-							if (!CargoFlush())
-							{
-								E.Echo("ForceFinish: still have items");
-							}
-							else
-							{
-								c.SetState(MinerState.Disabled);
-								AccountUnload();
-
-								c.pState.LifetimeOperationTime += (int)(DateTime.Now - SessionStartedAt).TotalSeconds;
-								c.stateWrapper.Save();
-
-								// CurrentJob is recreated at command:mine or ResumeFromDock
-								c.CurrentJob = null;
-								// probably it's better to clear state only explicitly or when creating new mining task
-								// in this case a worker can ResumeFromDock via command:mine
-								/*
-								c.CurrentJob = null;
-								MaxFoundOreDepth = null;
-								MinFoundOreDepth = null;
-								*/
-							}
-						}
-						else
-						{
-							if (c.DockingHandled)
-								c.DockingHandled = false;
-							if (c.pState.StaticDockOverride.HasValue)
-								c.docker.Connect();
-						}
-					}
-				}
-
-				bool CargoFlush()
-				{
-					var outerContainers = new List<IMyCargoContainer>();
-					c.gts.GetBlocksOfType(outerContainers, b => b.IsSameConstructAs(c.docker.OtherConnector) && b.HasInventory && b.IsFunctional && (b is IMyCargoContainer));
-
-					var localInvs = c.allContainers.Select(c => c.GetInventory()).Where(i => i.ItemCount > 0);
-
-					if (localInvs.Any())
-					{
-						E.Echo("Docking: still have items");
-						foreach (var localInv in localInvs)
-						{
-							var items = new List<MyInventoryItem>();
-							localInv.GetItems(items);
-							for (int n = 0; n < items.Count; n++)
-							{
-								var itemToPush = items[n];
-								IMyInventory destinationInv;
-
-								var k = Variables.Get<string>("preferred-container");
-								if (!string.IsNullOrEmpty(k))
-									destinationInv = outerContainers.Where(x => x.CustomName.Contains(k)).Select(c => c.GetInventory()).FirstOrDefault();
-								else
-									destinationInv = outerContainers.Select(c => c.GetInventory()).Where(i => i.CanItemsBeAdded((MyFixedPoint)(1f), itemToPush.Type))
-									.OrderBy(i => (float)i.CurrentVolume).FirstOrDefault();
-
-								if (destinationInv != null)
-								{
-									//E.Echo("Docking: have outer invs to unload to");
-									if (!localInv.TransferItemTo(destinationInv, items[n]))
-									{
-										E.Echo("Docking: failing to transfer from " + (localInv.Owner as IMyTerminalBlock).CustomName + " to "
-											+ (destinationInv.Owner as IMyTerminalBlock).CustomName);
-									}
-								}
-							}
-						}
-						return false;
-					}
-					return true;
-				}
-
-				void GetOutTheShaft()
-				{
-					currentDepth = 0;
-					if (c.CurrentRole == Role.Agent)
-					{
-						c.SetState(MinerState.WaitingForLockInShaft);
-
-						var depth = Math.Min(8, (c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length());
-						var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
-						c.CommandAutoPillock("command:create-wp:Name=WaitingForLockInShaft,Ng=Forward" +
-							",AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') +
-							",UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-clear") +
-								":" + VectorOpsHelper.V3DtoBroadcastString(pt));
-						c.pState.currentWp = pt;
-					}
-					else if (c.CurrentRole == Role.Lone)
-					{
-						c.SetState(MinerState.GettingOutTheShaft);
-						c.CommandAutoPillock("command:create-wp:Name=GettingOutTheShaft,Ng=Forward,UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-clear") +
-								":" + VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value));
-						c.pState.currentWp = c.pState.miningEntryPoint;
-					}
-				}
-
-
-				public void UpdateReport(AgentReport report, MinerState state)
-				{
-					var b = ImmutableArray.CreateBuilder<MyTuple<string, string>>(10);
-					b.Add(new MyTuple<string, string>("State", state.ToString()));
-					b.Add(new MyTuple<string, string>("Adaptive\nmode", Toggle.C.Check("adaptive-mining") ? "Y" : "N"));
-					b.Add(new MyTuple<string, string>("Session\nore mined", SessionOreMined.ToString("f2")));
-					b.Add(new MyTuple<string, string>("Last found\nore depth", (lastFoundOreDepth ?? 0f).ToString("f2")));
-					b.Add(new MyTuple<string, string>("Cargo\nfullness", cargoFullness.ToString("f2")));
-					b.Add(new MyTuple<string, string>("Current\ndepth", currentDepth.ToString("f2")));
-					b.Add(new MyTuple<string, string>("Lock\nrequested", c.WaitedSection));
-					b.Add(new MyTuple<string, string>("Lock\nowned", c.ObtainedLock));
-					report.KeyValuePairs = b.ToImmutableArray();
-				}
-
-				StringBuilder sb = new StringBuilder();
-				public override string ToString()
-				{
-					sb.Clear();
-					sb.AppendFormat("session uptime: {0}\n", (SessionStartedAt == default(DateTime) ? "-" : (DateTime.Now - SessionStartedAt).ToString()));
-					sb.AppendFormat("session ore mass: {0}\n", SessionOreMined);
-					sb.AppendFormat("cargoFullness: {0:f2}\n", cargoFullness);
-					sb.AppendFormat("cargoMass: {0:f2}\n", cargoMass);
-					sb.AppendFormat("cargoYield: {0:f2}\n", prevTickValCount);
-					sb.AppendFormat("lastFoundOreDepth: {0}\n", lastFoundOreDepth.HasValue ? lastFoundOreDepth.Value.ToString("f2") : "-");
-					sb.AppendFormat("minFoundOreDepth: {0}\n", MinFoundOreDepth.HasValue ? MinFoundOreDepth.Value.ToString("f2") : "-");
-					sb.AppendFormat("maxFoundOreDepth: {0}\n", MaxFoundOreDepth.HasValue ? MaxFoundOreDepth.Value.ToString("f2") : "-");
-					sb.AppendFormat("shaft id: {0}\n", c.pState.CurrentShaftId ?? -1);
-
-					return sb.ToString();
-				}
-
-				float currentDepth;
-				public float SessionOreMined;
-				public DateTime SessionStartedAt;
-
-				float? lastFoundOreDepth;
-
-				float? MinFoundOreDepth
-				{
-					get
-					{
-						return c.pState.minFoundOreDepth;
-					}
-					set
-					{
-						c.pState.minFoundOreDepth = value;
-					}
-				}
-				float? MaxFoundOreDepth
-				{
-					get
-					{
-						return c.pState.maxFoundOreDepth;
-					}
-					set
-					{
-						c.pState.maxFoundOreDepth = value;
-					}
-				}
-
-				public float GetShaftYield()
-				{
-					return prevTickValCount + currentShaftValTotal - preShaftValTotal;
-				}
-
-				void AccountUnload()
-				{
-					SessionOreMined += cargoMass;
-					c.pState.LifetimeOreAmount += cargoMass;
-					c.pState.LifetimeYield += prevTickValCount;
-					currentShaftValTotal += prevTickValCount - preShaftValTotal;
-					preShaftValTotal = 0;
-					prevTickValCount = 0;
-				}
-
-				void AccountChangeShaft()
-				{
-					preShaftValTotal = prevTickValCount;
-					currentShaftValTotal = 0;
-				}
-
-				float currentShaftValTotal = 0;
-				float preShaftValTotal = 0;
-				float prevTickValCount = 0;
-				bool CargoIsGettingValuableOre()
-				{
-					float totalAmount = 0;
-					for (int i = 0; i < c.allContainers.Count; i++)
-					{
-						var inv = c.allContainers[i].GetInventory(0);
-						if (inv == null)
-							continue;
-						List<MyInventoryItem> items = new List<MyInventoryItem>();
-						inv.GetItems(items);
-						items.Where(ix => ix.Type.ToString().Contains("Ore") && !ix.Type.ToString().Contains("Stone")).ToList().ForEach(x => totalAmount += (float)x.Amount);
-					}
-
-					bool gain = false;
-					if ((prevTickValCount > 0) && (totalAmount > prevTickValCount))
-					{
-						gain = true;
-					}
-
-					prevTickValCount = totalAmount;
-
-					return gain;
-				}
-
-				float cargoFullness;
-				float cargoMass;
-				bool CargoIsFull()
-				{
-					float spaceNominal = 0;
-					float spaceOccupied = 0;
-					cargoMass = 0;
-					for (int i = 0; i < c.allContainers.Count; i++)
-					{
-						var inv = c.allContainers[i].GetInventory(0);
-						if (inv == null)
-							continue;
-						spaceNominal += (float)inv.MaxVolume;
-						spaceOccupied += (float)inv.CurrentVolume;
-						cargoMass += (float)inv.CurrentMass;
-					}
-					cargoFullness = spaceOccupied / spaceNominal;
-					return cargoFullness >= Variables.Get<float>("cargo-full-factor");
-				}
-
-				void HandleUnload(IMyShipConnector otherConnector)
-				{
-					string pathFromDockToAbovePt = "command:create-wp:Name=drill getAbovePt,Ng=Forward,AimNormal="
-								+ VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') + ":"
-								+ VectorOpsHelper.V3DtoBroadcastString(c.AddEchelonOffset(c.pState.getAbovePt.Value));
-
-					var aboveDock = c.AddEchelonOffset(otherConnector.WorldMatrix.Translation, otherConnector.WorldMatrix.Backward) -
-												otherConnector.WorldMatrix.Backward * Variables.Get<float>("getAbove-altitude");
-
-					//var aboveDock = c.AddEchelonOffset(c.fwReferenceBlock.GetPosition()) - c.GetMiningPlaneNormal() * Variables.Get<float>("getAbove-altitude");
-					var seq = "[command:pillock-mode:Disabled],[command:create-wp:Name=Dock.Echelon,Ng=Forward:"
-								+ VectorOpsHelper.V3DtoBroadcastString(aboveDock) + ":" + pathFromDockToAbovePt + "]";
-
-					c.CommandAutoPillock(seq);
-					c.pState.currentWp = c.AddEchelonOffset(c.pState.getAbovePt.Value);
-				}
-			}
+			//	Queue<Action<MinerController>> waitedActions = new Queue<Action<MinerController>>();
+			//	public void WaitForDispatch(string sectionName, Action<MinerController> callback)
+			//	{
+			//		WaitingForLock = true;
+			//		if (!string.IsNullOrEmpty(sectionName))
+			//			WaitedSection = sectionName;
+			//		waitedActions.Enqueue(callback);
+			//		Log("WaitForDispatch section \"" + sectionName + "\", callback chain: " + waitedActions.Count);
+			//	}
+
+			//	public void Dispatch()
+			//	{
+			//		WaitingForLock = false;
+			//		WaitedSection = "";
+			//		var count = waitedActions.Count;
+			//		if (count > 0)
+			//		{
+			//			Log("Dispatching, callback chain: " + count);
+			//			var a = waitedActions.Dequeue();
+			//			a.Invoke(this);
+			//		}
+			//		else
+			//			Log("WARNING: empty Dispatch()");
+			//	}
+
+			//	public void BroadcastToChannel<T>(string tag, T data)
+			//	{
+			//		IGC.SendBroadcastMessage(tag, data, TransmissionDistance.TransmissionDistanceMax);
+			//		LogMsg(data, true);
+			//	}
+
+			//	public void UnicastToDispatcher<T>(string tag, T data)
+			//	{
+			//		if (DispatcherId.HasValue)
+			//			IGC.SendUnicastMessage(DispatcherId.Value, tag, data);
+			//	}
+
+			//	public void Log(object msg)
+			//	{
+			//		E.DebugLog($"MinerController -> {msg}");
+			//	}
+
+			//	public void LogMsg(object msg, bool outgoing)
+			//	{
+			//		string data = msg.GetType().Name;
+			//		if (msg is string)
+			//			data = (string)msg;
+			//		else if ((msg is ImmutableArray<Vector3D>) || (msg is Vector3D))
+			//			data = "some vector(s)";
+
+			//		if (Toggle.C.Check("log-message"))
+			//		{
+			//			if (!outgoing)
+			//				E.DebugLog($"MinerController MSG-IN -> {data}");
+			//			else
+			//				E.DebugLog($"MinerController MSG-OUT -> {data}");
+			//		}
+			//	}
+
+			//	public Action InvalidateDockingDto;
+			//	public IMyProgrammableBlock pCore;
+			//	APckUnit embeddedUnit;
+			//	public IMyGridTerminalSystem gts;
+			//	public IMyIntergridCommunicationSystem IGC;
+			//	public IMyRemoteControl remCon;
+			//	public List<IMyTerminalBlock> allContainers = new List<IMyTerminalBlock>();
+			//	public IMyTerminalBlock fwReferenceBlock;
+			//	public List<IMyShipDrill> drills = new List<IMyShipDrill>();
+			//	public IMyShipConnector docker;
+			//	public IMyRadioAntenna antenna;
+			//	public List<IMyBatteryBlock> batteries = new List<IMyBatteryBlock>();
+			//	public List<IMyGasTank> tanks = new List<IMyGasTank>();
+			//	public IMyLightingBlock refLight;
+			//	public List<IMyTerminalBlock> allFunctionalBlocks = new List<IMyTerminalBlock>();
+
+			//	public void ResumeJobOnWorldLoad()
+			//	{
+			//		CurrentJob = new MiningJob(this);
+			//		CurrentJob.SessionStartedAt = DateTime.Now;
+			//		// TODO: restore some stats stuff
+			//	}
+
+			//	public void MineCommandHandler()
+			//	{
+			//		CurrentJob = new MiningJob(this);
+			//		CurrentJob.SessionStartedAt = DateTime.Now;
+			//		pState.LifetimeAcceptedTasks++;
+			//		pState.maxDepth = Variables.Get<float>("depth-limit");
+			//		pState.skipDepth = Variables.Get<float>("skip-depth");
+			//		if (!TryResumeFromDock())
+			//		{
+			//			CurrentJob.Start();
+			//		}
+			//	}
+
+			//	public void SkipCommandHandler()
+			//	{
+			//		if (CurrentJob != null)
+			//		{
+			//			CurrentJob.SkipShaft();
+			//		}
+			//	}
+
+			//	public void SetStaticDockOverrideHandler(string[] cmdString)
+			//	{
+			//		if ((cmdString.Length > 2) && (cmdString[2] == "clear"))
+			//			pState.StaticDockOverride = null;
+			//		else
+			//			pState.StaticDockOverride = fwReferenceBlock.WorldMatrix.Translation;
+			//	}
+
+			//	public Vector3D AddEchelonOffset(Vector3D pt)
+			//	{
+			//		if (Echelon.HasValue)
+			//		{
+			//			return pt - GetMiningPlaneNormal() * Echelon.Value;
+			//		}
+			//		return pt;
+			//	}
+
+			//	public Vector3D AddEchelonOffset(Vector3D pt, Vector3D normal)
+			//	{
+			//		if (Echelon.HasValue)
+			//		{
+			//			return pt - normal * Echelon.Value;
+			//		}
+			//		return pt;
+			//	}
+
+			//	public bool TryUsingStaticDock(bool generateApproachWp)
+			//	{
+			//		if (pState.StaticDockOverride.HasValue)
+			//		{
+			//			string dFinal = "command:create-wp:Name=StaticDock,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pState.StaticDockOverride.Value);
+
+			//			if (!WholeAirspaceLocking)
+			//				ReleaseLock(LOCK_NAME_GeneralSection);
+
+			//			if (Echelon.HasValue)
+			//			{
+			//				dFinal = "command:create-wp:Name=StaticDock.echelon,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(AddEchelonOffset(pState.StaticDockOverride.Value)) 
+			//					+ ":" + dFinal;
+			//			}
+
+			//			if (generateApproachWp)
+			//			{
+			//				if (pState.getAbovePt.HasValue)
+			//					CommandAutoPillock("command:create-wp:Name=StaticDock.getAbovePt,Ng=Forward,SpeedLimit=" + Variables.Get<float>("speed-clear") 
+			//						+ ":" + VectorOpsHelper.V3DtoBroadcastString(
+			//						AddEchelonOffset(pState.getAbovePt.Value)) + ":" + dFinal);
+			//				else
+			//				{
+			/*
+			double elevaton;
+			remCon.TryGetPlanetElevation(MyPlanetElevation.Surface, out elevaton);
+			*/
+			// elevation below surface is Abs
+			//					var dockP = pState.StaticDockOverride.Value;
+			//					Vector3D plCenter;
+			//					remCon.TryGetPlanetPosition(out plCenter);
+			//					var dockAlt = dockP - plCenter;
+			//					var myAlt = (fwReferenceBlock.GetPosition() - plCenter);
+			//					var plNorm = Vector3D.Normalize(myAlt);
+			//					var alt = dockAlt.Length() > myAlt.Length() ? dockAlt : myAlt;
+			//					var approachP = plCenter + plNorm * (alt.Length() + 100f);
+			//					CommandAutoPillock("command:create-wp:Name=StaticDock.approachP,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(approachP) + ":" + dFinal);
+			//				}
+			//			}
+			//			else
+			//			{
+			//				CommandAutoPillock(dFinal);
+			//			}
+
+			//			return true;
+			//		}
+			//		return false;
+			//	}
+
+			//	public void ArrangeDocking()
+			//	{
+			//		bool finishSession = GetState() == MinerState.ForceFinish;
+			//		if (pState.StaticDockOverride.HasValue)
+			//		{
+			//			if (TryUsingStaticDock(finishSession))
+			//			{
+			// Static docking, we are safe at own echelon
+			//				if (!WholeAirspaceLocking)
+			//					ReleaseLock(LOCK_NAME_GeneralSection);
+			//				if (!finishSession)
+			//					SetState(MinerState.Docking);
+			//			}
+			//		}
+			//		else
+			//		{
+			//			if (DispatcherId.HasValue)
+			//			{
+			// Multi-agent mode, dynamic docking, respect shared space
+			// Release lock as we are safe at own echelon while sitting on WaitingForDocking
+			//				if (!WholeAirspaceLocking)
+			//					ReleaseLock(LOCK_NAME_GeneralSection);
+			//				InvalidateDockingDto?.Invoke();
+			//				IGC.SendUnicastMessage(DispatcherId.Value, "apck.docking.request", docker.GetPosition());
+			//				SetState(MinerState.WaitingForDocking);
+			//			}
+			//			else
+			//			{
+			// Lone mode, dynamic docking, don't care about shared space. Docking is arranged by APck.
+			//				if (!finishSession)
+			//				{
+			//					SetState(MinerState.Docking);
+			//					CommandAutoPillock("command:request-docking");
+			//				}
+			//				else
+			//				{
+			// to not end up hitting the shaft wall
+			//					CommandAutoPillock("[command:create-wp:Name=AutoDock.getAbovePt,Ng=Forward,SpeedLimit=" + Variables.Get<float>("speed-clear") + ":" +
+			//						VectorOpsHelper.V3DtoBroadcastString(AddEchelonOffset(pState.getAbovePt.HasValue ? pState.getAbovePt.Value : 
+			//								(fwReferenceBlock.GetPosition() + fwReferenceBlock.WorldMatrix.Up * 50)))
+			//										+ ":command:request-docking]");
+			//				}
+			//			}
+			//		}
+			//	}
+
+			//	public void FinishAndDockHandler()
+			//	{
+			//		if (docker.Status == MyShipConnectorStatus.Connected)
+			//		{
+			//			batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
+			//			tanks.ForEach(b => b.Stockpile = true);
+			//			pState.lastAPckCommand = "";
+			//			SetState(MinerState.Disabled);
+			//		}
+			//		else
+			//		{
+			//			drills.ForEach(dr => dr.Enabled = false);
+			//ReleaseLock(LOCK_NAME_GeneralSection);
+			//			WaitedSection = "";
+			//			waitedActions.Clear();
+			//			EnterSharedSpace(LOCK_NAME_ForceFinishSection, (mc) =>
+			//			{
+			//				if (pState.MinerState == MinerState.ForceFinish || pState.MinerState == MinerState.Docking || docker.Status == MyShipConnectorStatus.Connected)
+			//				{
+			//					SetState(MinerState.ForceFinish);
+			//					Log("Started force-finish callback during docking in progress!");
+			//					ReleaseLock(LOCK_NAME_ForceFinishSection);
+			//					return;
+			//				}
+
+			//				SetState(MinerState.ForceFinish);
+			// TODO: redo ffs... Handle state for WaitingForDock requires job
+			//				CurrentJob = CurrentJob ?? new MiningJob(this);
+			//				ArrangeDocking();
+			//			});
+			//		}
+			//	}
+
+			//	public bool TryResumeFromDock()
+			//	{
+			//		if (docker.Status == MyShipConnectorStatus.Connected)
+			//		{
+			//			if (pState.getAbovePt.HasValue)
+			//			{
+			//				SetState(MinerState.Docking);
+			//				return true;
+			//			}
+			//			else
+			//			{
+			//				if (CurrentRole == Role.Agent)
+			//				{
+			//					UnicastToDispatcher("request-new", "");
+			//					WaitForDispatch("", mc => {
+			//						mc.SetState(MinerState.Docking);
+			//					});
+			//					return true;
+			//				}
+			//			}
+			//		}
+			//		return false;
+			//	}
+
+			//	public void EnterSharedSpace(string sectionName, Action<MinerController> task)
+			//	{
+			//		if (CurrentRole == Role.Agent)
+			//		{
+			//			BroadcastToChannel("miners", "common-airspace-ask-for-lock:" + sectionName);
+			//			WaitForDispatch(sectionName, task);
+			//		}
+			//		else
+			//		{
+			//			task(this);
+			//		}
+			//	}
+
+			//	public void ReleaseLock(string sectionName)
+			//	{
+			//		if (ObtainedLock == sectionName)
+			//		{
+			//			ObtainedLock = null;
+			//			if (CurrentRole == Role.Agent)
+			//			{
+			//				BroadcastToChannel("miners", "common-airspace-lock-released:" + sectionName);
+			//				Log($"Released lock: {sectionName}");
+			//			}
+			//		}
+			//		else
+			//		{
+			//			Log("Tried to release non-owned lock section " + sectionName);
+			//		}
+			//	}
+
+			//	public CommandRegistry ApckRegistry;
+			//	public void CommandAutoPillock(string cmd, Action<APckUnit> embeddedAction = null)
+			//	{
+			//		pState.lastAPckCommand = cmd;
+			//		E.DebugLog("CommandAutoPillock: " + cmd);
+			//		if (embeddedUnit != null)
+			//		{
+			//			if (embeddedAction != null)
+			//			{
+			//				embeddedAction(embeddedUnit);
+			//			}
+			//			else
+			//			{
+			//Log($"'{cmd}' is not support for embedded unit yet");
+
+			//				var cmds = cmd.Split(new[] { "],[" }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim('[', ']')).ToList();
+			//				foreach (var i in cmds)
+			//				{
+			//					string[] cmdParts = i.Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
+			//					if (cmdParts[0] == "command")
+			//					{
+			//						ApckRegistry.RunCommand(cmdParts[1], cmdParts);
+			//					}
+			//				}
+			//			}
+			//		}
+			//		else
+			//		{
+			//			if (IGC.IsEndpointReachable(pCore.EntityId))
+			//			{
+			//				IGC.SendUnicastMessage(pCore.EntityId, "apck.command", cmd);
+			//			}
+			//			else
+			//			{
+			//				throw new Exception($"APck {pCore.EntityId} is not reachable");
+			//			}
+			//		}
+			//if (!pCore.TryRun(cmd))
+			//throw new Exception("APck failure");
+			//	}
+
+
+			//	DateTime lastCheckStamp;
+			//	bool CheckBatteriesAndIntegrityThrottled(float desiredBatteryLevel, float desiredGasLevel)
+			//	{
+			//		var dtNow = DateTime.Now;
+			//		if ((dtNow - lastCheckStamp).TotalSeconds > 60)
+			//		{
+			//			lastCheckStamp = dtNow;
+			//			return CheckBatteriesAndIntegrity(desiredBatteryLevel, desiredGasLevel);
+			//		}
+			//		return true;
+			//	}
+
+			//	bool CheckBatteriesAndIntegrity(float desiredBatteryLevel, float desiredGasLevel)
+			//	{
+			//		allFunctionalBlocks.ForEach(x => TagDamagedTerminalBlocks(x, GetMyTerminalBlockHealth(x), PrevState != MinerState.ForceFinish));
+			//		if (allFunctionalBlocks.Any(b => !b.IsFunctional))
+			//		{
+			//			if (antenna != null)
+			//				antenna.CustomName = antenna.CubeGrid.CustomName + "> Damaged. Fix me asap!";
+			//			allFunctionalBlocks.Where(b => !b.IsFunctional).ToList().ForEach(b => E.DebugLog($"{b.CustomName} is damaged or destroyed"));
+			//			return false;
+			//		}
+			//		float storedPower = 0;
+			//		float maxPower = 0;
+			//		foreach (var b in batteries)
+			//		{
+			//			maxPower += b.MaxStoredPower;
+			//			storedPower += b.CurrentStoredPower;
+			//		}
+			//		double gasAvg = 0;
+			//		foreach (var b in tanks)
+			//		{
+			//			gasAvg += b.FilledRatio;
+			//		}
+
+			//		if (tanks.Any() && (gasAvg / tanks.Count < desiredGasLevel))
+			//		{
+			//			if (antenna != null)
+			//				antenna.CustomName = $"{antenna.CubeGrid.CustomName}> Maintenance. Gas level: {gasAvg / tanks.Count:f2}/{desiredGasLevel:f2}";
+			//			return false;
+			//		}
+			//		else if (storedPower / maxPower < desiredBatteryLevel)
+			//		{
+			//			if (antenna != null)
+			//				antenna.CustomName = $"{antenna.CubeGrid.CustomName}> Maintenance. Charge level: {storedPower / maxPower:f2}/{desiredBatteryLevel:f2}";
+			//			return false;
+			//		}
+			//		else
+			//		{
+			//			return true;
+			//		}
+			//	}
+
+			//	float GetMyTerminalBlockHealth(IMyTerminalBlock block)
+			//	{
+			//		IMySlimBlock slimblock = block.CubeGrid.GetCubeBlock(block.Position);
+			//		if (slimblock != null)
+			//			return (slimblock.BuildIntegrity - slimblock.CurrentDamage) / slimblock.MaxIntegrity;
+			//		else
+			//			return 1f;
+			//	}
+
+			//	void TagDamagedTerminalBlocks(IMyTerminalBlock myTerminalBlock, float health, bool onlyNonFunctional)
+			//	{
+			//		string name = myTerminalBlock.CustomName;
+			//		if ((health < 1f) && (!onlyNonFunctional || !myTerminalBlock.IsFunctional))
+			//		{
+			//			if (!(myTerminalBlock is IMyRadioAntenna) && !(myTerminalBlock is IMyBeacon))
+			//			{
+			//				myTerminalBlock.SetValue("ShowOnHUD", true);
+			//			}
+			//			string taggedName;
+			//			if (name.Contains("||"))
+			//			{
+			//				string pattern = @"(?<=DAMAGED: )(?<label>\d+)(?=%)";
+			//				System.Text.RegularExpressions.Regex r = new System.Text.RegularExpressions.Regex(pattern);
+			//				taggedName = r.Replace(
+			//					name,
+			//					delegate (System.Text.RegularExpressions.Match m)
+			//					{
+			//						return (health * 100).ToString("F0");
+			//					});
+			//			}
+			//			else
+			//			{
+			//				taggedName = string.Format("{0} || DAMAGED: {1}%", name, health.ToString("F0"));
+			//				Log($"{name} was damaged. Showing on HUD.");
+			//			}
+			//			myTerminalBlock.CustomName = taggedName;
+			//		}
+			//		else
+			//		{
+			//			UntagAndHide(myTerminalBlock);
+			//		}
+			//	}
+
+			//	void UntagAndHide(IMyTerminalBlock myTerminalBlock)
+			//	{
+			//		if (myTerminalBlock.CustomName.Contains("||"))
+			//		{
+			//			string name = myTerminalBlock.CustomName;
+			//			myTerminalBlock.CustomName = name.Split('|')[0].Trim();
+			//			if (!(myTerminalBlock is IMyRadioAntenna) && !(myTerminalBlock is IMyBeacon))
+			//			{
+			//				myTerminalBlock.SetValue("ShowOnHUD", false);
+			//			}
+
+			//			Log($"{myTerminalBlock.CustomName} was fixed.");
+			//		}
+			//	}
+
+			//	public class MiningJob
+			//	{
+			//		protected MinerController c;
+
+			//		bool CurrentWpReached(double tolerance)
+			//		{
+			//			return (!c.pState.currentWp.HasValue || (c.pState.currentWp.Value - c.fwReferenceBlock.WorldMatrix.Translation).Length() <= tolerance);
+			//		}
+
+			//		public MiningJob(MinerController minerController)
+			//		{
+			//			c = minerController;
+			//		}
+
+			//		public void Start()
+			//		{
+			//			if (c.CurrentRole == Role.Agent)
+			//			{
+			//				c.UnicastToDispatcher("request-new", "");
+			//				c.WaitForDispatch("", mc => {
+			//					c.EnterSharedSpace(LOCK_NAME_GeneralSection, x =>
+			//					{
+			//						x.SetState(MinerState.ChangingShaft);
+			//						x.drills.ForEach(d => d.Enabled = false);
+			//						var depth = -15;
+			//						var pt = x.AddEchelonOffset(c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth);
+			//x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
+			//						var entryBeh = $"command:create-wp:Name=ChangingShaft,Ng=Forward,UpNormal=1;0;0," +
+			//							$"AimNormal={VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}" +
+			//							$":{VectorOpsHelper.V3DtoBroadcastString(pt)}";
+			//						c.CommandAutoPillock(entryBeh);
+			//						c.pState.currentWp = pt;
+			//					});
+			//				});
+			//			}
+			//			else if (c.CurrentRole == Role.Lone)
+			//			{
+			//				c.pState.maxDepth = Variables.Get<float>("depth-limit");
+			//				c.pState.skipDepth = Variables.Get<float>("skip-depth");
+			//				c.SetState(MinerState.GoingToEntry);
+			//				c.pState.currentWp = c.pState.miningEntryPoint;
+
+			//var entryBeh = $"command:create-wp:Name=drill entry,Ng=Forward:{VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value)}";
+			//				var entryBeh = $"command:create-wp:Name=drill entry,Ng=Forward," +
+			//					$"AimNormal={VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}" +
+			//					$":{VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value)}";
+
+			//				c.CommandAutoPillock(entryBeh);
+			//			}
+			//		}
+
+			//		public void SkipShaft()
+			//		{
+			//			if (c.pState.CurrentJobMaxShaftYield < prevTickValCount + currentShaftValTotal - preShaftValTotal)
+			//				c.pState.CurrentJobMaxShaftYield = prevTickValCount + currentShaftValTotal - preShaftValTotal;
+			//
+			//			if (Toggle.C.Check("adaptive-mining"))
+			//			{
+			// can CurrentJobMaxShaftYield be zero?
+			// does not work as the prevTickValCount reflects the whole ore amount, not only from the current shaft
+			//				if (!lastFoundOreDepth.HasValue || ((prevTickValCount + currentShaftValTotal - preShaftValTotal) / c.pState.CurrentJobMaxShaftYield < 0.5f))
+			//				{
+			//					if (c.CurrentRole == Role.Agent)
+			//					{
+			//						c.UnicastToDispatcher("ban-direction", c.pState.CurrentShaftId.Value);
+			//					}
+			//					else
+			//					{
+			//						c.LocalDispatcher.BanDirectionByPoint(c.pState.CurrentShaftId.Value);
+			//					}
+			//				}
+			//			}
+
+			//			AccountChangeShaft();
+			//			lastFoundOreDepth = null;
+
+			//			var depth = -15;
+			//			var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
+
+			//			if (c.CurrentRole == Role.Agent)
+			//			{
+			// WaitingForLockInShaft -> ChangingShaft
+
+			//c.SetState(State.WaitingForDispatch);
+
+			//				c.UnicastToDispatcher("shaft-complete-request-new", c.pState.CurrentShaftId.Value);
+
+			//				c.WaitForDispatch("", mc => {
+			//					c.EnterSharedSpace(LOCK_NAME_GeneralSection, x =>
+			//					{
+			//						x.SetState(MinerState.ChangingShaft);
+			//						x.drills.ForEach(d => d.Enabled = false);
+			//						x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
+			//						c.pState.currentWp = pt;
+			//					});
+			//				});
+			//			}
+			//			else if (c.CurrentRole == Role.Lone)
+			//			{
+			//				int newShaftId = 0;
+			//				if (c.LocalDispatcher.AssignNewShaft(ref c.pState.miningEntryPoint, ref c.pState.getAbovePt, ref newShaftId))
+			//				{
+			//					c.SetState(MinerState.ChangingShaft);
+			//					c.drills.ForEach(d => d.Enabled = false);
+			//					c.pState.CurrentShaftId = newShaftId;
+
+			//					c.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
+			//					c.pState.currentWp = pt;
+			//				}
+
+			//			}
+
+			//		}
+
+			//		public void SetShaftVectors(int id, Vector3D miningEntryPoint, Vector3D getAbovePt)
+			//		{
+			//			c.pState.miningEntryPoint = miningEntryPoint;
+			//			c.pState.getAbovePt = getAbovePt;
+			//			c.pState.CurrentShaftId = id;
+			//		}
+
+			//		public void HandleState(MinerState state)
+			//		{
+			//			if (state == MinerState.GoingToEntry)
+			//			{
+			//				if (CurrentWpReached(0.5f))
+			//				{
+			//					c.ReleaseLock(LOCK_NAME_GeneralSection);
+			//					c.drills.ForEach(d => d.Enabled = true);
+			//					c.SetState(MinerState.Drilling);
+			//c.CommandAutoPillock("command:create-wp:Name=drill,Ng=Forward,PosDirectionOverride=Forward,SpeedLimit=0.6:0:0:0");
+			//					c.CommandAutoPillock("command:create-wp:Name=drill,Ng=Forward,PosDirectionOverride=Forward" +
+			//						",AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') + 
+			//						",UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-drill") + ":0:0:0");
+			//				}
+			//			}
+
+			//			if (state == MinerState.Drilling)
+			//			{
+			//				currentDepth = (float)(c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length();
+			//				E.Echo($"Depth: current: {currentDepth:f1} skip: {c.pState.skipDepth:f1}");
+			//				if (c.pState.maxDepth.HasValue && (currentDepth > c.pState.maxDepth.Value) 
+			//					|| !c.CheckBatteriesAndIntegrityThrottled(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
+			//				{
+			//					GetOutTheShaft();
+			//				}
+			//
+			//				if ((!c.pState.skipDepth.HasValue) || (currentDepth > c.pState.skipDepth))
+			//				{
+			//					// skipped surface layer, checking for ore and caring about cargo level
+			//					c.drills.ForEach(d => d.UseConveyorSystem = true);
+
+			//					if (CargoIsGettingValuableOre())
+			//					{
+			//						// lastFoundOreDepth = currentDepth;
+			//						// this causes early shaft abandon when lastFoundOreDepth gets occasional inputs from shaft walls during consequental shaft entries
+			//						// lastFoundOreDepth scope is current shaft
+			//						lastFoundOreDepth = Math.Max(currentDepth, lastFoundOreDepth ?? 0);
+			//						// test this
+			//						if ((!MinFoundOreDepth.HasValue) || (MinFoundOreDepth > currentDepth))
+			//							MinFoundOreDepth = currentDepth;
+			//						if ((!MaxFoundOreDepth.HasValue) || (MaxFoundOreDepth < currentDepth))
+			//							MaxFoundOreDepth = currentDepth;
+			//						if (Toggle.C.Check("adaptive-mining"))
+			//						{
+			//							c.pState.skipDepth = MinFoundOreDepth.Value - 2f;
+			//							c.pState.maxDepth = MaxFoundOreDepth.Value + 2f;
+			//						}
+			//					}
+			//					else
+			//					{
+			//						if (lastFoundOreDepth.HasValue && (currentDepth - lastFoundOreDepth > 2))
+			//						{
+			//							GetOutTheShaft();
+			//						}
+			//					}
+			//
+			//					if (CargoIsFull())
+			//					{
+			//						GetOutTheShaft();
+			//					}
+			//				}
+			//				else
+			//				{
+			//					c.drills.ForEach(d => d.UseConveyorSystem = false);
+			//				}
+			//			}
+
+			//			if ((state == MinerState.GettingOutTheShaft) || (state == MinerState.WaitingForLockInShaft))
+			//			{
+			//				if (CurrentWpReached(0.5f))
+			//				{
+			// kinda expensive
+			//					if (CargoIsFull() || !c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
+			//					{
+			// we reached cargo limit
+			//						c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
+			//						{
+			//							mc.SetState(MinerState.GoingToUnload);
+			//							mc.drills.ForEach(d => d.Enabled = false);
+			//							var pt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
+			//							mc.CommandAutoPillock("command:create-wp:Name=GoingToUnload,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
+			//							c.pState.currentWp = pt;
+			//						});
+			//					}
+			//					else
+			//					{
+			// we reached depth limit
+			//						SkipShaft();
+			//					}
+			//				}
+			//			}
+
+			//			if (state == MinerState.ChangingShaft)
+			//			{
+			// triggered 15m above old mining entry
+			//				if (CurrentWpReached(0.5f))
+			//				{
+			//					var depth = -15;
+			//					var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
+			//					c.AddEchelonOffset(pt);
+			//					c.CommandAutoPillock("command:create-wp:Name=GoingToEntry (ChangingShaft),Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
+			//					c.pState.currentWp = pt;
+			//c.SetState(State.GoingToEntry);
+			//					c.SetState(MinerState.ReturningToShaft);
+			//				}
+			//			}
+
+			//			if (state == MinerState.ReturningToShaft)
+			//			{
+			//				if (CurrentWpReached(1))
+			//				{
+			//					c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
+			//					{
+			//						mc.SetState(MinerState.GoingToEntry);
+			//						c.drills.ForEach(d => d.Enabled = true);
+
+			//						var entry = $"command:create-wp:Name=drill entry,Ng=Forward,UpNormal=1;0;0,AimNormal=" +
+			//								$"{VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}:";
+
+			//						double elevation;
+			//						if (Toggle.C.Check("adjust-entry-by-elevation") && c.remCon.TryGetPlanetElevation(MyPlanetElevation.Surface, out elevation))
+			//						{
+			//							Vector3D plCenter;
+			//							c.remCon.TryGetPlanetPosition(out plCenter);
+			//							var plNorm = Vector3D.Normalize(c.pState.miningEntryPoint.Value - plCenter);
+			//							var h = (c.fwReferenceBlock.WorldMatrix.Translation - plCenter).Length() - elevation + 5f;
+			//
+			//							var elevationAdjustedEntryPoint = plCenter + plNorm * h;
+			//							mc.CommandAutoPillock(entry + VectorOpsHelper.V3DtoBroadcastString(elevationAdjustedEntryPoint));
+			//							c.pState.currentWp = elevationAdjustedEntryPoint;
+			//						}
+			//						else
+			//						{
+			//							mc.CommandAutoPillock(entry + VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value));
+			//							c.pState.currentWp = c.pState.miningEntryPoint;
+			//						}
+			//					});
+			//				}
+			//			}
+
+			//			if (state == MinerState.GoingToUnload)
+			//			{
+			//				if (CurrentWpReached(0.5f))
+			//				{
+			//					c.ArrangeDocking();
+			//				}
+			//			}
+
+			//			if (state == MinerState.WaitingForDocking)
+			//			{
+			//				var dv = c.ntv("docking");
+			//				if (dv.Position.HasValue)
+			//				{
+			//					if (c.PrevState == MinerState.ForceFinish)
+			//					{
+			//						Vector3D dockingTransEntryPt;
+			//						if (c.pState.getAbovePt.HasValue)
+			//						{
+			//							dockingTransEntryPt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
+			//						}
+			//						else // assuming we didn't mine and just want to RTB
+			//						{
+			//							var dockPosDiff = dv.Position.Value - c.docker.GetPosition();
+			//							var n = dv.OrientationUnit.Value.Backward;
+			//							var altDiff = Vector3D.ProjectOnVector(ref dockPosDiff, ref n);
+			//							dockingTransEntryPt = c.AddEchelonOffset(c.docker.GetPosition() + altDiff, n);
+			//						}
+
+			// releasing that when we leave mining area zone
+			//c.EnterSharedSpace("general", mc =>
+			//{
+			// getAboveShaft, then follow up with:
+			// ForceFinish.dock-echelon - vertical offset in assigned docks' local coordinates, then follow up with:
+			// DockingFinal behavior
+			//							c.CommandAutoPillock("command:create-wp:Name=ForceFinish.getAbovePt,SpeedLimit=" + Variables.Get<float>("speed-clear") + ",Ng=Forward:" +
+			//									VectorOpsHelper.V3DtoBroadcastString(dockingTransEntryPt)
+			//							+ ":command:create-wp:Name=ForceFinish.dock-echelon,Ng=Forward,TransformChannel=docking:"
+			//							+ VectorOpsHelper.V3DtoBroadcastString(Vector3D.Transform(
+			//									c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward) -
+			//											dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude"),
+			//											MatrixD.Invert(dv.OrientationUnit.Value)))
+			//							+ ":command:pillock-mode:DockingFinal");
+
+			//							c.SetState(MinerState.ForceFinish);
+			//});
+			//					}
+			//					else
+			//					{
+			//c.EnterSharedSpace("general", mc =>
+			//{
+			//							c.CommandAutoPillock("command:create-wp:Name=DynamicDock.echelon,Ng=Forward,AimNormal="
+			//							+ VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')
+			//							+ ",TransformChannel=docking:"
+			//							+ VectorOpsHelper.V3DtoBroadcastString(Vector3D.Transform(
+			//								c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward) -
+			//										dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude"),
+			//										MatrixD.Invert(dv.OrientationUnit.Value)))
+			//							+ ":command:pillock-mode:DockingFinal");
+			//							c.SetState(MinerState.Docking);
+			//						//});
+			//					}
+			//				}
+			//			}
+
+			//			if (state == MinerState.Docking)
+			//			{
+			//				if (c.docker.Status == MyShipConnectorStatus.Connected)
+			//				{
+			//					if (!c.DockingHandled)
+			//					{
+			//						c.DockingHandled = true;
+			//						E.DebugLog("Regular docking handled");
+
+			//						c.CommandAutoPillock("command:pillock-mode:Disabled");
+			//						c.remCon.DampenersOverride = false;
+			//						c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
+			//						c.docker.OtherConnector.CustomData = "";
+			//						c.InvalidateDockingDto?.Invoke();
+			//						c.tanks.ForEach(b => b.Stockpile = true);
+
+			//						if (c.ObtainedLock == LOCK_NAME_GeneralSection)
+			//							c.ReleaseLock(LOCK_NAME_GeneralSection);
+			//					}
+
+			//					E.Echo("Docking: Connected");
+			//					if (!CargoFlush())
+			//					{
+			//						E.Echo("Docking: still have items");
+			//					}
+			//					else
+			//					{
+			//						// Docking => Maintenance => Disabled => Docking
+			//						if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
+			//						{
+			//							c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
+			//							{
+			//								c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Auto);
+			//								c.tanks.ForEach(b => b.Stockpile = false);
+			//								//c.docker.OtherConnector.CustomData = "";
+			//								AccountUnload();
+			//								HandleUnload(c.docker.OtherConnector);
+			//								c.docker.Disconnect();
+			//								c.SetState(MinerState.ReturningToShaft);
+			//							});
+			//						}
+			//						else
+			//						{
+			//							c.SetState(MinerState.Maintenance);
+			//							c.pState.LifetimeWentToMaintenance++;
+			//							Scheduler.C.After(10000).RepeatWhile(() => c.GetState() == MinerState.Maintenance).RunCmd(() => {
+			//								if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-full-factor"), 0.99f))
+			//								{
+			//									c.SetState(MinerState.Docking);
+			//								}
+			//							});
+			//						}
+			//					}
+			//				}
+			//				else
+			//				{
+			//					if (c.DockingHandled)
+			//						c.DockingHandled = false;
+			//					if (c.pState.StaticDockOverride.HasValue)
+			//						c.docker.Connect();
+			//				}
+			//			}
+
+			//			if (state == MinerState.Maintenance)
+			//			{
+			// for world reload
+			//				if ((c.PrevState != MinerState.Docking) && (c.docker.Status == MyShipConnectorStatus.Connected))
+			//				{
+			//					c.CommandAutoPillock("command:pillock-mode:Disabled");
+			//					Scheduler.C.After(10000).RepeatWhile(() => c.GetState() == MinerState.Maintenance).RunCmd(() => {
+			//						if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-full-factor"), 0.99f))
+			//						{
+			//							c.SetState(MinerState.Docking);
+			//						}
+			//					});
+			//				}
+			//			}
+
+			//			if (state == MinerState.ForceFinish)
+			//			{
+			//				if (c.docker.Status == MyShipConnectorStatus.Connected)
+			//				{
+			//					if (!c.DockingHandled)
+			//					{
+			//						c.DockingHandled = true;
+			//						E.DebugLog("ForceFinish docking handled");
+
+			//						c.CommandAutoPillock("command:pillock-mode:Disabled");
+
+			//						c.remCon.DampenersOverride = false;
+			//						c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
+			//						c.docker.OtherConnector.CustomData = "";
+			//						c.InvalidateDockingDto?.Invoke();
+			//						c.tanks.ForEach(b => b.Stockpile = true);
+
+			//						c.ObtainedLock = LOCK_NAME_ForceFinishSection; // facepalm
+			//						c.ReleaseLock(LOCK_NAME_ForceFinishSection);
+			//						c.ObtainedLock = LOCK_NAME_GeneralSection; // facepalm
+			//						c.ReleaseLock(LOCK_NAME_GeneralSection);
+			//					}
+
+			//					if (!CargoFlush())
+			//					{
+			//						E.Echo("ForceFinish: still have items");
+			//					}
+			//					else
+			//					{
+			//						c.SetState(MinerState.Disabled);
+			//						AccountUnload();
+
+			//						c.pState.LifetimeOperationTime += (int)(DateTime.Now - SessionStartedAt).TotalSeconds;
+			//						c.stateWrapper.Save();
+
+			// CurrentJob is recreated at command:mine or ResumeFromDock
+			//						c.CurrentJob = null;
+			// probably it's better to clear state only explicitly or when creating new mining task
+			// in this case a worker can ResumeFromDock via command:mine
+			/*
+			c.CurrentJob = null;
+			MaxFoundOreDepth = null;
+			MinFoundOreDepth = null;
+			*/
+			//					}
+			//				}
+			//				else
+			//				{
+			//					if (c.DockingHandled)
+			//						c.DockingHandled = false;
+			//					if (c.pState.StaticDockOverride.HasValue)
+			//						c.docker.Connect();
+			//				}
+			//			}
+			//		}
+
+			//		bool CargoFlush()
+			//		{
+			//			var outerContainers = new List<IMyCargoContainer>();
+			//			c.gts.GetBlocksOfType(outerContainers, b => b.IsSameConstructAs(c.docker.OtherConnector) && b.HasInventory && b.IsFunctional && (b is IMyCargoContainer));
+
+			//			var localInvs = c.allContainers.Select(c => c.GetInventory()).Where(i => i.ItemCount > 0);
+
+			//			if (localInvs.Any())
+			//			{
+			//				E.Echo("Docking: still have items");
+			//				foreach (var localInv in localInvs)
+			//				{
+			//					var items = new List<MyInventoryItem>();
+			//					localInv.GetItems(items);
+			//					for (int n = 0; n < items.Count; n++)
+			//					{
+			//						var itemToPush = items[n];
+			//						IMyInventory destinationInv;
+
+			//						var k = Variables.Get<string>("preferred-container");
+			//						if (!string.IsNullOrEmpty(k))
+			//							destinationInv = outerContainers.Where(x => x.CustomName.Contains(k)).Select(c => c.GetInventory()).FirstOrDefault();
+			//						else
+			//							destinationInv = outerContainers.Select(c => c.GetInventory()).Where(i => i.CanItemsBeAdded((MyFixedPoint)(1f), itemToPush.Type))
+			//							.OrderBy(i => (float)i.CurrentVolume).FirstOrDefault();
+
+			//						if (destinationInv != null)
+			//						{
+			//E.Echo("Docking: have outer invs to unload to");
+			//							if (!localInv.TransferItemTo(destinationInv, items[n]))
+			//							{
+			//								E.Echo("Docking: failing to transfer from " + (localInv.Owner as IMyTerminalBlock).CustomName + " to "
+			//									+ (destinationInv.Owner as IMyTerminalBlock).CustomName);
+			//							}
+			//						}
+			//					}
+			//				}
+			//				return false;
+			//			}
+			//			return true;
+			//		}
+
+			//		void GetOutTheShaft()
+			//		{
+			//			currentDepth = 0;
+			//			if (c.CurrentRole == Role.Agent)
+			//			{
+			//				c.SetState(MinerState.WaitingForLockInShaft);
+
+			//				var depth = Math.Min(8, (c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length());
+			//				var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
+			//				c.CommandAutoPillock("command:create-wp:Name=WaitingForLockInShaft,Ng=Forward" +
+			//					",AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') +
+			//					",UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-clear") + 
+			//						":" + VectorOpsHelper.V3DtoBroadcastString(pt));
+			//				c.pState.currentWp = pt;
+			//			}
+			//			else if (c.CurrentRole == Role.Lone)
+			//			{
+			//				c.SetState(MinerState.GettingOutTheShaft);
+			//				c.CommandAutoPillock("command:create-wp:Name=GettingOutTheShaft,Ng=Forward,UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-clear") + 
+			//						":" + VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value));
+			//				c.pState.currentWp = c.pState.miningEntryPoint;
+			//			}
+			//		}
+
+
+			//		public void UpdateReport(AgentReport report, MinerState state)
+			//		{
+			//			var b = ImmutableArray.CreateBuilder<MyTuple<string, string>>(10);
+			//			b.Add(new MyTuple<string, string>("State", state.ToString()));
+			//			b.Add(new MyTuple<string, string>("Adaptive\nmode", Toggle.C.Check("adaptive-mining") ? "Y" : "N"));
+			//			b.Add(new MyTuple<string, string>("Session\nore mined", SessionOreMined.ToString("f2")));
+			//			b.Add(new MyTuple<string, string>("Last found\nore depth", (lastFoundOreDepth ?? 0f).ToString("f2")));
+			//			b.Add(new MyTuple<string, string>("Cargo\nfullness", cargoFullness.ToString("f2")));
+			//			b.Add(new MyTuple<string, string>("Current\ndepth", currentDepth.ToString("f2")));
+			//			b.Add(new MyTuple<string, string>("Lock\nrequested", c.WaitedSection));
+			//			b.Add(new MyTuple<string, string>("Lock\nowned", c.ObtainedLock));
+			//			report.KeyValuePairs = b.ToImmutableArray();
+			//		}
+
+			//		StringBuilder sb = new StringBuilder();
+			//		public override string ToString()
+			//		{
+			//			sb.Clear();
+			//			sb.AppendFormat("session uptime: {0}\n", (SessionStartedAt == default(DateTime) ? "-" : (DateTime.Now - SessionStartedAt).ToString()));
+			//			sb.AppendFormat("session ore mass: {0}\n", SessionOreMined);
+			//			sb.AppendFormat("cargoFullness: {0:f2}\n", cargoFullness);
+			//			sb.AppendFormat("cargoMass: {0:f2}\n", cargoMass);
+			//			sb.AppendFormat("cargoYield: {0:f2}\n", prevTickValCount);
+			//			sb.AppendFormat("lastFoundOreDepth: {0}\n", lastFoundOreDepth.HasValue ? lastFoundOreDepth.Value.ToString("f2") : "-");
+			//			sb.AppendFormat("minFoundOreDepth: {0}\n", MinFoundOreDepth.HasValue ? MinFoundOreDepth.Value.ToString("f2") : "-");
+			//			sb.AppendFormat("maxFoundOreDepth: {0}\n", MaxFoundOreDepth.HasValue ? MaxFoundOreDepth.Value.ToString("f2") : "-");
+			//			sb.AppendFormat("shaft id: {0}\n", c.pState.CurrentShaftId ?? -1);
+
+			//			return sb.ToString();
+			//		}
+
+			//		float currentDepth;
+			//		public float SessionOreMined;
+			//		public DateTime SessionStartedAt;
+
+			//		float? lastFoundOreDepth;
+
+			//		float? MinFoundOreDepth
+			//		{
+			//			get
+			//			{
+			//				return c.pState.minFoundOreDepth;
+			//			}
+			//			set
+			//			{
+			//				c.pState.minFoundOreDepth = value;
+			//			}
+			//		}
+			//		float? MaxFoundOreDepth
+			//		{
+			//			get
+			//			{
+			//				return c.pState.maxFoundOreDepth;
+			//			}
+			//			set
+			//			{
+			//				c.pState.maxFoundOreDepth = value;
+			//			}
+			//		}
+
+			//		public float GetShaftYield()
+			//		{
+			//			return prevTickValCount + currentShaftValTotal - preShaftValTotal;
+			//		}
+
+			//		void AccountUnload()
+			//		{
+			//			SessionOreMined += cargoMass;
+			//			c.pState.LifetimeOreAmount += cargoMass;
+			//			c.pState.LifetimeYield += prevTickValCount;
+			//			currentShaftValTotal += prevTickValCount - preShaftValTotal;
+			//			preShaftValTotal = 0;
+			//			prevTickValCount = 0;
+			//		}
+
+			//		void AccountChangeShaft()
+			//		{
+			//			preShaftValTotal = prevTickValCount;
+			//			currentShaftValTotal = 0;
+			//		}
+
+			//		float currentShaftValTotal = 0;
+			//		float preShaftValTotal = 0;
+			//		float prevTickValCount = 0;
+			//		bool CargoIsGettingValuableOre()
+			//		{
+			//			float totalAmount = 0;
+			//			for (int i = 0; i < c.allContainers.Count; i++)
+			//			{
+			//				var inv = c.allContainers[i].GetInventory(0);
+			//				if (inv == null)
+			//					continue;
+			//				List<MyInventoryItem> items = new List<MyInventoryItem>();
+			//				inv.GetItems(items);
+			//				items.Where(ix => ix.Type.ToString().Contains("Ore") && !ix.Type.ToString().Contains("Stone")).ToList().ForEach(x => totalAmount += (float)x.Amount);
+			//			}
+
+			//			bool gain = false;
+			//			if ((prevTickValCount > 0) && (totalAmount > prevTickValCount))
+			//			{
+			//				gain = true;
+			//			}
+
+			//			prevTickValCount = totalAmount;
+
+			//			return gain;
+			//		}
+
+			//		float cargoFullness;
+			//		float cargoMass;
+			//		bool CargoIsFull()
+			//		{
+			//			float spaceNominal = 0;
+			//			float spaceOccupied = 0;
+			//			cargoMass = 0;
+			//			for (int i = 0; i < c.allContainers.Count; i++)
+			//			{
+			//				var inv = c.allContainers[i].GetInventory(0);
+			//				if (inv == null)
+			//					continue;
+			//				spaceNominal += (float)inv.MaxVolume;
+			//				spaceOccupied += (float)inv.CurrentVolume;
+			//				cargoMass += (float)inv.CurrentMass;
+			//			}
+			//			cargoFullness = spaceOccupied / spaceNominal;
+			//			return cargoFullness >= Variables.Get<float>("cargo-full-factor");
+			//		}
+
+			//		void HandleUnload(IMyShipConnector otherConnector)
+			//		{
+			//			string pathFromDockToAbovePt = "command:create-wp:Name=drill getAbovePt,Ng=Forward,AimNormal="
+			//						+ VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') + ":"
+			//						+ VectorOpsHelper.V3DtoBroadcastString(c.AddEchelonOffset(c.pState.getAbovePt.Value));
+
+			//			var aboveDock = c.AddEchelonOffset(otherConnector.WorldMatrix.Translation, otherConnector.WorldMatrix.Backward) -
+			//										otherConnector.WorldMatrix.Backward * Variables.Get<float>("getAbove-altitude");
+
+			//var aboveDock = c.AddEchelonOffset(c.fwReferenceBlock.GetPosition()) - c.GetMiningPlaneNormal() * Variables.Get<float>("getAbove-altitude");
+			//			var seq = "[command:pillock-mode:Disabled],[command:create-wp:Name=Dock.Echelon,Ng=Forward:"
+			//						+ VectorOpsHelper.V3DtoBroadcastString(aboveDock) + ":" + pathFromDockToAbovePt + "]";
+
+			//			c.CommandAutoPillock(seq);
+			//			c.pState.currentWp = c.AddEchelonOffset(c.pState.getAbovePt.Value);
+			//		}
+			//	}
 		}
 
 		///////////////////
