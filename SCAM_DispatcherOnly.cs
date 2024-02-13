@@ -832,11 +832,15 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			{
 				E.Echo(dispatcherService.ToString());
 				dispatcherService.HandleIGC(uniMsgs);
+
+				/* Request GUI data from the agents. */
 				if (guiH != null)
 				{
 					foreach (var s in dispatcherService.subordinates)
 						IGC.SendUnicastMessage(s.Id, "report.request", "");
 				}
+
+				/* Update the GUI. */
 				guiH?.UpdateTaskSummary(dispatcherService);
 				dockHost.Handle(IGC, TickCount);
 
@@ -1091,6 +1095,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				public float Echelon;
 				public string Group;
 				public AgentReport Report;
+				//TODO: Add software version for compatibility check.
 			}
 
 			IMyIntergridCommunicationSystem IGC;
@@ -1110,90 +1115,98 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			public void HandleIGC(List<MyIGCMessage> uniMsgs)
 			{
+				/* First process broadcasted messages. */
 				var minerChannel = IGC.RegisterBroadcastListener("miners");
 				while (minerChannel.HasPendingMessage)
 				{
 					var msg = minerChannel.AcceptMessage();
-					if (msg.Data != null)
+					if (msg.Data == null)
+						continue;
+						
+					if (msg.Data.ToString().Contains("common-airspace-ask-for-lock"))
 					{
-						if (msg.Data.ToString().Contains("common-airspace-ask-for-lock"))
-						{
-							var sectionName = msg.Data.ToString().Split(':')[1];
+						var sectionName = msg.Data.ToString().Split(':')[1];
 
-							if (!subordinates.Any(s => s.ObtainedLock == sectionName && s.Id != msg.Source))
-							{
-								subordinates.First(s => s.Id == msg.Source).ObtainedLock = sectionName;
-								IGC.SendUnicastMessage(msg.Source, "miners", "common-airspace-lock-granted:" + sectionName);
-								Log(sectionName + " granted to " + msg.Source);
-							}
-							else
-							{
-								if (!sectionsLockRequests.ContainsKey(sectionName))
-									sectionsLockRequests.Add(sectionName, new Queue<long>());
-								if (!sectionsLockRequests[sectionName].Contains(msg.Source))
-									sectionsLockRequests[sectionName].Enqueue(msg.Source);
-								Log("commonSpaceLockOwner rejected, added to requests queue: " + msg.Source);
-							}
+						if (!subordinates.Any(s => s.ObtainedLock == sectionName && s.Id != msg.Source))
+						{
+							subordinates.First(s => s.Id == msg.Source).ObtainedLock = sectionName;
+							IGC.SendUnicastMessage(msg.Source, "miners", "common-airspace-lock-granted:" + sectionName);
+							Log(sectionName + " granted to " + msg.Source);
 						}
-
-						if (msg.Data.ToString().Contains("common-airspace-lock-released"))
+						else
 						{
-							var sectionName = msg.Data.ToString().Split(':')[1];
-							Log("(Dispatcher) received lock-released notification " + sectionName + " from " + msg.Source);
-							subordinates.Single(s => s.Id == msg.Source).ObtainedLock = "";
+							if (!sectionsLockRequests.ContainsKey(sectionName))
+								sectionsLockRequests.Add(sectionName, new Queue<long>());
+							if (!sectionsLockRequests[sectionName].Contains(msg.Source))
+								sectionsLockRequests[sectionName].Enqueue(msg.Source);
+							Log("commonSpaceLockOwner rejected, added to requests queue: " + msg.Source);
+						}
+					}
 
-							if (sectionsLockRequests.ContainsKey(sectionName) && (sectionsLockRequests[sectionName].Count > 0))
-							{
-								var id = sectionsLockRequests[sectionName].Dequeue();
+					if (msg.Data.ToString().Contains("common-airspace-lock-released"))
+					{
+						var sectionName = msg.Data.ToString().Split(':')[1];
+						Log("(Dispatcher) received lock-released notification " + sectionName + " from " + msg.Source);
+						subordinates.Single(s => s.Id == msg.Source).ObtainedLock = "";
 
-								IGC.SendUnicastMessage(id, "miners", "common-airspace-lock-granted:" + sectionName);
-								subordinates.First(s => s.Id == id).ObtainedLock = sectionName;
-								Log(sectionName + " common-airspace-lock-granted to " + id);
-							}
+						/* Grant lock to another agent, who may have requested the released lock. */
+						if (sectionsLockRequests.ContainsKey(sectionName) && (sectionsLockRequests[sectionName].Count > 0))
+						{
+							var id = sectionsLockRequests[sectionName].Dequeue();
+
+							IGC.SendUnicastMessage(id, "miners", "common-airspace-lock-granted:" + sectionName);
+							subordinates.First(s => s.Id == id).ObtainedLock = sectionName;
+							Log(sectionName + " common-airspace-lock-granted to " + id);
 						}
 					}
 				}
 
+				/* Second, process broadcasted handshakes. */
 				var minerHandshakeChannel = IGC.RegisterBroadcastListener("miners.handshake");
 				while (minerHandshakeChannel.HasPendingMessage)
 				{
 					var msg = minerHandshakeChannel.AcceptMessage();
-					if (msg.Data is string)
+					if (msg.Data is not string)
+						continue; // Corrupt/malformed message.
+					
+					var data = (string)msg.Data;
+
+					//TODO: Register the agent's script version, so that we can keep them parked.
+
+					Log($"Initiated handshake by {msg.Source}, group tag: {data}");
+
+					Subordinate sb;
+					if (!subordinates.Any(s => s.Id == msg.Source))
 					{
-						var data = (string)msg.Data;
-
-						Log($"Initiated handshake by {msg.Source}, group tag: {data}");
-
-						Subordinate sb;
-						if (!subordinates.Any(s => s.Id == msg.Source))
-						{
-							sb = new Subordinate { Id = msg.Source, Echelon = (subordinates.Count + 1) * Variables.Get<float>("echelon-offset") + 10f, Group = data };
-							subordinates.Add(sb);
-							sb.Report = new AgentReport() { Id = sb.Id, ColorTag = Color.White };
-						}
-						else
-						{
-							sb = subordinates.Single(s => s.Id == msg.Source);
-							sb.Group = data;
-						}
-
-						IGC.SendUnicastMessage(msg.Source, "miners.handshake.reply", IGC.Me);
-						IGC.SendUnicastMessage(msg.Source, "miners.echelon", sb.Echelon);
-						if (stateWrapper.PState.miningPlaneNormal.HasValue)
-						{
-							IGC.SendUnicastMessage(msg.Source, "miners.normal", stateWrapper.PState.miningPlaneNormal.Value);
-						}
-						var vals = new string[] { "skip-depth", "depth-limit", "getAbove-altitude" };
-						Scheduler.C.After(500).RunCmd(() => {
-							foreach (var v in vals)
-							{
-								Log($"Propagating set-value:'{v}' to {msg.Source}");
-								IGC.SendUnicastMessage(msg.Source, "set-value", $"{v}:{Variables.Get<float>(v)}");
-							}
-						});
+						sb = new Subordinate { Id = msg.Source, Echelon = (subordinates.Count + 1) * Variables.Get<float>("echelon-offset") + 10f, Group = data };
+						subordinates.Add(sb);
+						sb.Report = new AgentReport() { Id = sb.Id, ColorTag = Color.White };
 					}
+					else
+					{
+						sb = subordinates.Single(s => s.Id == msg.Source);
+						sb.Group = data;
+					}
+
+					IGC.SendUnicastMessage(msg.Source, "miners.handshake.reply", IGC.Me);
+					IGC.SendUnicastMessage(msg.Source, "miners.echelon", sb.Echelon);
+
+					/* If there is a task, inform the new agent about the normal vector. */
+					if (stateWrapper.PState.miningPlaneNormal.HasValue)
+					{
+						IGC.SendUnicastMessage(msg.Source, "miners.normal", stateWrapper.PState.miningPlaneNormal.Value);
+					}
+					var vals = new string[] { "skip-depth", "depth-limit", "getAbove-altitude" };
+					Scheduler.C.After(500).RunCmd(() => {
+						foreach (var v in vals)
+						{
+							Log($"Propagating set-value:'{v}' to {msg.Source}");
+							IGC.SendUnicastMessage(msg.Source, "set-value", $"{v}:{Variables.Get<float>(v)}");
+						}
+					});
 				}
 
+				/* Process agent's status reports. */
 				var minerReportChannel = IGC.RegisterBroadcastListener("miners.report");
 				while (minerReportChannel.HasPendingMessage)
 				{
@@ -1204,6 +1217,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						sub.Report.UpdateFromIgc(data);
 				}
 
+				/* Finally, process unicast messages.*/
 				foreach (var msg in uniMsgs)
 				{
 					//Log("Dispatcher has received private message from " + msg.Source);
