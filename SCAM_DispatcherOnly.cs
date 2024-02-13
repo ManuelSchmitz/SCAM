@@ -57,6 +57,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			x.FontSize = 0.65f;
 		};
 
+		/** \brief The configuration state of the PB. */
 		static class Variables
 		{
 			static Dictionary<string, object> v = new Dictionary<string, object> {
@@ -722,12 +723,16 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		List<MyIGCMessage> uniMsgs = new List<MyIGCMessage>();
 		void Main(string param, UpdateType updateType)
 		{
+			/* Fetch all new unicast messages since the last cycle. */
 			uniMsgs.Clear();
 			while (IGC.UnicastListener.HasPendingMessage)
 			{
 				uniMsgs.Add(IGC.UnicastListener.AcceptMessage());
 			}
 
+			/* Fetch one broadcast message since the last cycle. */
+			//TODO: Do dispatchers receive broadcase messages on miners.command???
+			//TODO: Why not multiple messages? Can there be only one broadcast per cycle?
 			var commandChannel = IGC.RegisterBroadcastListener("miners.command");
 			if (commandChannel.HasPendingMessage)
 			{
@@ -736,8 +741,10 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				Log("Got miners.command: " + param);
 			}
 
+			/* Process command, if broadcast received or manually passed by the user. */
 			StartOfTick(param);
 
+			/* Process the unicast messages. */
 			foreach (var m in uniMsgs)
 			{
 				if (m.Tag == "apck.ntv.update")
@@ -965,7 +972,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						Log($"GPS:Raycasted base point:{VectorOpsHelper.V3DtoBroadcastString(dei.HitPosition.Value)}:");
 						cam.CustomData += "GPS:castedSurfacePoint:" + VectorOpsHelper.V3DtoBroadcastString(castedSurfacePoint.Value) + ":\n";
 
-						IMyShipController gravGetter = minerController?.remCon ?? guiSeat;
+						//IMyShipController gravGetter = minerController?.remCon ?? guiSeat;
+						IMyShipController gravGetter = guiSeat; //This is always a dispatcher, never a drone.
 						Vector3D pCent;
 						if ((gravGetter != null) && gravGetter.TryGetPlanetPosition(out pCent))
 						{
@@ -1055,6 +1063,10 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		}
 
 		Dispatcher dispatcherService;
+
+		/**
+		 * \brief Implements job dispatching and air traffic control (ATC).
+		 */
 		public class Dispatcher
 		{
 			public List<Subordinate> subordinates = new List<Subordinate>();
@@ -1064,7 +1076,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			public class Subordinate
 			{
-				public long Id;
+				public long Id;            ///< Handle of the agent's programmable block.
 				public string ObtainedLock;
 				public float Echelon;
 				public string Group;
@@ -1230,16 +1242,17 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				}
 			}
 
+			/** \brief Sends the miners.resume message to all agents in the current task group. */
 			public void BroadcastResume()
 			{
 				var g = stateWrapper.PState.CurrentTaskGroup;
-				if (!string.IsNullOrEmpty(g))
+				if (string.IsNullOrEmpty(g))
+					return;
+				
+				Log($"Broadcasting task resume for mining group '{g}'");
+				foreach (var s in subordinates.Where(x => x.Group == g))
 				{
-					Log($"Broadcasting task resume for mining group '{g}'");
-					foreach (var s in subordinates.Where(x => x.Group == g))
-					{
-						IGC.SendUnicastMessage(s.Id, "miners.resume", stateWrapper.PState.miningPlaneNormal.Value);
-					}
+					IGC.SendUnicastMessage(s.Id, "miners.resume", stateWrapper.PState.miningPlaneNormal.Value);
 				}
 			}
 
@@ -1252,10 +1265,13 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			public void BroadcastStart(string group)
 			{
 				Log($"Preparing start for mining group '{group}'");
+
+				/* Reset the internal state of all agents, so that they are in a well-defined state. */
 				IGC.SendBroadcastMessage("miners.command", "command:clear-storage-state");
+
+				/* Inform the agents about the orientation of the mining plane (same for all shafts). */
 				Scheduler.C.Clear();
 				stateWrapper.PState.LifetimeAcceptedTasks++;
-
 				Scheduler.C.After(500).RunCmd(() => {
 					foreach (var s in subordinates.Where(x => x.Group == group))
 					{
@@ -1263,6 +1279,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					}
 				});
 
+				/* Instruct the agents to start mining. They will then ask for a shaft. */
 				Scheduler.C.After(1000).RunCmd(() => {
 					Log($"Broadcasting start for mining group '{group}'");
 					foreach (var s in subordinates.Where(x => x.Group == group))
@@ -1298,7 +1315,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 				public string GroupConstraint { get; private set; }
 
-				public List<MiningShaft> Shafts;
+				public List<MiningShaft> Shafts; // List of of jobs (shafts).
 
 				public MiningTask(int maxGenerations, float shaftRadius, Vector3D coreP, Vector3D normal, string groupConstraint)
 				{
@@ -1309,13 +1326,14 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					planeXunit = Vector3D.Normalize(Vector3D.Cross(coreP, normal)); // just any perp to normal will do
 					planeYunit = Vector3D.Cross(planeXunit, normal);
 
+					/* Generate the todo list of jobs (shafts). */
 					var radInterval = R * 2f * 0.866f; // 2 cos(30) * R
 					Shafts = new List<MiningShaft>(maxGenerations * 6 + 1);
 					Shafts.Add(new MiningShaft());
 					int id = 1;
-					for (int g = 1; g < maxGenerations; g++)
+					for (int g = 1; g < maxGenerations; g++) // For each concentric circle ...
 					{
-						for (int i = 0; i < g * 6; i++)
+						for (int i = 0; i < g * 6; i++) // For each shaft on the circle ...
 						{
 							double angle = 60f / 180f * Math.PI * i / g; // 6 * N circles per N diameter generation, i.e. generation
 							var p = new Vector2((float)Math.Cos(angle), (float)Math.Sin(angle)) * radInterval * g;
@@ -4690,7 +4708,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					if (sh_d < _d)
 					{
 						FinalizeWP();
-						minerController.ApckRegistry.RunCommand(parts[7], parts.Skip(6).ToArray());
+					//	minerController.ApckRegistry.RunCommand(parts[7], parts.Skip(6).ToArray());
 					}
 				};
 			}
