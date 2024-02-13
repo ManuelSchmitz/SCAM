@@ -790,41 +790,42 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				//}
 				else if (m.Tag == "apck.docking.approach" || m.Tag == "apck.depart.approach")
 				{
+					throw new Exception("Dispatcher cannot process incoming approach paths.");
 					//if (minerController?.pCore != null)
 					//{
 					//	IGC.SendUnicastMessage(minerController.pCore.EntityId, m.Tag, (ImmutableArray<Vector3D>)m.Data);
 					//}
 					//else
-					{
-						if (m.Tag.Contains("depart"))
-						{
-							var f = new APckTask("fin", coreUnit.CurrentBH);
-							f.TickLimit = 1;
-							f.OnComplete = () => IGC.SendUnicastMessage(m.Source, "apck.depart.complete", "");
-							coreUnit.CreateWP(f);
-						}
-						coreUnit.docker.Disconnect();
-						var path = (ImmutableArray<Vector3D>)m.Data;
-						if (path.Length > 0)
-						{
-							foreach (var p in path)
-							{
-								// race c?
-								Func<Vector3D> trans = () => Vector3D.Transform(p, GetNTV("docking").OrientationUnit.Value);
-								var bh = new PcBehavior()
-								{
-									Name = "r",
-									IgnoreTFeed = true,
-									PositionShifter = x => trans(),
-									TranslationOverride = () => coreUnit.docker.GetPosition(),
-									AimpointShifter = tv => coreUnit.docker.GetPosition() - GetNTV("docking").OrientationUnit.Value.Forward * 10000,
-									FwOverride = () => coreUnit.docker.WorldMatrix
-								};
-								coreUnit.CreateWP(APckTask.CreateRelP("r", trans, bh));
-							}
-						}
+					//{
+					//	if (m.Tag.Contains("depart"))
+					//	{
+					//		var f = new APckTask("fin", coreUnit.CurrentBH);
+					//		f.TickLimit = 1;
+					//		f.OnComplete = () => IGC.SendUnicastMessage(m.Source, "apck.depart.complete", "");
+					//		coreUnit.CreateWP(f);
+					//	}
+					//	coreUnit.docker.Disconnect();
+					//	var path = (ImmutableArray<Vector3D>)m.Data;
+					//	if (path.Length > 0)
+					//	{
+					//		foreach (var p in path)
+					//		{
+					//			// race c?
+					//			Func<Vector3D> trans = () => Vector3D.Transform(p, GetNTV("docking").OrientationUnit.Value);
+					//			var bh = new PcBehavior()
+					//			{
+					//				Name = "r",
+					//				IgnoreTFeed = true,
+					//				PositionShifter = x => trans(),
+					//				TranslationOverride = () => coreUnit.docker.GetPosition(),
+					//				AimpointShifter = tv => coreUnit.docker.GetPosition() - GetNTV("docking").OrientationUnit.Value.Forward * 10000,
+					//				FwOverride = () => coreUnit.docker.WorldMatrix
+					//			};
+					//			coreUnit.CreateWP(APckTask.CreateRelP("r", trans, bh));
+					//		}
+					//	}
 
-					}
+					//}
 
 				}
 
@@ -3294,7 +3295,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 
 
-		APckUnit coreUnit;
+		//APckUnit coreUnit;
 		public class APckUnit
 		{
 			public IMyShipConnector docker;
@@ -4675,124 +4676,124 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		}
 
 
-		APckTask tempWp;
-		void CreateWP(string[] parts)
-		{
+		//APckTask tempWp;
+		//void CreateWP(string[] parts)
+		//{
 			//command:create-wp:Name=dr,Ng=Down,PosDirectionOverride=Forward,SpeedLimit=50:0:0:0
-			FinalizeWP();
+		//	FinalizeWP();
 
-			var cu = coreUnit;
-			var PC = cu.pc;
+		//	var cu = coreUnit;
+		//	var PC = cu.pc;
 
-			var posCap = PC.Fw.GetPosition();
-			var values = parts[2].Split(',').ToDictionary(s => s.Split('=')[0], s => s.Split('=')[1]);
+		//	var posCap = PC.Fw.GetPosition();
+		//	var values = parts[2].Split(',').ToDictionary(s => s.Split('=')[0], s => s.Split('=')[1]);
 
-			var bh = new PcBehavior() { Name = "Deserialized Behavior", IgnoreTFeed = true, AutoSwitchToNext = false };
-			tempWp = new APckTask("twp", bh);
+		//	var bh = new PcBehavior() { Name = "Deserialized Behavior", IgnoreTFeed = true, AutoSwitchToNext = false };
+		//	tempWp = new APckTask("twp", bh);
 
-			float _d = 1;
+		//	float _d = 1;
 
-			var vdtoArr = parts.Take(6).Skip(1).ToArray();
-			var pos = new Vector3D(double.Parse(vdtoArr[2]), double.Parse(vdtoArr[3]), double.Parse(vdtoArr[4]));
+		//	var vdtoArr = parts.Take(6).Skip(1).ToArray();
+		//	var pos = new Vector3D(double.Parse(vdtoArr[2]), double.Parse(vdtoArr[3]), double.Parse(vdtoArr[4]));
 
-			Func<Vector3D, Vector3D> sh = p => pos;
-			tempWp.Pos = pos;
+		//	Func<Vector3D, Vector3D> sh = p => pos;
+		//	tempWp.Pos = pos;
 
-			Vector3D? n = null;
-			if (values.ContainsKey("AimNormal"))
-			{
-				var v = values["AimNormal"].Split(';');
-				n = new Vector3D(double.Parse(v[0]), double.Parse(v[1]), double.Parse(v[2]));
-			}
-			if (values.ContainsKey("UpNormal"))
-			{
-				var v = values["UpNormal"].Split(';');
-				var up = Vector3D.Normalize(new Vector3D(double.Parse(v[0]), double.Parse(v[1]), double.Parse(v[2])));
-				bh.SuggestedUpNorm = () => up;
-			}
+		//	Vector3D? n = null;
+		//	if (values.ContainsKey("AimNormal"))
+		//	{
+		//		var v = values["AimNormal"].Split(';');
+		//		n = new Vector3D(double.Parse(v[0]), double.Parse(v[1]), double.Parse(v[2]));
+		//	}
+		//	if (values.ContainsKey("UpNormal"))
+		//	{
+		//		var v = values["UpNormal"].Split(';');
+		//		var up = Vector3D.Normalize(new Vector3D(double.Parse(v[0]), double.Parse(v[1]), double.Parse(v[2])));
+		//		bh.SuggestedUpNorm = () => up;
+		//	}
 
-			if (values.ContainsKey("Name"))
-				tempWp.Name = values["Name"];
-			if (values.ContainsKey("FlyThrough"))
-				bh.FlyThrough = true;
-			if (values.ContainsKey("SpeedLimit"))
-				bh.SpeedLimit = float.Parse(values["SpeedLimit"]);
-			if (values.ContainsKey("TriggerDistance"))
-				_d = float.Parse(values["TriggerDistance"]);
-			if (values.ContainsKey("PosDirectionOverride") && (values["PosDirectionOverride"] == "Forward"))
-			{
-				if (n.HasValue)
-				{
-					sh = p => posCap + n.Value * ((PC.Fw.GetPosition() - posCap).Length() + 5);
-				}
-				else
-					sh = p => PC.CreateFromFwDir(50000);
-			}
+		//	if (values.ContainsKey("Name"))
+		//		tempWp.Name = values["Name"];
+		//	if (values.ContainsKey("FlyThrough"))
+		//		bh.FlyThrough = true;
+		//	if (values.ContainsKey("SpeedLimit"))
+		//		bh.SpeedLimit = float.Parse(values["SpeedLimit"]);
+		//	if (values.ContainsKey("TriggerDistance"))
+		//		_d = float.Parse(values["TriggerDistance"]);
+		//	if (values.ContainsKey("PosDirectionOverride") && (values["PosDirectionOverride"] == "Forward"))
+		//	{
+		//		if (n.HasValue)
+		//		{
+		//			sh = p => posCap + n.Value * ((PC.Fw.GetPosition() - posCap).Length() + 5);
+		//		}
+		//		else
+		//			sh = p => PC.CreateFromFwDir(50000);
+		//	}
 
-			if (parts.Length > 6)
-			{
-				bh.DistanceHandler = (d, sh_d, pc, wp, u) =>
-				{
-					if (sh_d < _d)
-					{
-						FinalizeWP();
+		//	if (parts.Length > 6)
+		//	{
+		//		bh.DistanceHandler = (d, sh_d, pc, wp, u) =>
+		//		{
+		//			if (sh_d < _d)
+		//			{
+		//				FinalizeWP();
 					//	minerController.ApckRegistry.RunCommand(parts[7], parts.Skip(6).ToArray());
-					}
-				};
-			}
+		//			}
+		//		};
+		//	}
 
-			if (values.ContainsKey("Ng"))
-			{
-				Func<MatrixD> fw = () => PC.Fw.WorldMatrix;
-				if (values["Ng"] == "Down")
-					bh.FwOverride = () => MatrixD.CreateFromDir(PC.Fw.WorldMatrix.Down, PC.Fw.WorldMatrix.Forward);
-				if (cu.UnderPlanetInfl() && !values.ContainsKey("IgG"))
-				{
-					bh.AimpointShifter = p => cu.plCenter.Value;
-					bh.PositionShifter = p => Vector3D.Normalize(sh(p) - cu.plCenter.Value) * (posCap - cu.plCenter.Value).Length() + cu.plCenter.Value;
-				}
-				else
-				{
-					if (n.HasValue)
-					{
-						bh.AimpointShifter = p => PC.Fw.GetPosition() + n.Value * 1000;
-					}
-					else
-						bh.AimpointShifter = p => PC.Fw.GetPosition() + (bh.FwOverride ?? fw)().Forward * 1000;
-				}
-			}
+		//	if (values.ContainsKey("Ng"))
+		//	{
+		//		Func<MatrixD> fw = () => PC.Fw.WorldMatrix;
+		//		if (values["Ng"] == "Down")
+		//			bh.FwOverride = () => MatrixD.CreateFromDir(PC.Fw.WorldMatrix.Down, PC.Fw.WorldMatrix.Forward);
+		//		if (cu.UnderPlanetInfl() && !values.ContainsKey("IgG"))
+		//		{
+		//			bh.AimpointShifter = p => cu.plCenter.Value;
+		//			bh.PositionShifter = p => Vector3D.Normalize(sh(p) - cu.plCenter.Value) * (posCap - cu.plCenter.Value).Length() + cu.plCenter.Value;
+		//		}
+		//		else
+		//		{
+		//			if (n.HasValue)
+		//			{
+		//				bh.AimpointShifter = p => PC.Fw.GetPosition() + n.Value * 1000;
+		//			}
+		//			else
+		//				bh.AimpointShifter = p => PC.Fw.GetPosition() + (bh.FwOverride ?? fw)().Forward * 1000;
+		//		}
+		//	}
 
-			if (values.ContainsKey("TransformChannel"))
-			{
-				Func<Vector3D, Vector3D> trans = p => Vector3D.Transform(pos, GetNTV(values["TransformChannel"]).OrientationUnit.Value);
-				bh.DestinationShifter = trans;
-				tempWp.TPos = () => Vector3D.Transform(pos, GetNTV(values["TransformChannel"]).OrientationUnit.Value);
-				bh.SelfVelocityAimCorrection = true;
-				bh.TargetFeed = () => GetNTV(values["TransformChannel"]);
-				bh.ApproachVelocity = () => PC.Velocity;
-				bh.PositionShifter = null;
-			}
-			else
-				bh.PositionShifter = sh;
+		//	if (values.ContainsKey("TransformChannel"))
+		//	{
+		//		Func<Vector3D, Vector3D> trans = p => Vector3D.Transform(pos, GetNTV(values["TransformChannel"]).OrientationUnit.Value);
+		//		bh.DestinationShifter = trans;
+		//		tempWp.TPos = () => Vector3D.Transform(pos, GetNTV(values["TransformChannel"]).OrientationUnit.Value);
+		//		bh.SelfVelocityAimCorrection = true;
+		//		bh.TargetFeed = () => GetNTV(values["TransformChannel"]);
+		//		bh.ApproachVelocity = () => PC.Velocity;
+		//		bh.PositionShifter = null;
+		//	}
+		//	else
+		//		bh.PositionShifter = sh;
 
-			tempWp.PState = ApckState.CwpTask;
-			cu.BindBeh(tempWp.PState, bh);
+		//	tempWp.PState = ApckState.CwpTask;
+		//	cu.BindBeh(tempWp.PState, bh);
 
-			cu.InsertTaskBefore(tempWp);
+		//	cu.InsertTaskBefore(tempWp);
 
 			//cu.WpMgr.AddWaypoint(tempWp);
 			//cu.WpMgr.ForceSpecificWp(tempWp.Name);
-		}
+		//}
 
-		void FinalizeWP()
-		{
-			if (tempWp != null)
-			{
-				if (coreUnit.GetCurrTask() == tempWp)
-					coreUnit.ForceNext();
-				tempWp = null;
-			}
-		}
+		//void FinalizeWP()
+		//{
+		//	if (tempWp != null)
+		//	{
+		//		if (coreUnit.GetCurrTask() == tempWp)
+		//			coreUnit.ForceNext();
+		//		tempWp = null;
+		//	}
+		//}
 
 		DockHost dockHost;
 

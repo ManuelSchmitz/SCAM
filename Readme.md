@@ -21,7 +21,7 @@ A job is shaft, processed by an individual agent. The dispatcher will usually as
 #### `apck.depart.complete` (ATC)
 
 - Sent from the agent to the dispatcher.
-- TODO
+- The dispatcher can flag the docking port as available again.
 
 #### `apck.depart.request` (ATC)
 
