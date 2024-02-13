@@ -386,10 +386,14 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			if (newRole == Role.Dispatcher)
 			{
 				dispatcherService = new Dispatcher(IGC, stateWrapper);
+
+				/* Find all assigned docking ports ("docka-min3r"). */
 				var dockingPoints = new List<IMyShipConnector>();
 				GridTerminalSystem.GetBlocksOfType(dockingPoints, c => c.IsSameConstructAs(Me) && c.CustomName.Contains(DockHostTag));
 				if (ClearDocksOnReload)
 					dockingPoints.ForEach(d => d.CustomData = "");
+
+				/* Create a docking port manager. */
 				dockHost = new DockHost(dockingPoints, stateWrapper.PState, GridTerminalSystem);
 
 				if (stateWrapper.PState.ShaftStates.Count > 0)
@@ -771,7 +775,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				{
 					dockHost?.DepartComplete(m.Source.ToString());
 				}
-				else if (m.Tag == "apck.depart.request")
+				else if (m.Tag == "apck.depart.request") //TODO: Never used???
 				{
 					dockHost.RequestDocking(m.Source, (Vector3D)m.Data, true);
 				}
@@ -779,11 +783,11 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				{
 					dockHost.RequestDocking(m.Source, (Vector3D)m.Data);
 				}
-				else if (m.Tag == "apck.depart.complete")
-				{
+				//else if (m.Tag == "apck.depart.complete") //TODO: Never executed, because same condition is already above.
+				//{
 					//if (minerController?.DispatcherId != null)
 					//	IGC.SendUnicastMessage(minerController.DispatcherId.Value, "apck.depart.complete", "");
-				}
+				//}
 				else if (m.Tag == "apck.docking.approach" || m.Tag == "apck.depart.approach")
 				{
 					//if (minerController?.pCore != null)
@@ -1166,7 +1170,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				while (minerHandshakeChannel.HasPendingMessage)
 				{
 					var msg = minerHandshakeChannel.AcceptMessage();
-					if (msg.Data is not string)
+					if (!(msg.Data is string))
 						continue; // Corrupt/malformed message.
 					
 					var data = (string)msg.Data;
@@ -4791,6 +4795,10 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		}
 
 		DockHost dockHost;
+
+		/**
+		 * \brief Docking port manager. (dispatcher only)
+		 */
 		public class DockHost
 		{
 			List<IMyShipConnector> ports;
@@ -4866,20 +4874,29 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				foreach (var s in depRequests)
 					E.Echo(s + " awaits dep");
 
+				/* Process pending docking requests. */
 				if (dockRequests.Any())
 				{
+					/* Search for a free docking port. */
 					var fd = ports.FirstOrDefault(d =>
 						(string.IsNullOrEmpty(d.CustomData) || (d.CustomData == dockRequests.Peek().ToString())) && (d.Status == MyShipConnectorStatus.Unconnected));
 					if (fd != null)
 					{
+						/* Found a port. Serve the docking request. */
 						var id = dockRequests.Dequeue();
+
+						/* Store the ID of the agent's PB in the docking port's custom data. */
 						fd.CustomData = id.ToString();
+
+						/* Calculate the approach path and send it to the agent. */
 						var inv = MatrixD.Transpose(fd.WorldMatrix);
 						var a = GetPath(dests[id]).Reverse().Select(x => Vector3D.TransformNormal(x - fd.GetPosition(), inv)).ToImmutableArray();
 						E.DebugLog($"Sent {a.Length}-node approach path");
 						i.SendUnicastMessage(id, "apck.docking.approach", a);
 					}
 				}
+
+				/* Process pending departure requests. */
 				if (depRequests.Any())
 				{
 					foreach (var s in depRequests)
@@ -4891,12 +4908,15 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					if (bd != null)
 					{
 						depRequests.Dequeue();
+
+						/* Calculate the departure path and send it to the agent. */
 						var inv = MatrixD.Transpose(bd.WorldMatrix);
 						var a = GetPath(dests[r]).Select(x => Vector3D.TransformNormal(x - bd.GetPosition(), inv)).ToImmutableArray();
 						E.DebugLog($"Sent {a.Length}-node departure path");
 						i.SendUnicastMessage(r, "apck.depart.approach", a);
 					}
 				}
+
 				foreach (var d in ports.Where(d => !string.IsNullOrEmpty(d.CustomData)))
 				{
 					long id;
@@ -4919,11 +4939,20 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			}
 
+			/**
+			 * \brief Marks a docking port as available again.
+			 * \param[in] id Handle of the departed agent's PB, which is still stored
+			 * in the docking port's custom data.
+			 */
 			public void DepartComplete(string id)
 			{
+				/* Clear the docking port's custom data. */
 				ports.First(x => x.CustomData == id).CustomData = "";
 			}
 
+			/**
+			 * \param[in] id Handle of the requesting agent's PB.
+			 */
 			public void RequestDocking(long id, Vector3D d, bool depart = false)
 			{
 				if (depart)
@@ -4940,8 +4969,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			}
 
 			Dictionary<long, Vector3D> dests = new Dictionary<long, Vector3D>();
-			Queue<long> dockRequests = new Queue<long>();
-			Queue<long> depRequests = new Queue<long>();
+			Queue<long> dockRequests = new Queue<long>(); ///< Requesting agent's PB handles.
+			Queue<long> depRequests = new Queue<long>();  ///< Requesting agent's PB handles.
 
 			public IEnumerable<Vector3D> GetPath(Vector3D o)
 			{
@@ -5342,6 +5371,11 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			}
 		}
 
+		/**
+		 * \brief Status report about the current job.
+		 * \details Broadcasted by the agent upon request. The dispatcher collects those
+		 * for display on the GUI screen.
+		 */
 		public class AgentReport
 		{
 			public MatrixD WM;

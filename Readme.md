@@ -7,11 +7,48 @@ A task is a collection of jobs (shafts), and is usually processed by a dispatche
 
 ### Job
 
-A job is shaft, processed by an individual agent. The dispatcher will usually assign a job to the individual agent.
+A job is shaft, processed by an individual agent. The dispatcher will usually assign a job to the individual agents.
 
 ## Protocol Messages
 
 ### Unicast
+
+#### `apck.depart.approach` (ATC)
+
+- Sent from the dispatcher to the agent, giving permission to take off.
+- Contains a departure path ("flight plan").
+
+#### `apck.depart.complete` (ATC)
+
+- Sent from the agent to the dispatcher.
+- TODO
+
+#### `apck.depart.request` (ATC)
+
+- Sent from the agent to the dispatcher to request permission to take off.
+- The agent is supposed to wait. (e.g. state `MinerState.WaitingForDocking`)
+- TODO: Never used???
+
+#### `apck.docking.approach` (ATC)
+
+- Sent from the dispatcher to the agent, assigning a free docking port.
+- Contains an approach path ("flight plan").
+
+#### `apck.docking.request` (ATC)
+
+- Sent from the agent to the dispatcher to request permission to land.
+- The agent is supposed to wait. (e.g. state ``)
+- TODO
+
+#### `apck.docking.approach` (ATC)
+
+- Sent from the agent to the dispatcher.
+- TODO
+
+#### `apck.depart.approach` (ATC)
+
+- Sent from the agent to the dispatcher.
+- TODO
 
 #### `miners` (ATC)
 
@@ -55,6 +92,7 @@ A job is shaft, processed by an individual agent. The dispatcher will usually as
 - Channel `miners.command` is used by the dispatcher to issue commands to the agents.
 - Channel `miners.handshake` is used by the agents to announce their availability to potential dispatchers.
 - Channel `miners` is used for air traffic control (ATC).
+- Channel `miners.report` is used by the agents to transmit status reports.
 
 #### `common-airspace-ask-for-lock` (ATC)
 
