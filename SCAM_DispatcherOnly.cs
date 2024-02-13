@@ -24,7 +24,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 		string Ver = "0.9.68";
 
-		static bool WholeAirspaceLocking = false;
+		//static bool WholeAirspaceLocking = false;
 		static long DbgIgc = 0;
 		//static long DbgIgc = 76932813351402441; // pertam
 		//static long DbgIgc = 141426525525683227; // space
@@ -43,7 +43,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 		static string LOCK_NAME_GeneralSection = "general";
 		//static string LOCK_NAME_ForceFinishSection = "general";
-		static string LOCK_NAME_ForceFinishSection = "force-finish";
+		//static string LOCK_NAME_ForceFinishSection = "force-finish";
 
 		Action<IMyTextPanel> outputPanelInitializer = x =>
 		{
@@ -142,7 +142,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			}
 		}
 
-		bool pendingInitSequence;
+		bool pendingInitSequence; // Do first-cycle initialsation?
 		CommandRegistry commandRegistry;
 		public class CommandRegistry
 		{
@@ -158,11 +158,13 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		}
 
 		static int TickCount;
+
+		/**
+		 * \brief Processes commands.
+		 */
 		void StartOfTick(string arg)
 		{
-			TickCount++;
-			Echo("Run count: " + TickCount);
-
+			/* On first cycle, load initialiation script from custom data. */
 			if (pendingInitSequence && string.IsNullOrEmpty(arg))
 			{
 				pendingInitSequence = false;
@@ -170,29 +172,29 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						.Select(s => "[" + s + "]"));
 			}
 
-			if (!string.IsNullOrEmpty(arg) && arg.Contains(":"))
+			if (string.IsNullOrEmpty(arg) || !arg.Contains(":"))
+				return; // No commands to process.
+			
+			var commands = arg.Split(new[] { "],[" }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim('[', ']')).ToList();
+			foreach (var c in commands)
 			{
-				var commands = arg.Split(new[] { "],[" }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim('[', ']')).ToList();
-				foreach (var c in commands)
+				string[] cmdParts = c.Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
+				if (cmdParts[0] == "command")
 				{
-					string[] cmdParts = c.Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
-					if (cmdParts[0] == "command")
+					try
 					{
-						try
-						{
-							this.commandRegistry.RunCommand(cmdParts[1], cmdParts);
-						}
-						catch (Exception ex)
-						{
-							Log($"Run command '{cmdParts[1]}' failed.\n{ex}");
-						}
+						this.commandRegistry.RunCommand(cmdParts[1], cmdParts);
+					}
+					catch (Exception ex)
+					{
+						Log($"Run command '{cmdParts[1]}' failed.\n{ex}");
+					}
 
-					}
-					if (cmdParts[0] == "toggle")
-					{
-						Toggle.C.Invert(cmdParts[1]);
-						Log($"Switching '{cmdParts[1]}' to state '{Toggle.C.Check(cmdParts[1])}'");
-					}
+				}
+				if (cmdParts[0] == "toggle")
+				{
+					Toggle.C.Invert(cmdParts[1]);
+					Log($"Switching '{cmdParts[1]}' to state '{Toggle.C.Check(cmdParts[1])}'");
 				}
 			}
 		}
@@ -203,14 +205,19 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			E.EndOfTick();
 		}
 
-		IMyProgrammableBlock pillockCore;
+		//IMyProgrammableBlock pillockCore;
 		//int Clock = 1;
+		/**
+		 * \brief Initialisation of the PB.
+		 */
 		void Ctor()
 		{
 			if (!string.IsNullOrEmpty(Me.CustomData))
 				pendingInitSequence = true;
 
 			E.Init(Echo, GridTerminalSystem, Me);
+
+			/* Initialise the toggles. */
 			Toggle.Init(new Dictionary<string, bool>
 			{
 				{ "adaptive-mining", false },
@@ -251,6 +258,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			IsLargeGrid = Me.CubeGrid.GridSizeEnum == MyCubeSize.Large;
 
+			/* Initialise the command handlers. */
 			this.commandRegistry = new CommandRegistry(
 				new Dictionary<string, Action<string[]>>
 					{
@@ -716,7 +724,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		public Program()
 		{
 			Runtime.UpdateFrequency = UpdateFrequency.Update1;
-
 			Ctor();
 		}
 
@@ -741,7 +748,10 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				Log("Got miners.command: " + param);
 			}
 
-			/* Process command, if broadcast received or manually passed by the user. */
+			TickCount++;
+			Echo("Run count: " + TickCount);
+
+			/* Process command, if broadcast received, manually passed by the user or from custom data (1st cycle). */
 			StartOfTick(param);
 
 			/* Process the unicast messages. */
@@ -1029,8 +1039,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 								else
 									Log("To use this mode specify group-constraint value and make sure you have intended circular-pattern-shaft-radius");
 							}
-							else if (minerController != null)
-							{
+							//else if (minerController != null)
+							//{
 								//if (minerController.LocalDispatcher != null)
 								//{
 								//	dispatcherService.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"),
@@ -1043,7 +1053,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 								//			new MyTuple<float, Vector3D, Vector3D>(Variables.Get<float>("circular-pattern-shaft-radius"),
 								//			castedSurfacePoint.Value - castedNormal.Value * 10,
 								//			castedNormal.Value));
-							}
+							//}
 						}
 						else
 						{
@@ -1450,7 +1460,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			}
 		}
 
-		MinerController minerController;//TODO: Only used by drones/agents. (Always NULL)
+		//MinerController minerController;//TODO: Only used by drones/agents. (Always NULL)
 		public class MinerController
 		{
 			//	public Dispatcher LocalDispatcher { get; set; }
