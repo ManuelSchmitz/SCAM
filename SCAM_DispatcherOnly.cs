@@ -3296,451 +3296,451 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 
 		//APckUnit coreUnit;
-		public class APckUnit
-		{
-			public IMyShipConnector docker;
-			public List<IMyWarhead> wh;
+		//public class APckUnit
+		//{
+		//	public IMyShipConnector docker;
+		//	public List<IMyWarhead> wh;
 
-			IMyRadioAntenna antenna;
+		//	IMyRadioAntenna antenna;
 
-			FSM fsm;
-			public PcBehavior CurrentBH;
-			public Func<string, TargetTelemetry> _getTV;
+		//	FSM fsm;
+		//	public PcBehavior CurrentBH;
+		//	public Func<string, TargetTelemetry> _getTV;
 
-			public IMyGyro G;
-			public IMyGridTerminalSystem _gts;
-			public IMyIntergridCommunicationSystem _igc;
-			public IMyRemoteControl RC;
-			public PillockController pc;
-			public TimerTriggerService tts;
+		//	public IMyGyro G;
+		//	public IMyGridTerminalSystem _gts;
+		//	public IMyIntergridCommunicationSystem _igc;
+		//	public IMyRemoteControl RC;
+		//	public PillockController pc;
+		//	public TimerTriggerService tts;
 
-			public IMyProgrammableBlock Tp;
-			public IMyProgrammableBlock TGP;
+		//	public IMyProgrammableBlock Tp;
+		//	public IMyProgrammableBlock TGP;
 
-			HashSet<IMyTerminalBlock> coll = new HashSet<IMyTerminalBlock>();
+		//	HashSet<IMyTerminalBlock> coll = new HashSet<IMyTerminalBlock>();
 
-			T GetCoreB<T>(string name, List<IMyTerminalBlock> set, bool required = false) where T : class, IMyTerminalBlock
-			{
-				T r;
-				E.Echo("Looking for " + name);
-				var f = set.Where(b => b is T && b.CustomName.Contains(name)).Cast<T>().ToList();
-				r = required ? f.Single() : f.FirstOrDefault();
-				if (r != null)
-					coll.Add(r);
-				return r;
-			}
+		//	T GetCoreB<T>(string name, List<IMyTerminalBlock> set, bool required = false) where T : class, IMyTerminalBlock
+		//	{
+		//		T r;
+		//		E.Echo("Looking for " + name);
+		//		var f = set.Where(b => b is T && b.CustomName.Contains(name)).Cast<T>().ToList();
+		//		r = required ? f.Single() : f.FirstOrDefault();
+		//		if (r != null)
+		//			coll.Add(r);
+		//		return r;
+		//	}
 
-			List<T> GetCoreC<T>(List<IMyTerminalBlock> set, string n = null) where T : class, IMyTerminalBlock
-			{
-				var f = set.Where(b => b is T && ((n == null) || (b.CustomName == n))).Cast<T>().ToList();
-				foreach (var b in f)
-					coll.Add(b);
-				return f;
-			}
+		//	List<T> GetCoreC<T>(List<IMyTerminalBlock> set, string n = null) where T : class, IMyTerminalBlock
+		//	{
+		//		var f = set.Where(b => b is T && ((n == null) || (b.CustomName == n))).Cast<T>().ToList();
+		//		foreach (var b in f)
+		//			coll.Add(b);
+		//		return f;
+		//	}
 
-			public APckUnit(IMyProgrammableBlock me, PersistentState ps, IMyGridTerminalSystem gts, IMyIntergridCommunicationSystem igc, Func<string, TargetTelemetry> gtt)
-			{
-				_gts = gts;
-				_getTV = gtt;
-				_igc = igc;
+		//	public APckUnit(IMyProgrammableBlock me, PersistentState ps, IMyGridTerminalSystem gts, IMyIntergridCommunicationSystem igc, Func<string, TargetTelemetry> gtt)
+		//	{
+		//		_gts = gts;
+		//		_getTV = gtt;
+		//		_igc = igc;
 
 				//Func<IMyTerminalBlock, bool> f = b => true;
-				Func<IMyTerminalBlock, bool> f = b => b.IsSameConstructAs(me);
-				var subs = new List<IMyTerminalBlock>();
-				gts.GetBlocks(subs);
-				subs = subs.Where(b => f(b)).ToList();
+		//		Func<IMyTerminalBlock, bool> f = b => b.IsSameConstructAs(me);
+		//		var subs = new List<IMyTerminalBlock>();
+		//		gts.GetBlocks(subs);
+		//		subs = subs.Where(b => f(b)).ToList();
 
-				InitBS(subs);
-			}
+		//		InitBS(subs);
+		//	}
 
-			public void InitBS(List<IMyTerminalBlock> subset)
-			{
-				var f = subset;
+		//	public void InitBS(List<IMyTerminalBlock> subset)
+		//	{
+		//		var f = subset;
 
-				E.DebugLog("subset: " + subset.Count);
+		//		E.DebugLog("subset: " + subset.Count);
 
 				// svc
-				Tp = GetCoreB<IMyProgrammableBlock>("a-thrust-provider", f);
+		//		Tp = GetCoreB<IMyProgrammableBlock>("a-thrust-provider", f);
 
-				var rb = GetCoreC<IMyMotorStator>(f);
-				var pbs = new List<IMyProgrammableBlock>();
-				_gts.GetBlocksOfType(pbs, j => rb.Any(x => (x.Top != null) && x.Top.CubeGrid == j.CubeGrid));
-				TGP = GetCoreB<IMyProgrammableBlock>("a-tgp", f) ?? pbs.FirstOrDefault(x => x.CustomName.Contains("a-tgp"));
+		//		var rb = GetCoreC<IMyMotorStator>(f);
+		//		var pbs = new List<IMyProgrammableBlock>();
+		//		_gts.GetBlocksOfType(pbs, j => rb.Any(x => (x.Top != null) && x.Top.CubeGrid == j.CubeGrid));
+		//		TGP = GetCoreB<IMyProgrammableBlock>("a-tgp", f) ?? pbs.FirstOrDefault(x => x.CustomName.Contains("a-tgp"));
 
-				G = GetCoreB<IMyGyro>(ForwardGyroTag, f, true);
+		//		G = GetCoreB<IMyGyro>(ForwardGyroTag, f, true);
 
-				var ctrls = GetCoreC<IMyShipController>(f);
-				UserCtrlTest.Init(ctrls);
+		//		var ctrls = GetCoreC<IMyShipController>(f);
+		//		UserCtrlTest.Init(ctrls);
 
-				antenna = GetCoreC<IMyRadioAntenna>(f).FirstOrDefault();
-				docker = GetCoreC<IMyShipConnector>(f).First();
+		//		antenna = GetCoreC<IMyRadioAntenna>(f).FirstOrDefault();
+		//		docker = GetCoreC<IMyShipConnector>(f).First();
 
-				wh = GetCoreC<IMyWarhead>(f);
+		//		wh = GetCoreC<IMyWarhead>(f);
 
-				RC = GetCoreC<IMyRemoteControl>(f).First();
-				RC.CustomData = "";
+		//		RC = GetCoreC<IMyRemoteControl>(f).First();
+		//		RC.CustomData = "";
 
-				var ts = GetCoreC<IMyTimerBlock>(f);
-				tts = new TimerTriggerService(ts);
+		//		var ts = GetCoreC<IMyTimerBlock>(f);
+		//		tts = new TimerTriggerService(ts);
 
-				thrusters = new List<IMyTerminalBlock>();
-				thrusters.AddRange(GetCoreC<IMyThrust>(f));
-				thrusters.AddRange(GetCoreC<IMyArtificialMassBlock>(f));
+		//		thrusters = new List<IMyTerminalBlock>();
+		//		thrusters.AddRange(GetCoreC<IMyThrust>(f));
+		//		thrusters.AddRange(GetCoreC<IMyArtificialMassBlock>(f));
 
-				string tag = Variables.Get<string>("ggen-tag");
-				if (!string.IsNullOrEmpty(tag))
-				{
-					var g = new List<IMyGravityGenerator>();
-					var gr = _gts.GetBlockGroupWithName(tag);
-					if (gr != null)
-						gr.GetBlocksOfType(g, b => f.Contains(b));
-					foreach (var b in g)
-						coll.Add(b);
-					thrusters.AddRange(g);
-				}
-				else
-					thrusters.AddRange(GetCoreC<IMyGravityGenerator>(f));
+		//		string tag = Variables.Get<string>("ggen-tag");
+		//		if (!string.IsNullOrEmpty(tag))
+		//		{
+		//			var g = new List<IMyGravityGenerator>();
+		//			var gr = _gts.GetBlockGroupWithName(tag);
+		//			if (gr != null)
+		//				gr.GetBlocksOfType(g, b => f.Contains(b));
+		//			foreach (var b in g)
+		//				coll.Add(b);
+		//			thrusters.AddRange(g);
+		//		}
+		//		else
+		//			thrusters.AddRange(GetCoreC<IMyGravityGenerator>(f));
 
-				pc = new PillockController(RC, tts, _igc, Tp, G, antenna, AllLocalThrusters, this, thrusters.Count > 5);
+		//		pc = new PillockController(RC, tts, _igc, Tp, G, antenna, AllLocalThrusters, this, thrusters.Count > 5);
 
-				fsm = new FSM(this, _getTV);
+		//		fsm = new FSM(this, _getTV);
 
-				SetState(ApckState.Standby);
-				pc.SetState(PillockController.State.WP);
-			}
+		//		SetState(ApckState.Standby);
+		//		pc.SetState(PillockController.State.WP);
+		//	}
 
-			List<IMyTerminalBlock> thrusters;
-			ThrusterSelector cached;
-			int tsUpdatedStamp;
-			public ThrusterSelector AllLocalThrusters()
-			{
-				if (cached == null)
-					cached = new ThrusterSelector(G, thrusters);
-				else if ((tick != tsUpdatedStamp) && (tick % 60 == 0))
-				{
-					tsUpdatedStamp = tick;
-					if (thrusters.Any(x => !x.IsFunctional))
-					{
-						thrusters.RemoveAll(x => !x.IsFunctional);
-						cached = new ThrusterSelector(G, thrusters);
-					}
-				}
-				if (thrusters.Any(x => x is IMyThrust && (x as IMyThrust)?.MaxEffectiveThrust != (x as IMyThrust)?.MaxThrust))
-					cached.CalculateForces();
-				return cached;
-			}
+		//	List<IMyTerminalBlock> thrusters;
+		//	ThrusterSelector cached;
+		//	int tsUpdatedStamp;
+		//	public ThrusterSelector AllLocalThrusters()
+		//	{
+		//		if (cached == null)
+		//			cached = new ThrusterSelector(G, thrusters);
+		//		else if ((tick != tsUpdatedStamp) && (tick % 60 == 0))
+		//		{
+		//			tsUpdatedStamp = tick;
+		//			if (thrusters.Any(x => !x.IsFunctional))
+		//			{
+		//				thrusters.RemoveAll(x => !x.IsFunctional);
+		//				cached = new ThrusterSelector(G, thrusters);
+		//			}
+		//		}
+		//		if (thrusters.Any(x => x is IMyThrust && (x as IMyThrust)?.MaxEffectiveThrust != (x as IMyThrust)?.MaxThrust))
+		//			cached.CalculateForces();
+		//		return cached;
+		//	}
 
-			public Vector3D? initialAlt;
-			public Vector3D? plCenter;
-			public bool UnderPlanetInfl()
-			{
-				if (pc.NG != null)
-				{
-					if (plCenter == null)
-					{
-						Vector3D planetPos;
-						if (RC.TryGetPlanetPosition(out planetPos))
-						{
-							plCenter = planetPos;
-							return true;
-						}
-					}
-					return plCenter.HasValue;
-				}
-				return false;
-			}
+		//	public Vector3D? initialAlt;
+		//	public Vector3D? plCenter;
+		//	public bool UnderPlanetInfl()
+		//	{
+		//		if (pc.NG != null)
+		//		{
+		//			if (plCenter == null)
+		//			{
+		//				Vector3D planetPos;
+		//				if (RC.TryGetPlanetPosition(out planetPos))
+		//				{
+		//					plCenter = planetPos;
+		//					return true;
+		//				}
+		//			}
+		//			return plCenter.HasValue;
+		//		}
+		//		return false;
+		//	}
 
-			public void TrySetState(string stateName)
-			{
-				ApckState s;
-				if (Enum.TryParse(stateName, out s))
-				{
-					SetState(s);
-				}
-			}
+		//	public void TrySetState(string stateName)
+		//	{
+		//		ApckState s;
+		//		if (Enum.TryParse(stateName, out s))
+		//		{
+		//			SetState(s);
+		//		}
+		//	}
 
-			public void SetState(ApckState s)
-			{
-				if (fsm.TrySetState(s))
-				{
-					CurrentBH = fsm.GetCurrentBeh();
-					if (antenna != null)
-						antenna.CustomName = $"{G.CubeGrid.CustomName}> {fsm.GetCurrent().St} / {tPtr?.Value?.Name}";
-				}
-			}
+		//	public void SetState(ApckState s)
+		//	{
+		//		if (fsm.TrySetState(s))
+		//		{
+		//			CurrentBH = fsm.GetCurrentBeh();
+		//			if (antenna != null)
+		//				antenna.CustomName = $"{G.CubeGrid.CustomName}> {fsm.GetCurrent().St} / {tPtr?.Value?.Name}";
+		//		}
+		//	}
 
-			public void BindBeh(ApckState st, PcBehavior b)
-			{
-				fsm.SetBehavior(st, b);
-			}
+		//	public void BindBeh(ApckState st, PcBehavior b)
+		//	{
+		//		fsm.SetBehavior(st, b);
+		//	}
 
-			public PcBehavior GetBeh(ApckState st)
-			{
-				return fsm.GetXwrapper(st).BH;
-			}
+		//	public PcBehavior GetBeh(ApckState st)
+		//	{
+		//		return fsm.GetXwrapper(st).BH;
+		//	}
 
-			public void CreateWP(APckTask t)
-			{
-				E.DebugLog("CreateWP " + t.Name);
-				InsertTaskBefore(t);
-			}
+		//	public void CreateWP(APckTask t)
+		//	{
+		//		E.DebugLog("CreateWP " + t.Name);
+		//		InsertTaskBefore(t);
+		//	}
 
-			public void Handle(int tick, Action<string> e)
-			{
-				this.tick = tick;
+		//	public void Handle(int tick, Action<string> e)
+		//	{
+		//		this.tick = tick;
 
-				HandleTasks();
-				var task = tPtr?.Value;
-				PcBehavior bh;
-				if ((task != null) && (fsm.GetCurrent().St == task.PState))
-					bh = task.BH ?? GetBeh(task.PState);
-				else
-					bh = CurrentBH;
+		//		HandleTasks();
+		//		var task = tPtr?.Value;
+		//		PcBehavior bh;
+		//		if ((task != null) && (fsm.GetCurrent().St == task.PState))
+		//			bh = task.BH ?? GetBeh(task.PState);
+		//		else
+		//			bh = CurrentBH;
 
-				pc.HandleControl(tick, e, bh);
-			}
+		//		pc.HandleControl(tick, e, bh);
+		//	}
 
-			LinkedList<APckTask> tasks = new LinkedList<APckTask>();
-			LinkedListNode<APckTask> tPtr;
-			int tick;
+		//	LinkedList<APckTask> tasks = new LinkedList<APckTask>();
+		//	LinkedListNode<APckTask> tPtr;
+		//	int tick;
 
-			void HandleTasks()
-			{
-				if (tPtr != null)
-				{
-					var t = tPtr.Value;
-					if (t.CheckCompl(tick, pc))
-					{
-						E.DebugLog($"TFin {t.Name}");
-						ForceNext();
-					}
-				}
-			}
+		//	void HandleTasks()
+		//	{
+		//		if (tPtr != null)
+		//		{
+		//			var t = tPtr.Value;
+		//			if (t.CheckCompl(tick, pc))
+		//			{
+		//				E.DebugLog($"TFin {t.Name}");
+		//				ForceNext();
+		//			}
+		//		}
+		//	}
 
-			public APckTask GetCurrTask()
-			{
-				return tPtr?.Value;
-			}
+		//	public APckTask GetCurrTask()
+		//	{
+		//		return tPtr?.Value;
+		//	}
 
-			public void InsertTaskBefore(APckTask t)
-			{
-				tasks.AddFirst(t);
-				E.DebugLog($"Added {t.Name}, total: {tasks.Count}");
-				tPtr = tasks.First;
-				if (tPtr.Next == null)
-					tPtr.Value.src = fsm.GetCurrent().St;
-				t.Init(pc, tick);
-				SetState(t.PState);
-			}
-			public void ForceNext()
-			{
-				var _p = tPtr;
-				var c = _p.Value;
-				c.OnComplete?.Invoke();
-				//pc.TriggerService.TryTriggerNamedTimer(wp.Name + ".OnComplete");
-				if (_p.Next != null)
-				{
-					c = _p.Next.Value;
-					tPtr = _p.Next;
-					c.Init(pc, tick);
-					tasks.Remove(_p);
-				}
-				else
-				{
-					tPtr = null;
-					tasks.Clear();
-					SetState(_p.Value.src);
-				}
-			}
-		}
+		//	public void InsertTaskBefore(APckTask t)
+		//	{
+		//		tasks.AddFirst(t);
+		//		E.DebugLog($"Added {t.Name}, total: {tasks.Count}");
+		//		tPtr = tasks.First;
+		//		if (tPtr.Next == null)
+		//			tPtr.Value.src = fsm.GetCurrent().St;
+		//		t.Init(pc, tick);
+		//		SetState(t.PState);
+		//	}
+		//	public void ForceNext()
+		//	{
+		//		var _p = tPtr;
+		//		var c = _p.Value;
+		//		c.OnComplete?.Invoke();
+		//		//pc.TriggerService.TryTriggerNamedTimer(wp.Name + ".OnComplete");
+		//		if (_p.Next != null)
+		//		{
+		//			c = _p.Next.Value;
+		//			tPtr = _p.Next;
+		//			c.Init(pc, tick);
+		//			tasks.Remove(_p);
+		//		}
+		//		else
+		//		{
+		//			tPtr = null;
+		//			tasks.Clear();
+		//			SetState(_p.Value.src);
+		//		}
+		//	}
+		//}
 
-		public class FSM
-		{
-			APckUnit _u;
+		//public class FSM
+		//{
+		//	APckUnit _u;
 
-			Dictionary<ApckState, XState> stateBehs = new Dictionary<ApckState, XState>();
+		//	Dictionary<ApckState, XState> stateBehs = new Dictionary<ApckState, XState>();
 
-			public FSM(APckUnit unit, Func<string, TargetTelemetry> GetNTV)
-			{
-				_u = unit;
-				var PC = _u.pc;
+		//	public FSM(APckUnit unit, Func<string, TargetTelemetry> GetNTV)
+		//	{
+		//		_u = unit;
+		//		var PC = _u.pc;
 
-				var de = new PcBehavior { Name = "Default" };
-				foreach (var s in Enum.GetValues(typeof(ApckState)))
-				{
-					stateBehs.Add((ApckState)s, new XState((ApckState)s, de));
-				}
+		//		var de = new PcBehavior { Name = "Default" };
+		//		foreach (var s in Enum.GetValues(typeof(ApckState)))
+		//		{
+		//			stateBehs.Add((ApckState)s, new XState((ApckState)s, de));
+		//		}
 
-				stateBehs[ApckState.Standby].BH = new PcBehavior { Name = "Standby" };
-				currentSt = stateBehs[ApckState.Standby];
+		//		stateBehs[ApckState.Standby].BH = new PcBehavior { Name = "Standby" };
+		//		currentSt = stateBehs[ApckState.Standby];
 
-				stateBehs[ApckState.Formation].BH = new PcBehavior
-				{
-					Name = "follow formation",
-					AutoSwitchToNext = false,
-					TargetFeed = () => GetNTV("wingman"),
-					AimpointShifter = (tv) => PC.Fw.GetPosition() + GetNTV("wingman").OrientationUnit.Value.Forward * 5000,
-					PositionShifter = p =>
-					{
-						var bs = new BoundingSphereD(GetNTV("wingman").OrientationUnit.Value.Translation, 30);
-						return VectorOpsHelper.GetTangFreeDestinantion(PC.Fw.WorldMatrix, p, bs);
-					},
-					TranslationOverride = () => PC.Fw.GetPosition()
-				};
+		//		stateBehs[ApckState.Formation].BH = new PcBehavior
+		//		{
+		//			Name = "follow formation",
+		//			AutoSwitchToNext = false,
+		//			TargetFeed = () => GetNTV("wingman"),
+		//			AimpointShifter = (tv) => PC.Fw.GetPosition() + GetNTV("wingman").OrientationUnit.Value.Forward * 5000,
+		//			PositionShifter = p =>
+		//			{
+		//				var bs = new BoundingSphereD(GetNTV("wingman").OrientationUnit.Value.Translation, 30);
+		//				return VectorOpsHelper.GetTangFreeDestinantion(PC.Fw.WorldMatrix, p, bs);
+		//			},
+		//			TranslationOverride = () => PC.Fw.GetPosition()
+		//		};
 
-				stateBehs[ApckState.Brake].BH = new PcBehavior
-				{
-					Name = "reverse",
-					IgnoreTFeed = true,
-					PositionShifter = tv => PC.CreateFromFwDir(-150),
-					AimpointShifter = (tv) => PC.CreateFromFwDir(1),
-					FlyThrough = true
-				};
+		//		stateBehs[ApckState.Brake].BH = new PcBehavior
+		//		{
+		//			Name = "reverse",
+		//			IgnoreTFeed = true,
+		//			PositionShifter = tv => PC.CreateFromFwDir(-150),
+		//			AimpointShifter = (tv) => PC.CreateFromFwDir(1),
+		//			FlyThrough = true
+		//		};
 
-				stateBehs[ApckState.DockingAwait].BH = new PcBehavior
-				{
-					Name = "awaiting docking",
-					AutoSwitchToNext = false,
-					IgnoreTFeed = true,
-					TargetFeed = () => GetNTV("wingman"),
-					AimpointShifter = tv => PC.Fw.GetPosition() + PC.Fw.WorldMatrix.Forward,
-					PositionShifter = tv => GetNTV("wingman").Position.HasValue ? GetNTV("wingman").Position.Value : PC.Fw.GetPosition(),
-					DistanceHandler = (d, dx, c, wp, u) =>
-					{
-						if (GetNTV("docking").Position.HasValue && (_u.docker != null))
-						{
-							u.SetState(ApckState.DockingFinal);
-						}
-					}
-				};
+		//		stateBehs[ApckState.DockingAwait].BH = new PcBehavior
+		//		{
+		//			Name = "awaiting docking",
+		//			AutoSwitchToNext = false,
+		//			IgnoreTFeed = true,
+		//			TargetFeed = () => GetNTV("wingman"),
+		//			AimpointShifter = tv => PC.Fw.GetPosition() + PC.Fw.WorldMatrix.Forward,
+		//			PositionShifter = tv => GetNTV("wingman").Position.HasValue ? GetNTV("wingman").Position.Value : PC.Fw.GetPosition(),
+		//			DistanceHandler = (d, dx, c, wp, u) =>
+		//			{
+		//				if (GetNTV("docking").Position.HasValue && (_u.docker != null))
+		//				{
+		//					u.SetState(ApckState.DockingFinal);
+		//				}
+		//			}
+		//		};
 
-				stateBehs[ApckState.DockingFinal].BH = new PcBehavior
-				{
-					AimpointShifter = tv => _u.docker.GetPosition() - GetNTV("docking").OrientationUnit.Value.Forward * 10000,
-					PositionShifter = p => p + GetNTV("docking").OrientationUnit.Value.Forward * (IsLargeGrid ? 1.25f : 0.5f),
-					FwOverride = () => _u.docker.WorldMatrix,
-					TranslationOverride = () => _u.docker.GetPosition(),
-					TargetFeed = () => GetNTV("docking"),
-					AutoSwitchToNext = false,
-					ApproachVelocity = () => PC.Velocity,
-					//FlyThrough = true, // fixes frav min3r docking
-					DistanceHandler = (d, dx, c, wp, u) =>
-					{
-						if ((d < 20) && (c.AlignDelta.Length() < 0.8) && (_u.docker != null))
-						{
-							_u.docker.Connect();
-							if (_u.docker.Status == MyShipConnectorStatus.Connected)
-							{
-								u.SetState(ApckState.Inert);
-								_u.docker.OtherConnector.CustomData = "";
-								c.RemCon.DampenersOverride = false;
-							}
-						}
-					}
-				};
+		//		stateBehs[ApckState.DockingFinal].BH = new PcBehavior
+		//		{
+		//			AimpointShifter = tv => _u.docker.GetPosition() - GetNTV("docking").OrientationUnit.Value.Forward * 10000,
+		//			PositionShifter = p => p + GetNTV("docking").OrientationUnit.Value.Forward * (IsLargeGrid ? 1.25f : 0.5f),
+		//			FwOverride = () => _u.docker.WorldMatrix,
+		//			TranslationOverride = () => _u.docker.GetPosition(),
+		//			TargetFeed = () => GetNTV("docking"),
+		//			AutoSwitchToNext = false,
+		//			ApproachVelocity = () => PC.Velocity,
+		//			//FlyThrough = true, // fixes frav min3r docking
+		//			DistanceHandler = (d, dx, c, wp, u) =>
+		//			{
+		//				if ((d < 20) && (c.AlignDelta.Length() < 0.8) && (_u.docker != null))
+		//				{
+		//					_u.docker.Connect();
+		//					if (_u.docker.Status == MyShipConnectorStatus.Connected)
+		//					{
+		//						u.SetState(ApckState.Inert);
+		//						_u.docker.OtherConnector.CustomData = "";
+		//						c.RemCon.DampenersOverride = false;
+		//					}
+		//				}
+		//			}
+		//		};
 
-				stateBehs[ApckState.Inert].OnEnter = s => unit.pc.SetState(PillockController.State.Inert);
-				stateBehs[ApckState.Inert].OnExit = s => unit.pc.SetState(PillockController.State.WP);
-			}
+		//		stateBehs[ApckState.Inert].OnEnter = s => unit.pc.SetState(PillockController.State.Inert);
+		//		stateBehs[ApckState.Inert].OnExit = s => unit.pc.SetState(PillockController.State.WP);
+		//	}
 
-			public void SetBehavior(ApckState st, PcBehavior bh)
-			{
-				stateBehs[st].BH = bh;
-			}
+		//	public void SetBehavior(ApckState st, PcBehavior bh)
+		//	{
+		//		stateBehs[st].BH = bh;
+		//	}
 
-			public PcBehavior GetCurrentBeh()
-			{
-				return currentSt.BH;
-			}
+		//	public PcBehavior GetCurrentBeh()
+		//	{
+		//		return currentSt.BH;
+		//	}
 
-			public bool TrySetState(ApckState st)
-			{
-				if (st == currentSt.St)
-					return true;
-				var t = GetXwrapper(st);
-				if (t != null)
-				{
-					var c = tConstraints.FirstOrDefault(x => x.Src.St == currentSt.St || x.Target.St == currentSt.St || x.Target.St == st || x.Src.St == st);
-					if (c != null)
-					{
-						if (!(c.Src == currentSt && c.Target == t))
-						{
-							return false;
-						}
-					}
+		//	public bool TrySetState(ApckState st)
+		//	{
+		//		if (st == currentSt.St)
+		//			return true;
+		//		var t = GetXwrapper(st);
+		//		if (t != null)
+		//		{
+		//			var c = tConstraints.FirstOrDefault(x => x.Src.St == currentSt.St || x.Target.St == currentSt.St || x.Target.St == st || x.Src.St == st);
+		//			if (c != null)
+		//			{
+		//				if (!(c.Src == currentSt && c.Target == t))
+		//				{
+		//					return false;
+		//				}
+		//			}
 
-					var _s = currentSt;
-					E.DebugLog($"{_s.St} -> {t.St}");
-					currentSt = t;
+		//			var _s = currentSt;
+		//			E.DebugLog($"{_s.St} -> {t.St}");
+		//			currentSt = t;
 
-					_s.OnExit?.Invoke(currentSt.St);
-					c?.OnTransit?.Invoke();
-					t.OnEnter?.Invoke(t.St);
-					return true;
-				}
-				return false;
-			}
+		//			_s.OnExit?.Invoke(currentSt.St);
+		//			c?.OnTransit?.Invoke();
+		//			t.OnEnter?.Invoke(t.St);
+		//			return true;
+		//		}
+		//		return false;
+		//	}
 
-			public XState GetXwrapper(ApckState st)
-			{
-				return stateBehs[st];
-			}
+		//	public XState GetXwrapper(ApckState st)
+		//	{
+		//		return stateBehs[st];
+		//	}
 
-			public XState GetCurrent()
-			{
-				return currentSt;
-			}
+		//	public XState GetCurrent()
+		//	{
+		//		return currentSt;
+		//	}
 
-			XState currentSt;
-			List<XTrans> tConstraints = new List<XTrans>();
+		//	XState currentSt;
+		//	List<XTrans> tConstraints = new List<XTrans>();
 
-			public class XState
-			{
-				public ApckState St;
-				public Action<ApckState> OnExit;
-				public Action<ApckState> OnEnter;
-				public PcBehavior BH;
-				public XState(ApckState st, PcBehavior b, Action<ApckState> onExit = null, Action<ApckState> onEnter = null)
-				{
-					BH = b;
-					St = st;
-					OnExit = onExit;
-					OnEnter = onEnter;
-				}
-			}
+		//	public class XState
+		//	{
+		//		public ApckState St;
+		//		public Action<ApckState> OnExit;
+		//		public Action<ApckState> OnEnter;
+		//		public PcBehavior BH;
+		//		public XState(ApckState st, PcBehavior b, Action<ApckState> onExit = null, Action<ApckState> onEnter = null)
+		//		{
+		//			BH = b;
+		//			St = st;
+		//			OnExit = onExit;
+		//			OnEnter = onEnter;
+		//		}
+		//	}
 
-			public class XTrans
-			{
-				public XState Src;
-				public XState Target;
-				public Action OnTransit;
-			}
-		}
+		//	public class XTrans
+		//	{
+		//		public XState Src;
+		//		public XState Target;
+		//		public Action OnTransit;
+		//	}
+		//}
 
-		public class PcBehavior
-		{
-			public string Name = "Default";
-			public bool AutoSwitchToNext = true;
-			public Func<Vector3D, Vector3D> PositionShifter { get; set; }
-			public Func<Vector3D, Vector3D> DestinationShifter { get; set; }
-			public Func<Vector3D> SuggestedUpNorm { get; set; }
-			public Action<double, double, PillockController, PcBehavior, APckUnit> DistanceHandler { get; set; }
-			public Func<Vector3D> ApproachVelocity;
-			public bool AllowFixedThrust = false;
-			public Func<Vector3D, Vector3D> AimpointShifter = (tv) => tv;
-			public Func<MatrixD> FwOverride;
-			public Func<Vector3D> TranslationOverride;
-			public bool fRoll;
-			public float? SpeedLimit;
-			public bool SelfVelocityAimCorrection = false;
-			public bool FlyThrough = false;
-			public bool IgnoreTFeed;
-			public Func<TargetTelemetry> TargetFeed;
-			public static PcBehavior FromGPS(Vector3D p, string name, Func<Vector3D> aim = null)
-			{
-				return new PcBehavior() { Name = name, IgnoreTFeed = true, PositionShifter = x => p, AimpointShifter = x => aim?.Invoke() ?? p };
-			}
-		}
+		//public class PcBehavior
+		//{
+		//	public string Name = "Default";
+		//	public bool AutoSwitchToNext = true;
+		//	public Func<Vector3D, Vector3D> PositionShifter { get; set; }
+		//	public Func<Vector3D, Vector3D> DestinationShifter { get; set; }
+		//	public Func<Vector3D> SuggestedUpNorm { get; set; }
+		//	public Action<double, double, PillockController, PcBehavior, APckUnit> DistanceHandler { get; set; }
+		//	public Func<Vector3D> ApproachVelocity;
+		//	public bool AllowFixedThrust = false;
+		//	public Func<Vector3D, Vector3D> AimpointShifter = (tv) => tv;
+		//	public Func<MatrixD> FwOverride;
+		//	public Func<Vector3D> TranslationOverride;
+		//	public bool fRoll;
+		//	public float? SpeedLimit;
+		//	public bool SelfVelocityAimCorrection = false;
+		//	public bool FlyThrough = false;
+		//	public bool IgnoreTFeed;
+		//	public Func<TargetTelemetry> TargetFeed;
+		//	public static PcBehavior FromGPS(Vector3D p, string name, Func<Vector3D> aim = null)
+		//	{
+		//		return new PcBehavior() { Name = name, IgnoreTFeed = true, PositionShifter = x => p, AimpointShifter = x => aim?.Invoke() ?? p };
+		//	}
+		//}
 
 
 		public class TimerTriggerService
@@ -3768,445 +3768,445 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		}
 
 
-		public class PillockController
-		{
-			public enum State { Disabled = 0, Inert, WP }
+		//public class PillockController
+		//{
+		//	public enum State { Disabled = 0, Inert, WP }
 
-			public bool VolThrust;
+		//	public bool VolThrust;
 
-			State state = State.Disabled;
-			public void SetState(State newState)
-			{
-				if (newState == State.WP)
-					TakeControl();
-				else if (newState == State.Inert)
-					ReleaseControl(false);
-				else if (newState == State.Disabled)
-					ReleaseControl();
-				state = newState;
-			}
+		//	State state = State.Disabled;
+		//	public void SetState(State newState)
+		//	{
+		//		if (newState == State.WP)
+		//			TakeControl();
+		//		else if (newState == State.Inert)
+		//			ReleaseControl(false);
+		//		else if (newState == State.Disabled)
+		//			ReleaseControl();
+		//		state = newState;
+		//	}
 
-			public void TrySetState(string stateName)
-			{
-				State newState;
-				if (Enum.TryParse(stateName, out newState))
-					SetState(newState);
-			}
+		//	public void TrySetState(string stateName)
+		//	{
+		//		State newState;
+		//		if (Enum.TryParse(stateName, out newState))
+		//			SetState(newState);
+		//	}
 
-			void TakeControl()
-			{
-				RemCon.DampenersOverride = false;
-			}
+		//	void TakeControl()
+		//	{
+		//		RemCon.DampenersOverride = false;
+		//	}
 
-			void ReleaseControl(bool damp = true)
-			{
-				forwardGyro.GyroOverride = false;
-				_ts().Shutdown();
-				RemCon.DampenersOverride = damp;
-			}
+		//	void ReleaseControl(bool damp = true)
+		//	{
+		//		forwardGyro.GyroOverride = false;
+		//		_ts().Shutdown();
+		//		RemCon.DampenersOverride = damp;
+		//	}
 
-			public PillockController(IMyRemoteControl remCon,
-					TimerTriggerService timerTriggerService,
-					IMyIntergridCommunicationSystem igc, IMyProgrammableBlock thrustProvider, IMyGyro fwGyro, IMyTerminalBlock antenna, Func<ThrusterSelector> ts,
-					APckUnit au, bool volumetric)
-			{
-				RemCon = remCon;
-				IGC = igc;
-				forwardGyro = fwGyro;
-				MainAntenna = antenna;
-				TriggerService = timerTriggerService;
-				tp = thrustProvider;
-				_ts = ts;
-				u = au;
-				VolThrust = volumetric;
-			}
+		//	public PillockController(IMyRemoteControl remCon,
+		//			TimerTriggerService timerTriggerService,
+		//			IMyIntergridCommunicationSystem igc, IMyProgrammableBlock thrustProvider, IMyGyro fwGyro, IMyTerminalBlock antenna, Func<ThrusterSelector> ts,
+		//			APckUnit au, bool volumetric)
+		//	{
+		//		RemCon = remCon;
+		//		IGC = igc;
+		//		forwardGyro = fwGyro;
+		//		MainAntenna = antenna;
+		//		TriggerService = timerTriggerService;
+		//		tp = thrustProvider;
+		//		_ts = ts;
+		//		u = au;
+		//		VolThrust = volumetric;
+		//	}
 
-			Vector3D prevCV;
+		//	Vector3D prevCV;
 
-			public string DBG;
-			public Vector3D DeltaCV { get; private set; }
-			public Vector3D AlignDelta { get; private set; }
-			Vector3D prevAng = Vector3D.Zero;
-			public double MisalignDot { get; private set; }
-			public PcBehavior BH { get; private set; }
-			public Vector3D Velocity { get { return RemCon.GetShipVelocities().LinearVelocity; } }
-			Vector3D? nG;
-			public Vector3D? NG { get { return (nG != Vector3D.Zero) ? nG : null; } }
-			Vector3D mePrevVelocity { get; set; }
-			public Vector3D meA { get; set; }
-			public IMyRemoteControl RemCon;
-			public TimerTriggerService TriggerService { get; private set; }
-			IMyIntergridCommunicationSystem IGC;
-			IMyProgrammableBlock tp;
-			Func<ThrusterSelector> _ts;
-			APckUnit u;
-			int currentTick;
-			IMyGyro forwardGyro;
-			IMyTerminalBlock MainAntenna;
-			public IMyTerminalBlock Fw { get { return forwardGyro; } }
-			public Vector3D Destination;
-			public Vector3D Pip;
-			public Vector3D ThrustDest;
-			public Vector3D PosShift;
-			public Vector3D AimPoint;
-			public void HandleControl(int tickCount, Action<string> echo, PcBehavior bh)
-			{
-				var elapsed = tickCount - currentTick;
-				currentTick = tickCount;
-				if (elapsed > 0)
-					meA = (Velocity - mePrevVelocity) * 60f / elapsed;
-				mePrevVelocity = Velocity;
-				nG = RemCon.GetNaturalGravity();
+		//	public string DBG;
+		//	public Vector3D DeltaCV { get; private set; }
+		//	public Vector3D AlignDelta { get; private set; }
+		//	Vector3D prevAng = Vector3D.Zero;
+		//	public double MisalignDot { get; private set; }
+		//	public PcBehavior BH { get; private set; }
+		//	public Vector3D Velocity { get { return RemCon.GetShipVelocities().LinearVelocity; } }
+		//	Vector3D? nG;
+		//	public Vector3D? NG { get { return (nG != Vector3D.Zero) ? nG : null; } }
+		//	Vector3D mePrevVelocity { get; set; }
+		//	public Vector3D meA { get; set; }
+		//	public IMyRemoteControl RemCon;
+		//	public TimerTriggerService TriggerService { get; private set; }
+		//	IMyIntergridCommunicationSystem IGC;
+		//	IMyProgrammableBlock tp;
+		//	Func<ThrusterSelector> _ts;
+		//	APckUnit u;
+		//	int currentTick;
+		//	IMyGyro forwardGyro;
+		//	IMyTerminalBlock MainAntenna;
+		//	public IMyTerminalBlock Fw { get { return forwardGyro; } }
+		//	public Vector3D Destination;
+		//	public Vector3D Pip;
+		//	public Vector3D ThrustDest;
+		//	public Vector3D PosShift;
+		//	public Vector3D AimPoint;
+		//	public void HandleControl(int tickCount, Action<string> echo, PcBehavior bh)
+		//	{
+		//		var elapsed = tickCount - currentTick;
+		//		currentTick = tickCount;
+		//		if (elapsed > 0)
+		//			meA = (Velocity - mePrevVelocity) * 60f / elapsed;
+		//		mePrevVelocity = Velocity;
+		//		nG = RemCon.GetNaturalGravity();
 
-				BH = bh;
+		//		BH = bh;
 
-				MyPlanetElevation dElevation = new MyPlanetElevation();
-				double elevation;
-				RemCon.TryGetPlanetElevation(dElevation, out elevation);
-				Vector3D planetPos;
-				RemCon.TryGetPlanetPosition(out planetPos);
+		//		MyPlanetElevation dElevation = new MyPlanetElevation();
+		//		double elevation;
+		//		RemCon.TryGetPlanetElevation(dElevation, out elevation);
+		//		Vector3D planetPos;
+		//		RemCon.TryGetPlanetPosition(out planetPos);
 
-				Func<Vector3D> approachVelocity = null; // for PIP
-				bool fRoll = false;
-				float? speedLimit = null;
-				TargetTelemetry currentTargetVectors = null;
+		//		Func<Vector3D> approachVelocity = null; // for PIP
+		//		bool fRoll = false;
+		//		float? speedLimit = null;
+		//		TargetTelemetry currentTargetVectors = null;
 
-				switch (state)
-				{
-					case State.Disabled:
-						return;
-					case State.WP:
-						try
-						{
-							var wp = bh;
-							if (wp == null)
-							{
-								SetState(State.Disabled);
-								return;
-							}
-							if (!VolThrust && !wp.AllowFixedThrust)
-								return;
+		//		switch (state)
+		//		{
+		//			case State.Disabled:
+		//				return;
+		//			case State.WP:
+		//				try
+		//				{
+		//					var wp = bh;
+		//					if (wp == null)
+		//					{
+		//						SetState(State.Disabled);
+		//						return;
+		//					}
+		//					if (!VolThrust && !wp.AllowFixedThrust)
+		//						return;
 
-							var av = Vector3D.TransformNormal(RemCon.GetShipVelocities().AngularVelocity, MatrixD.Transpose(Fw.WorldMatrix));
-							av = new Vector3D(Math.Abs(av.X), Math.Abs(av.Y), Math.Abs(av.Z));
-							var anacc = (av - prevAng) / Dt;
-							prevAng = av;
+		//					var av = Vector3D.TransformNormal(RemCon.GetShipVelocities().AngularVelocity, MatrixD.Transpose(Fw.WorldMatrix));
+		//					av = new Vector3D(Math.Abs(av.X), Math.Abs(av.Y), Math.Abs(av.Z));
+		//					var anacc = (av - prevAng) / Dt;
+		//					prevAng = av;
 
-							approachVelocity = wp.ApproachVelocity;
-							var aimpointShifter = wp.AimpointShifter;
-							fRoll = wp.fRoll;
-							speedLimit = wp.SpeedLimit;
-							if (wp.TargetFeed != null)
-								currentTargetVectors = wp.TargetFeed();
+		//					approachVelocity = wp.ApproachVelocity;
+		//					var aimpointShifter = wp.AimpointShifter;
+		//					fRoll = wp.fRoll;
+		//					speedLimit = wp.SpeedLimit;
+		//					if (wp.TargetFeed != null)
+		//						currentTargetVectors = wp.TargetFeed();
 
-							if (wp.IgnoreTFeed || ((currentTargetVectors != null) && currentTargetVectors.Position.HasValue))
-							{
-								Vector3D point;
-								Vector3D? targetVelocity = null;
+		//					if (wp.IgnoreTFeed || ((currentTargetVectors != null) && currentTargetVectors.Position.HasValue))
+		//					{
+		//						Vector3D point;
+		//						Vector3D? targetVelocity = null;
 
-								if ((currentTargetVectors != null) && (currentTargetVectors.Position.HasValue))
-								{
-									point = currentTargetVectors.Position.Value;
-									if (targetVelocity.IsValid())
-										targetVelocity = currentTargetVectors.Velocity;
-									else
-										E.DebugLog("Ivalid targetVelocity");
-								}
-								else
-									point = Vector3D.Zero;
+		//						if ((currentTargetVectors != null) && (currentTargetVectors.Position.HasValue))
+		//						{
+		//							point = currentTargetVectors.Position.Value;
+		//							if (targetVelocity.IsValid())
+		//								targetVelocity = currentTargetVectors.Velocity;
+		//							else
+		//								E.DebugLog("Ivalid targetVelocity");
+		//						}
+		//						else
+		//							point = Vector3D.Zero;
 
-								if (wp.DestinationShifter != null)
-									point = wp.DestinationShifter(point);
+		//						if (wp.DestinationShifter != null)
+		//							point = wp.DestinationShifter(point);
 
-								var mePos = (wp.TranslationOverride != null) ? wp.TranslationOverride() : Fw.GetPosition();
-								if ((approachVelocity != null) && (targetVelocity.HasValue) && (targetVelocity.Value.Length() > 0))
-								{
-									Vector3D targetCenter = point;
-									Vector3D pp = VectorOpsHelper.GetPredictedImpactPoint(
-										mePos,
-										Velocity,
-										targetCenter,
-										targetVelocity.Value,
-										approachVelocity(),
-										wp.SelfVelocityAimCorrection
-										);
-									if ((point - pp).Length() < 2500)
-									{
-										point = pp;
-									}
-									Pip = pp;
-								}
-								Destination = point;
-								if (wp.PositionShifter != null)
-									PosShift = wp.PositionShifter(point);
-								else
-									PosShift = point;
+		//						var mePos = (wp.TranslationOverride != null) ? wp.TranslationOverride() : Fw.GetPosition();
+		//						if ((approachVelocity != null) && (targetVelocity.HasValue) && (targetVelocity.Value.Length() > 0))
+		//						{
+		//							Vector3D targetCenter = point;
+		//							Vector3D pp = VectorOpsHelper.GetPredictedImpactPoint(
+		//								mePos,
+		//								Velocity,
+		//								targetCenter,
+		//								targetVelocity.Value,
+		//								approachVelocity(),
+		//								wp.SelfVelocityAimCorrection
+		//								);
+		//							if ((point - pp).Length() < 2500)
+		//							{
+		//								point = pp;
+		//							}
+		//							Pip = pp;
+		//						}
+		//						Destination = point;
+		//						if (wp.PositionShifter != null)
+		//							PosShift = wp.PositionShifter(point);
+		//						else
+		//							PosShift = point;
 
-								double origD = (point - mePos).Length();
-								double shiftD = (PosShift - mePos).Length();
+		//						double origD = (point - mePos).Length();
+		//						double shiftD = (PosShift - mePos).Length();
 
-								if (DbgIgc != 0)
-									DBG = $"origD: {origD:f1}\nshiftD: {shiftD:f1}";
-								wp.DistanceHandler?.Invoke(origD, shiftD, this, wp, u);
+		//						if (DbgIgc != 0)
+		//							DBG = $"origD: {origD:f1}\nshiftD: {shiftD:f1}";
+		//						wp.DistanceHandler?.Invoke(origD, shiftD, this, wp, u);
 
-								forwardGyro.GyroOverride = true;
-								AimPoint = point;
-								if (aimpointShifter != null)
-									AimPoint = aimpointShifter(AimPoint);
+		//						forwardGyro.GyroOverride = true;
+		//						AimPoint = point;
+		//						if (aimpointShifter != null)
+		//							AimPoint = aimpointShifter(AimPoint);
 
-								if ((Variables.Get<bool>("hold-thrust-on-rotation") && (prevCV.Length() > 1)) || Toggle.C.Check("suppress-transition-control"))
-								{
-									E.Echo($"prev cv: {prevCV.Length():f2} HOLD");
-									CC(Fw.WorldMatrix.Translation, Fw.WorldMatrix.Translation, false, null, null, false);
-								}
-								else
-								{
-									E.Echo($"prev cv: {prevCV.Length():f2} OK");
-									CC(mePos, PosShift, fRoll, targetVelocity, speedLimit, wp.FlyThrough);
-								}
+		//						if ((Variables.Get<bool>("hold-thrust-on-rotation") && (prevCV.Length() > 1)) || Toggle.C.Check("suppress-transition-control"))
+		//						{
+		//							E.Echo($"prev cv: {prevCV.Length():f2} HOLD");
+		//							CC(Fw.WorldMatrix.Translation, Fw.WorldMatrix.Translation, false, null, null, false);
+		//						}
+		//						else
+		//						{
+		//							E.Echo($"prev cv: {prevCV.Length():f2} OK");
+		//							CC(mePos, PosShift, fRoll, targetVelocity, speedLimit, wp.FlyThrough);
+		//						}
 
-								var gridFov = (wp.FwOverride != null) ? wp.FwOverride() : Fw.WorldMatrix;
-								if (!VolThrust && (ThrustDest != Fw.WorldMatrix.Translation))
-									AimPoint = ThrustDest;
+		//						var gridFov = (wp.FwOverride != null) ? wp.FwOverride() : Fw.WorldMatrix;
+		//						if (!VolThrust && (ThrustDest != Fw.WorldMatrix.Translation))
+		//							AimPoint = ThrustDest;
 
-								Vector3D threeComponentCorrection = Vector3D.Zero;
-								var toTarget = AimPoint - Fw.WorldMatrix.Translation;
-								if (toTarget != Vector3D.Zero)
-								{
-									var ttN = Vector3D.Normalize(toTarget);
-									var desM = MatrixD.CreateFromDir(ttN);
-									Vector3D ctrlError = Vector3D.Zero;
-									var up = wp.SuggestedUpNorm?.Invoke() ?? Vector3D.Zero;
-									threeComponentCorrection = VectorOpsHelper.GetAnglesToPointMrot(ttN, gridFov, Fw.WorldMatrix, up, ref ctrlError);
-									ctrlError.Z = 0;
-									AlignDelta = ctrlError;
-									DeltaCV = AlignDelta - prevCV;
-									prevCV = AlignDelta;
-									MisalignDot = Vector3D.Dot(ttN, gridFov.Forward);
-								}
+		//						Vector3D threeComponentCorrection = Vector3D.Zero;
+		//						var toTarget = AimPoint - Fw.WorldMatrix.Translation;
+		//						if (toTarget != Vector3D.Zero)
+		//						{
+		//							var ttN = Vector3D.Normalize(toTarget);
+		//							var desM = MatrixD.CreateFromDir(ttN);
+		//							Vector3D ctrlError = Vector3D.Zero;
+		//							var up = wp.SuggestedUpNorm?.Invoke() ?? Vector3D.Zero;
+		//							threeComponentCorrection = VectorOpsHelper.GetAnglesToPointMrot(ttN, gridFov, Fw.WorldMatrix, up, ref ctrlError);
+		//							ctrlError.Z = 0;
+		//							AlignDelta = ctrlError;
+		//							DeltaCV = AlignDelta - prevCV;
+		//							prevCV = AlignDelta;
+		//							MisalignDot = Vector3D.Dot(ttN, gridFov.Forward);
+		//						}
 
-								if (!Toggle.C.Check("suppress-gyro-control"))
-									VectorOpsHelper.SetOverride(forwardGyro, threeComponentCorrection, DeltaCV, prevAng);
-							}
-							else
-							{
-								forwardGyro.GyroOverride = false;
-								if (Toggle.C.Check("damp-when-idle"))
-									CC(Fw.WorldMatrix.Translation, Fw.WorldMatrix.Translation, false, null, 0, false);
-								else
-									CC(Fw.WorldMatrix.Translation, Fw.WorldMatrix.Translation, false, null, null, false);
-							}
-						}
-						catch (Exception ex)
-						{
-							MainAntenna.CustomName += "HC Exception! See remcon cdata or PB screen";
-							var r = RemCon;
-							var e = $"HC EPIC FAIL\nNTV:{currentTargetVectors?.Name}\nBehavior:{BH.Name}\n{ex}";
-							r.CustomData += e;
-							E.DebugLog(e);
-							SetState(State.Disabled);
-							throw ex;
-						}
-						finally
-						{
-							E.EndOfTick();
-						}
-						break;
-				}
+		//						if (!Toggle.C.Check("suppress-gyro-control"))
+		//							VectorOpsHelper.SetOverride(forwardGyro, threeComponentCorrection, DeltaCV, prevAng);
+		//					}
+		//					else
+		//					{
+		//						forwardGyro.GyroOverride = false;
+		//						if (Toggle.C.Check("damp-when-idle"))
+		//							CC(Fw.WorldMatrix.Translation, Fw.WorldMatrix.Translation, false, null, 0, false);
+		//						else
+		//							CC(Fw.WorldMatrix.Translation, Fw.WorldMatrix.Translation, false, null, null, false);
+		//					}
+		//				}
+		//				catch (Exception ex)
+		//				{
+		//					MainAntenna.CustomName += "HC Exception! See remcon cdata or PB screen";
+		//					var r = RemCon;
+		//					var e = $"HC EPIC FAIL\nNTV:{currentTargetVectors?.Name}\nBehavior:{BH.Name}\n{ex}";
+		//					r.CustomData += e;
+		//					E.DebugLog(e);
+		//					SetState(State.Disabled);
+		//					throw ex;
+		//				}
+		//				finally
+		//				{
+		//					E.EndOfTick();
+		//				}
+		//				break;
+		//		}
 
-			}
+		//	}
 
-			void CC(Vector3D gridTrans, Vector3D interceptionPoint, bool fRoll, Vector3D? targetVel, float? speedLimit, bool flyThrough)
-			{
-				ThrustDest = interceptionPoint;
-				if (state != State.WP)
-					return;
+		//	void CC(Vector3D gridTrans, Vector3D interceptionPoint, bool fRoll, Vector3D? targetVel, float? speedLimit, bool flyThrough)
+		//	{
+		//		ThrustDest = interceptionPoint;
+		//		if (state != State.WP)
+		//			return;
 
-				var pt = interceptionPoint;
+		//		var pt = interceptionPoint;
 
-				var zMatr = forwardGyro.WorldMatrix;
-				zMatr.Translation = gridTrans;
-				var toTarget = interceptionPoint - zMatr.Translation;
+		//		var zMatr = forwardGyro.WorldMatrix;
+		//		zMatr.Translation = gridTrans;
+		//		var toTarget = interceptionPoint - zMatr.Translation;
 
-				var invMatrix = MatrixD.Transpose(zMatr);
-				var localVel = Vector3D.TransformNormal(Velocity, invMatrix);
-				var relativeVel = localVel;
+		//		var invMatrix = MatrixD.Transpose(zMatr);
+		//		var localVel = Vector3D.TransformNormal(Velocity, invMatrix);
+		//		var relativeVel = localVel;
 
-				if (!VolThrust && (toTarget != Vector3D.Zero))
-				{
-					_ts().FacingBackward().SetPow(1f * Math.Max(0.2f, MisalignDot));
-					if (Velocity != Vector3D.Zero)
-						ThrustDest = Vector3D.Normalize(Vector3D.Reflect(Velocity, toTarget)) + gridTrans + Vector3D.Normalize(toTarget) * Velocity.Length() * 0.5f;
-					return;
-				}
+		//		if (!VolThrust && (toTarget != Vector3D.Zero))
+		//		{
+		//			_ts().FacingBackward().SetPow(1f * Math.Max(0.2f, MisalignDot));
+		//			if (Velocity != Vector3D.Zero)
+		//				ThrustDest = Vector3D.Normalize(Vector3D.Reflect(Velocity, toTarget)) + gridTrans + Vector3D.Normalize(toTarget) * Velocity.Length() * 0.5f;
+		//			return;
+		//		}
 
-				float mass = RemCon.CalculateShipMass().PhysicalMass;
-				BoundingBoxD accCap = _ts().GetCapacityBB(mass);
-				if (accCap.Volume == 0)
-					return;
+		//		float mass = RemCon.CalculateShipMass().PhysicalMass;
+		//		BoundingBoxD accCap = _ts().GetCapacityBB(mass);
+		//		if (accCap.Volume == 0)
+		//			return;
 
-				Vector3D localGVector = Vector3D.Zero;
-				if (NG != null)
-				{
-					localGVector = Vector3D.TransformNormal(NG.Value, invMatrix);
-					accCap += -localGVector;
-				}
+		//		Vector3D localGVector = Vector3D.Zero;
+		//		if (NG != null)
+		//		{
+		//			localGVector = Vector3D.TransformNormal(NG.Value, invMatrix);
+		//			accCap += -localGVector;
+		//		}
 
-				Vector3D dbgReject = Vector3D.Zero;
-				Vector3D dbgTVbase = Vector3D.Zero;
+		//		Vector3D dbgReject = Vector3D.Zero;
+		//		Vector3D dbgTVbase = Vector3D.Zero;
 
-				Vector3D overrideVector = new Vector3D();
-				if (toTarget.Length() > double.Epsilon)
-				{
-					Vector3D zeroBasedTargetPoint = Vector3D.TransformNormal(toTarget, invMatrix);
+		//		Vector3D overrideVector = new Vector3D();
+		//		if (toTarget.Length() > double.Epsilon)
+		//		{
+		//			Vector3D zeroBasedTargetPoint = Vector3D.TransformNormal(toTarget, invMatrix);
 
-					RayD rayToCenter = new RayD(-zeroBasedTargetPoint * (MaxAccelInProximity ? 1000 : 1), Vector3D.Normalize(zeroBasedTargetPoint));
-					RayD rayToCenterInv = new RayD(zeroBasedTargetPoint * (MaxBrakeInProximity ? 1000 : 1), Vector3D.Normalize(-zeroBasedTargetPoint));
+		//			RayD rayToCenter = new RayD(-zeroBasedTargetPoint * (MaxAccelInProximity ? 1000 : 1), Vector3D.Normalize(zeroBasedTargetPoint));
+		//			RayD rayToCenterInv = new RayD(zeroBasedTargetPoint * (MaxBrakeInProximity ? 1000 : 1), Vector3D.Normalize(-zeroBasedTargetPoint));
 
-					var j = rayToCenterInv.Intersects(accCap);
-					var i = rayToCenter.Intersects(accCap);
+		//			var j = rayToCenterInv.Intersects(accCap);
+		//			var i = rayToCenter.Intersects(accCap);
 
-					if (!j.HasValue || !i.HasValue)
-						throw new InvalidOperationException("Not enough thrust to compensate for gravity");
+		//			if (!j.HasValue || !i.HasValue)
+		//				throw new InvalidOperationException("Not enough thrust to compensate for gravity");
 
-					var reversePoint = rayToCenterInv.Position + (Vector3D.Normalize(rayToCenterInv.Direction) * j.Value);
-					var point = rayToCenter.Position + (Vector3D.Normalize(rayToCenter.Direction) * i.Value);
+		//			var reversePoint = rayToCenterInv.Position + (Vector3D.Normalize(rayToCenterInv.Direction) * j.Value);
+		//			var point = rayToCenter.Position + (Vector3D.Normalize(rayToCenter.Direction) * i.Value);
 
-					var toOppositeTargetCapacity = reversePoint.Length();
+		//			var toOppositeTargetCapacity = reversePoint.Length();
 
-					Vector3D reject = Vector3D.Reject(localVel, Vector3D.Normalize(zeroBasedTargetPoint));
+		//			Vector3D reject = Vector3D.Reject(localVel, Vector3D.Normalize(zeroBasedTargetPoint));
 
-					if (targetVel.HasValue)
-					{
-						var targetLocalVel = Vector3D.TransformNormal(targetVel.Value, invMatrix);
-						relativeVel = localVel - targetLocalVel;
-						reject = Vector3D.Reject(relativeVel, Vector3D.Normalize(zeroBasedTargetPoint));
-					}
-					else
-					{
-						relativeVel -= reject;
-					}
+		//			if (targetVel.HasValue)
+		//			{
+		//				var targetLocalVel = Vector3D.TransformNormal(targetVel.Value, invMatrix);
+		//				relativeVel = localVel - targetLocalVel;
+		//				reject = Vector3D.Reject(relativeVel, Vector3D.Normalize(zeroBasedTargetPoint));
+		//			}
+		//			else
+		//			{
+		//				relativeVel -= reject;
+		//			}
 
-					var relativeSpeed = Vector3D.Dot(relativeVel, Vector3D.Normalize(zeroBasedTargetPoint));
+		//			var relativeSpeed = Vector3D.Dot(relativeVel, Vector3D.Normalize(zeroBasedTargetPoint));
 
-					bool closingDistance = relativeSpeed > 0;
-					bool accelerate = true;
+		//			bool closingDistance = relativeSpeed > 0;
+		//			bool accelerate = true;
 
-					var stoppingPathAtCurrentSpeed = Math.Pow(Math.Max(0, relativeSpeed), 2) / (2 * toOppositeTargetCapacity * StoppingPowerQuotient);
-					var padding = toTarget.Length() - stoppingPathAtCurrentSpeed;
+		//			var stoppingPathAtCurrentSpeed = Math.Pow(Math.Max(0, relativeSpeed), 2) / (2 * toOppositeTargetCapacity * StoppingPowerQuotient);
+		//			var padding = toTarget.Length() - stoppingPathAtCurrentSpeed;
 
-					if (DbgIgc != 0)
-					{
-						DBG += $"\nSTP: {stoppingPathAtCurrentSpeed:f2}\nRelSP: {relativeSpeed:f2}";
-					}
+		//			if (DbgIgc != 0)
+		//			{
+		//				DBG += $"\nSTP: {stoppingPathAtCurrentSpeed:f2}\nRelSP: {relativeSpeed:f2}";
+		//			}
 					// TODO: how much capacity are we willing to give for reject compensation?
-					if (closingDistance)
-					{
-						if (stoppingPathAtCurrentSpeed > toTarget.Length())
-							accelerate = false;
-						else if (MoreRejectDampening)
-							reject /= Dt;
-					}
+		//			if (closingDistance)
+		//			{
+		//				if (stoppingPathAtCurrentSpeed > toTarget.Length())
+		//					accelerate = false;
+		//				else if (MoreRejectDampening)
+		//					reject /= Dt;
+		//			}
 
-					if (flyThrough || accelerate)
-					{
-						if (speedLimit.HasValue && (Vector3D.Dot(Vector3D.Normalize(toTarget), Velocity) >= speedLimit))
-						{
-							overrideVector = reversePoint;
-							overrideVector *= (relativeSpeed - speedLimit.Value) / toOppositeTargetCapacity;
-						}
-						else
-							overrideVector = point;
-					}
-					else
-						overrideVector = reversePoint;
+		//			if (flyThrough || accelerate)
+		//			{
+		//				if (speedLimit.HasValue && (Vector3D.Dot(Vector3D.Normalize(toTarget), Velocity) >= speedLimit))
+		//				{
+		//					overrideVector = reversePoint;
+		//					overrideVector *= (relativeSpeed - speedLimit.Value) / toOppositeTargetCapacity;
+		//				}
+		//				else
+		//					overrideVector = point;
+		//			}
+		//			else
+		//				overrideVector = reversePoint;
 
-					if (accelerate)
-					{
-						var worldAprroachVel = Vector3D.Dot(Vector3D.Normalize(toTarget), Velocity);
-						if (worldAprroachVel > MAX_SP - 0.001)
-						{
-							overrideVector = Vector3D.Zero;
-						}
-					}
+		//			if (accelerate)
+		//			{
+		//				var worldAprroachVel = Vector3D.Dot(Vector3D.Normalize(toTarget), Velocity);
+		//				if (worldAprroachVel > MAX_SP - 0.001)
+		//				{
+		//					overrideVector = Vector3D.Zero;
+		//				}
+		//			}
 
-					dbgTVbase = overrideVector;
-					dbgReject = reject;
-					if (reject.IsValid())
-						overrideVector += reject;
-				} // idle dampening. Dt atfter on-off-on wakeup -> inf
-				else if (speedLimit.HasValue && (speedLimit == 0))
-				{
-					overrideVector += localVel / (MoreRejectDampening ? Dt : 1);
-				}
+		//			dbgTVbase = overrideVector;
+		//			dbgReject = reject;
+		//			if (reject.IsValid())
+		//				overrideVector += reject;
+		//		} // idle dampening. Dt atfter on-off-on wakeup -> inf
+		//		else if (speedLimit.HasValue && (speedLimit == 0))
+		//		{
+		//			overrideVector += localVel / (MoreRejectDampening ? Dt : 1);
+		//		}
 
-				if (NG != null)
-				{
-					overrideVector += localGVector;
-				}
+		//		if (NG != null)
+		//		{
+		//			overrideVector += localGVector;
+		//		}
 
 				//E.DebugToPanel("applied V' vector: " + overrideVector.ToString("F3"));
-				overrideVector -= UserCtrlTest.GetUserCtrlVector(Fw.WorldMatrix) * 1000;
+		//		overrideVector -= UserCtrlTest.GetUserCtrlVector(Fw.WorldMatrix) * 1000;
 				//E.DebugToPanel("user V' vector: " + UserCtrlTest.GetUserCtrlVector(Fw.WorldMatrix).ToString("F3"));
 
-				if (overrideVector != Vector3D.Zero)
-				{
+		//		if (overrideVector != Vector3D.Zero)
+		//		{
 					//overrideVector.Y *= -1;
-					ThrustDest = Vector3D.TransformNormal(overrideVector, zMatr) + gridTrans;
+		//			ThrustDest = Vector3D.TransformNormal(overrideVector, zMatr) + gridTrans;
 
-					if (DbgIgc != 0)
-					{
-						var z = new List<MyTuple<Vector3D, Vector3D, Vector4>>();
-						var c = Color.SeaGreen;
-						c.A = 40;
-						z.Add(new MyTuple<Vector3D, Vector3D, Vector4>(gridTrans, ThrustDest, c));
+		//			if (DbgIgc != 0)
+		//			{
+		//				var z = new List<MyTuple<Vector3D, Vector3D, Vector4>>();
+		//				var c = Color.SeaGreen;
+		//				c.A = 40;
+		//				z.Add(new MyTuple<Vector3D, Vector3D, Vector4>(gridTrans, ThrustDest, c));
 
-						var t = new MyTuple<string, Vector2, Vector3D, Vector3D, float, string>("Circle", Vector2.One * 4, ThrustDest, Vector3D.Zero, 1f,
-								overrideVector.Length().ToString("f2"));
-						IGC.SendUnicastMessage(DbgIgc, "draw-projection", t);
+		//				var t = new MyTuple<string, Vector2, Vector3D, Vector3D, float, string>("Circle", Vector2.One * 4, ThrustDest, Vector3D.Zero, 1f,
+		//						overrideVector.Length().ToString("f2"));
+		//				IGC.SendUnicastMessage(DbgIgc, "draw-projection", t);
 
-						c = Color.Blue;
-						c.A = 40;
-						z.Add(new MyTuple<Vector3D, Vector3D, Vector4>(gridTrans, Vector3D.TransformNormal(dbgReject, zMatr) + gridTrans, c));
-						c = Color.Red;
-						c.A = 40;
-						z.Add(new MyTuple<Vector3D, Vector3D, Vector4>(gridTrans, Vector3D.TransformNormal(dbgTVbase, zMatr) + gridTrans, c));
+		//				c = Color.Blue;
+		//				c.A = 40;
+		//				z.Add(new MyTuple<Vector3D, Vector3D, Vector4>(gridTrans, Vector3D.TransformNormal(dbgReject, zMatr) + gridTrans, c));
+		//				c = Color.Red;
+		//				c.A = 40;
+		//				z.Add(new MyTuple<Vector3D, Vector3D, Vector4>(gridTrans, Vector3D.TransformNormal(dbgTVbase, zMatr) + gridTrans, c));
 
-						var rtc = new RayD(overrideVector * 1000, Vector3D.Normalize(-overrideVector));
-						var i = rtc.Intersects(accCap);
-						if (i.HasValue)
-						{
-							var thCap = rtc.Position + (Vector3D.Normalize(rtc.Direction) * i.Value);
-							var pos = Vector3D.TransformNormal(thCap, zMatr) + gridTrans;
-							var pr = new MyTuple<string, Vector2, Vector3D, Vector3D, float, string>("Circle", Vector2.One * 4, pos, Vector3D.Zero, 1f, thCap.Length().ToString("f2"));
-							IGC.SendUnicastMessage(DbgIgc, "draw-projection", pr);
-						}
+		//				var rtc = new RayD(overrideVector * 1000, Vector3D.Normalize(-overrideVector));
+		//				var i = rtc.Intersects(accCap);
+		//				if (i.HasValue)
+		//				{
+		//					var thCap = rtc.Position + (Vector3D.Normalize(rtc.Direction) * i.Value);
+		//					var pos = Vector3D.TransformNormal(thCap, zMatr) + gridTrans;
+		//					var pr = new MyTuple<string, Vector2, Vector3D, Vector3D, float, string>("Circle", Vector2.One * 4, pos, Vector3D.Zero, 1f, thCap.Length().ToString("f2"));
+		//					IGC.SendUnicastMessage(DbgIgc, "draw-projection", pr);
+		//				}
 
-						var rtc2 = new RayD(-overrideVector * 1000, Vector3D.Normalize(overrideVector));
-						var i2 = rtc2.Intersects(accCap);
-						if (i2.HasValue)
-						{
-							var thCap = rtc2.Position + (Vector3D.Normalize(rtc2.Direction) * i2.Value);
-							var pos = Vector3D.TransformNormal(thCap, zMatr) + gridTrans;
-							var pr = new MyTuple<string, Vector2, Vector3D, Vector3D, float, string>("Circle", Vector2.One * 4, pos, Vector3D.Zero, 1f, thCap.Length().ToString("f2"));
-							IGC.SendUnicastMessage(DbgIgc, "draw-projection", pr);
-						}
+		//				var rtc2 = new RayD(-overrideVector * 1000, Vector3D.Normalize(overrideVector));
+		//				var i2 = rtc2.Intersects(accCap);
+		//				if (i2.HasValue)
+		//				{
+		//					var thCap = rtc2.Position + (Vector3D.Normalize(rtc2.Direction) * i2.Value);
+		//					var pos = Vector3D.TransformNormal(thCap, zMatr) + gridTrans;
+		//					var pr = new MyTuple<string, Vector2, Vector3D, Vector3D, float, string>("Circle", Vector2.One * 4, pos, Vector3D.Zero, 1f, thCap.Length().ToString("f2"));
+		//					IGC.SendUnicastMessage(DbgIgc, "draw-projection", pr);
+		//				}
 
-						IGC.SendUnicastMessage(DbgIgc, "draw-lines", z.ToImmutableArray());
-					}
-				}
+		//				IGC.SendUnicastMessage(DbgIgc, "draw-lines", z.ToImmutableArray());
+		//			}
+		//		}
 
-				overrideVector.Y *= -1;
+		//		overrideVector.Y *= -1;
 				//E.Echo($"OVR: {overrideVector.X:f2}:{overrideVector.Y:f2}:{overrideVector.Z:f2}");
-				_ts().SetOverride(overrideVector, mass);
-			}
+		//		_ts().SetOverride(overrideVector, mass);
+		//	}
 
 
-			public Vector3D CreateFromFwDir(float meters)
-			{
-				return Fw.GetPosition() + Fw.WorldMatrix.Forward * meters;
-			}
-		}
+		//	public Vector3D CreateFromFwDir(float meters)
+		//	{
+		//		return Fw.GetPosition() + Fw.WorldMatrix.Forward * meters;
+		//	}
+		//}
 
 
 		TargetTelemetry GetNTV(string key)
@@ -4604,76 +4604,76 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			}
 		}
 
-		public class APckTask
-		{
-			public string Name;
+		//public class APckTask
+		//{
+		//	public string Name;
 
-			public Vector3D? Pos;
-			public Func<Vector3D> TPos;
+		//	public Vector3D? Pos;
+		//	public Func<Vector3D> TPos;
 
-			double? proxLim;
-			public int? TickLimit;
+		//	double? proxLim;
+		//	public int? TickLimit;
 
-			public ApckState PState = ApckState.CwpTask;
-			public PcBehavior BH;
-			public Action OnComplete;
+		//	public ApckState PState = ApckState.CwpTask;
+		//	public PcBehavior BH;
+		//	public Action OnComplete;
 
-			int startTick;
-			public ApckState src;
-			public APckTask(string name, PcBehavior bh, int? tlim = null)
-			{
-				BH = bh;
-				Name = name;
-				TickLimit = tlim;
-			}
-			public APckTask(string name, ApckState st, int? tlim = null)
-			{
-				PState = st;
-				Name = name;
-				TickLimit = tlim;
-			}
+		//	int startTick;
+		//	public ApckState src;
+		//	public APckTask(string name, PcBehavior bh, int? tlim = null)
+		//	{
+		//		BH = bh;
+		//		Name = name;
+		//		TickLimit = tlim;
+		//	}
+		//	public APckTask(string name, ApckState st, int? tlim = null)
+		//	{
+		//		PState = st;
+		//		Name = name;
+		//		TickLimit = tlim;
+		//	}
 
-			public void Init(PillockController pc, int tick)
-			{
-				if (startTick == 0)
-					startTick = tick;
-				pc.TriggerService.TryTriggerNamedTimer(Name + ".OnStart");
-			}
+		//	public void Init(PillockController pc, int tick)
+		//	{
+		//		if (startTick == 0)
+		//			startTick = tick;
+		//		pc.TriggerService.TryTriggerNamedTimer(Name + ".OnStart");
+		//	}
 
-			public static APckTask CreateGPS(string name, Vector3D p, PcBehavior bh)
-			{
-				var t = new APckTask(name, bh);
-				t.proxLim = 0.5;
-				t.Pos = p;
-				return t;
-			}
-			public static APckTask CreateRelP(string name, Func<Vector3D> pf, PcBehavior bh)
-			{
-				var t = new APckTask(name, bh);
-				t.proxLim = 0.5;
-				t.TPos = pf;
-				return t;
-			}
-			public bool CheckCompl(int tick, PillockController pc)
-			{
-				if (TickLimit.HasValue && (tick - startTick > TickLimit))
-				{
-					return true;
-				}
-				if (proxLim.HasValue)
-				{
-					Vector3D p;
-					var _p = BH.TranslationOverride?.Invoke() ?? pc.Fw.GetPosition();
-					if (TPos != null)
-						p = TPos();
-					else
-						p = Pos.Value;
-					if ((_p - p).Length() < proxLim)
-						return true;
-				}
-				return false;
-			}
-		}
+		//	public static APckTask CreateGPS(string name, Vector3D p, PcBehavior bh)
+		//	{
+		//		var t = new APckTask(name, bh);
+		//		t.proxLim = 0.5;
+		//		t.Pos = p;
+		//		return t;
+		//	}
+		//	public static APckTask CreateRelP(string name, Func<Vector3D> pf, PcBehavior bh)
+		//	{
+		//		var t = new APckTask(name, bh);
+		//		t.proxLim = 0.5;
+		//		t.TPos = pf;
+		//		return t;
+		//	}
+		//	public bool CheckCompl(int tick, PillockController pc)
+		//	{
+		//		if (TickLimit.HasValue && (tick - startTick > TickLimit))
+		//		{
+		//			return true;
+		//		}
+		//		if (proxLim.HasValue)
+		//		{
+		//			Vector3D p;
+		//			var _p = BH.TranslationOverride?.Invoke() ?? pc.Fw.GetPosition();
+		//			if (TPos != null)
+		//				p = TPos();
+		//			else
+		//				p = Pos.Value;
+		//			if ((_p - p).Length() < proxLim)
+		//				return true;
+		//		}
+		//		return false;
+		//	}
+		//}
 
 
 		//APckTask tempWp;
