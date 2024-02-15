@@ -812,33 +812,33 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			E.Echo("Min3r role: " + CurrentRole);
 			if (CurrentRole == Role.Dispatcher)
 			{
-				E.Echo(dispatcherService.ToString());
-				dispatcherService.HandleIGC(uniMsgs);
-				if (guiH != null)
-				{
-					foreach (var s in dispatcherService.subordinates)
-						IGC.SendUnicastMessage(s.Id, "report.request", "");
-				}
-				guiH?.UpdateTaskSummary(dispatcherService);
-				dockHost.Handle(IGC, TickCount);
+			//	E.Echo(dispatcherService.ToString());
+			//	dispatcherService.HandleIGC(uniMsgs);
+			//	if (guiH != null)
+			//	{
+			//		foreach (var s in dispatcherService.subordinates)
+			//			IGC.SendUnicastMessage(s.Id, "report.request", "");
+			//	}
+			//	guiH?.UpdateTaskSummary(dispatcherService);
+			//	dockHost.Handle(IGC, TickCount);
 
-				if (rawPanel != null)
-				{
-					if (guiSeat != null)
-					{
-						if (guiH == null)
-						{
-							guiH = new GuiHandler(rawPanel, dispatcherService, stateWrapper);
-							dispatcherService.OnTaskUpdate = guiH.UpdateMiningScheme;
-							guiH.OnShaftClick = id => dispatcherService.CancelShaft(id);
+			//	if (rawPanel != null)
+			//	{
+			//		if (guiSeat != null)
+			//		{
+			//			if (guiH == null)
+			//			{
+			//				guiH = new GuiHandler(rawPanel, dispatcherService, stateWrapper);
+			//				dispatcherService.OnTaskUpdate = guiH.UpdateMiningScheme;
+			//				guiH.OnShaftClick = id => dispatcherService.CancelShaft(id);
 
-							if (dispatcherService.CurrentTask != null)
-								dispatcherService.OnTaskUpdate.Invoke(dispatcherService.CurrentTask); // restore from pstate
-						}
-						else
-							guiH.Handle(rawPanel, guiSeat);
-					}
-				}
+			//				if (dispatcherService.CurrentTask != null)
+			//					dispatcherService.OnTaskUpdate.Invoke(dispatcherService.CurrentTask); // restore from pstate
+			//			}
+			//			else
+			//				guiH.Handle(rawPanel, guiSeat);
+			//		}
+			//	}
 			}
 			else if ((CurrentRole == Role.Agent) || (CurrentRole == Role.Lone))
 			{
@@ -4936,368 +4936,368 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			}
 		}
 
-		GuiHandler guiH;
-		public class GuiHandler
-		{
-			Vector2 mOffset;
-			List<ActiveElement> controls = new List<ActiveElement>();
-			Dispatcher _dispatcher;
-			StateWrapper _stateWrapper;
-			Vector2 viewPortSize;
+		//GuiHandler guiH;
+		//public class GuiHandler
+		//{
+		//	Vector2 mOffset;
+		//	List<ActiveElement> controls = new List<ActiveElement>();
+		//	Dispatcher _dispatcher;
+		//	StateWrapper _stateWrapper;
+		//	Vector2 viewPortSize;
 
-			public GuiHandler(IMyTextSurface p, Dispatcher dispatcher, StateWrapper stateWrapper)
-			{
-				_dispatcher = dispatcher;
-				_stateWrapper = stateWrapper;
-				viewPortSize = p.TextureSize;
+		//	public GuiHandler(IMyTextSurface p, Dispatcher dispatcher, StateWrapper stateWrapper)
+		//	{
+		//		_dispatcher = dispatcher;
+		//		_stateWrapper = stateWrapper;
+		//		viewPortSize = p.TextureSize;
 
-				float interval = 0.18f;
-				Vector2 btnSize = new Vector2(85, 40);
-				float b_X = -0.967f;
+		//		float interval = 0.18f;
+		//		Vector2 btnSize = new Vector2(85, 40);
+		//		float b_X = -0.967f;
 
-				var bRecall = CreateButton(p, btnSize, new Vector2(b_X + interval, 0.85f), "Recall", Color.Black);
-				bRecall.OnClick = xy => {
-					dispatcher.Recall();
-				};
-				AddTipToAe(bRecall, "Finish work (broadcast command:force-finish)");
-				controls.Add(bRecall);
+		//		var bRecall = CreateButton(p, btnSize, new Vector2(b_X + interval, 0.85f), "Recall", Color.Black);
+		//		bRecall.OnClick = xy => {
+		//			dispatcher.Recall();
+		//		};
+		//		AddTipToAe(bRecall, "Finish work (broadcast command:force-finish)");
+		//		controls.Add(bRecall);
 
-				var bResume = CreateButton(p, btnSize, new Vector2(b_X + interval * 2, 0.85f), "Resume", Color.Black);
-				bResume.OnClick = xy => {
-					dispatcher.BroadcastResume();
-				};
-				AddTipToAe(bResume, "Resume work (broadcast 'miners.resume' message)");
-				controls.Add(bResume);
+		//		var bResume = CreateButton(p, btnSize, new Vector2(b_X + interval * 2, 0.85f), "Resume", Color.Black);
+		//		bResume.OnClick = xy => {
+		//			dispatcher.BroadcastResume();
+		//		};
+		//		AddTipToAe(bResume, "Resume work (broadcast 'miners.resume' message)");
+		//		controls.Add(bResume);
 
-				var bClearState = CreateButton(p, btnSize, new Vector2(b_X + interval * 3, 0.85f), "Clear state", Color.Black);
-				bClearState.OnClick = xy => {
-					stateWrapper?.ClearPersistentState();
-				};
-				AddTipToAe(bClearState, "Clear Dispatcher state");
-				controls.Add(bClearState);
+		//		var bClearState = CreateButton(p, btnSize, new Vector2(b_X + interval * 3, 0.85f), "Clear state", Color.Black);
+		//		bClearState.OnClick = xy => {
+		//			stateWrapper?.ClearPersistentState();
+		//		};
+		//		AddTipToAe(bClearState, "Clear Dispatcher state");
+		//		controls.Add(bClearState);
 
-				var bClearLog = CreateButton(p, btnSize, new Vector2(b_X + interval * 4, 0.85f), "Clear log", Color.Black);
-				bClearLog.OnClick = xy => {
-					E.ClearLog();
-				};
-				controls.Add(bClearLog);
+		//		var bClearLog = CreateButton(p, btnSize, new Vector2(b_X + interval * 4, 0.85f), "Clear log", Color.Black);
+		//		bClearLog.OnClick = xy => {
+		//			E.ClearLog();
+		//		};
+		//		controls.Add(bClearLog);
 
-				var bPurgeLocks = CreateButton(p, btnSize, new Vector2(b_X + interval * 5, 0.85f), "Purge locks", Color.Black);
-				bPurgeLocks.OnClick = xy => {
-					dispatcher.PurgeLocks();
-				};
-				AddTipToAe(bPurgeLocks, "Clear lock ownership. Last resort in case of deadlock");
-				controls.Add(bPurgeLocks);
+		//		var bPurgeLocks = CreateButton(p, btnSize, new Vector2(b_X + interval * 5, 0.85f), "Purge locks", Color.Black);
+		//		bPurgeLocks.OnClick = xy => {
+		//			dispatcher.PurgeLocks();
+		//		};
+		//		AddTipToAe(bPurgeLocks, "Clear lock ownership. Last resort in case of deadlock");
+		//		controls.Add(bPurgeLocks);
 
-				var bHalt = CreateButton(p, btnSize, new Vector2(b_X + interval * 6, 0.85f), "EMRG HALT", Color.Black);
-				bHalt.OnClick = xy => {
-					dispatcher.BroadCastHalt();
-				};
-				AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
-				controls.Add(bHalt);
+		//		var bHalt = CreateButton(p, btnSize, new Vector2(b_X + interval * 6, 0.85f), "EMRG HALT", Color.Black);
+		//		bHalt.OnClick = xy => {
+		//			dispatcher.BroadCastHalt();
+		//		};
+		//		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
+		//		controls.Add(bHalt);
 
-				shaftTip = new MySprite(SpriteType.TEXT, "", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y * 0.9f),
-					null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
-				buttonTip = new MySprite(SpriteType.TEXT, "", bRecall.Min - Vector2.UnitY * 17,
-					null, Color.White, "Debug", TextAlignment.LEFT, 0.5f);
-				taskSummary = new MySprite(SpriteType.TEXT, "No active task", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y / 20f),
-					null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
-			}
+		//		shaftTip = new MySprite(SpriteType.TEXT, "", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y * 0.9f),
+		//			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
+		//		buttonTip = new MySprite(SpriteType.TEXT, "", bRecall.Min - Vector2.UnitY * 17,
+		//			null, Color.White, "Debug", TextAlignment.LEFT, 0.5f);
+		//		taskSummary = new MySprite(SpriteType.TEXT, "No active task", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y / 20f),
+		//			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
+		//	}
 
-			ActiveElement CreateButton(IMyTextSurface p, Vector2 btnSize, Vector2 posN, string label, Color? hoverColor = null)
-			{
-				var textureSize = p.TextureSize;
-				var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0),
-								btnSize, Color.CornflowerBlue);
-				var lblHeight = Vector2.Zero;
-				// norm relative to parent widget...
-				if (btnSize.Y > 1)
-					lblHeight.Y = -p.MeasureStringInPixels(new StringBuilder(label), "Debug", 0.5f).Y / btnSize.Y;
+		//	ActiveElement CreateButton(IMyTextSurface p, Vector2 btnSize, Vector2 posN, string label, Color? hoverColor = null)
+		//	{
+		//		var textureSize = p.TextureSize;
+		//		var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0),
+		//						btnSize, Color.CornflowerBlue);
+		//		var lblHeight = Vector2.Zero;
+		//		// norm relative to parent widget...
+		//		if (btnSize.Y > 1)
+		//			lblHeight.Y = -p.MeasureStringInPixels(new StringBuilder(label), "Debug", 0.5f).Y / btnSize.Y;
 
-				var lbl = new MySprite(SpriteType.TEXT, label, lblHeight, Vector2.One, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
-				var sprites = new List<MySprite>() { btnSpr, lbl };
-				var btn = new ActiveElement(sprites, btnSize, posN, textureSize);
+		//		var lbl = new MySprite(SpriteType.TEXT, label, lblHeight, Vector2.One, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
+		//		var sprites = new List<MySprite>() { btnSpr, lbl };
+		//		var btn = new ActiveElement(sprites, btnSize, posN, textureSize);
 
-				if (hoverColor != null)
-				{
-					btn.OnMouseIn = () =>
-					{
-						btn.TransformSprites(spr => { var s1 = spr; s1.Color = hoverColor; s1.Size = btnSize * 1.05f; return spr.Type == SpriteType.TEXTURE ? s1 : spr; });
-					};
-					btn.OnMouseOut = () =>
-					{
-						btn.TransformSprites(spr => spr.Type == SpriteType.TEXTURE ? btnSpr : spr);
-					};
-				}
-				return btn;
-			}
+		//		if (hoverColor != null)
+		//		{
+		//			btn.OnMouseIn = () =>
+		//			{
+		//				btn.TransformSprites(spr => { var s1 = spr; s1.Color = hoverColor; s1.Size = btnSize * 1.05f; return spr.Type == SpriteType.TEXTURE ? s1 : spr; });
+		//			};
+		//			btn.OnMouseOut = () =>
+		//			{
+		//				btn.TransformSprites(spr => spr.Type == SpriteType.TEXTURE ? btnSpr : spr);
+		//			};
+		//		}
+		//		return btn;
+		//	}
 
-			void AddTipToAe(ActiveElement ae, string tip)
-			{
-				ae.OnMouseIn += () => buttonTip.Data = tip;
-				ae.OnMouseOut += () => buttonTip.Data = "";
-			}
+		//	void AddTipToAe(ActiveElement ae, string tip)
+		//	{
+		//		ae.OnMouseIn += () => buttonTip.Data = tip;
+		//		ae.OnMouseOut += () => buttonTip.Data = "";
+		//	}
 
-			bool eDown;
-			public void Handle(IMyTextPanel panel, IMyShipController seat)
-			{
-				bool needsUpdate = true;
-				Vector2 r = Vector2.Zero;
-				bool clickE = false;
-				if (seat.IsUnderControl && Toggle.C.Check("cc"))
-				{
-					r = seat.RotationIndicator;
-					var roll = seat.RollIndicator;
+		//	bool eDown;
+		//	public void Handle(IMyTextPanel panel, IMyShipController seat)
+		//	{
+		//		bool needsUpdate = true;
+		//		Vector2 r = Vector2.Zero;
+		//		bool clickE = false;
+		//		if (seat.IsUnderControl && Toggle.C.Check("cc"))
+		//		{
+		//			r = seat.RotationIndicator;
+		//			var roll = seat.RollIndicator;
 
-					var eDownUpdate = (roll > 0);
-					if (!eDownUpdate && eDown)
-						clickE = true;
-					eDown = eDownUpdate;
-				}
-				if (r.LengthSquared() > 0 || clickE)
-				{
-					needsUpdate = true;
-					mOffset.X += r.Y;
-					mOffset.Y += r.X;
-					mOffset = Vector2.Clamp(mOffset, -panel.TextureSize / 2, panel.TextureSize / 2);
-				}
-				var cursP = mOffset + panel.TextureSize / 2;
+		//			var eDownUpdate = (roll > 0);
+		//			if (!eDownUpdate && eDown)
+		//				clickE = true;
+		//			eDown = eDownUpdate;
+		//		}
+		//		if (r.LengthSquared() > 0 || clickE)
+		//		{
+		//			needsUpdate = true;
+		//			mOffset.X += r.Y;
+		//			mOffset.Y += r.X;
+		//			mOffset = Vector2.Clamp(mOffset, -panel.TextureSize / 2, panel.TextureSize / 2);
+		//		}
+		//		var cursP = mOffset + panel.TextureSize / 2;
 
-				if (needsUpdate)
-				{
-					using (var frame = panel.DrawFrame())
-					{
-						DrawReportRepeater(frame);
+		//		if (needsUpdate)
+		//		{
+		//			using (var frame = panel.DrawFrame())
+		//			{
+		//				DrawReportRepeater(frame);
 
-						foreach (var ae in controls.Where(x => x.Visible).Union(shaftControls))
-						{
-							if (ae.CheckHover(cursP))
-							{
-								if (clickE)
-									ae.OnClick?.Invoke(cursP);
-							}
-						}
+		//				foreach (var ae in controls.Where(x => x.Visible).Union(shaftControls))
+		//				{
+		//					if (ae.CheckHover(cursP))
+		//					{
+		//						if (clickE)
+		//							ae.OnClick?.Invoke(cursP);
+		//					}
+		//				}
 
-						foreach (var ae in controls.Where(x => x.Visible).Union(shaftControls))
-						{
-							frame.AddRange(ae.GetSprites());
-						}
+		//				foreach (var ae in controls.Where(x => x.Visible).Union(shaftControls))
+		//				{
+		//					frame.AddRange(ae.GetSprites());
+		//				}
 
-						frame.Add(shaftTip);
-						frame.Add(buttonTip);
-						frame.Add(taskSummary);
+		//				frame.Add(shaftTip);
+		//				frame.Add(buttonTip);
+		//				frame.Add(taskSummary);
 
-						DrawAgents(frame);
+		//				DrawAgents(frame);
 
-						var cur = new MySprite(SpriteType.TEXTURE, "Triangle", cursP, new Vector2(7f, 10f), Color.White);
-						cur.RotationOrScale = 6f;
-						frame.Add(cur);
-					}
+		//				var cur = new MySprite(SpriteType.TEXTURE, "Triangle", cursP, new Vector2(7f, 10f), Color.White);
+		//				cur.RotationOrScale = 6f;
+		//				frame.Add(cur);
+		//			}
 
-					if (r.LengthSquared() > 0)
-					{
-						panel.ContentType = ContentType.TEXT_AND_IMAGE;
-						panel.ContentType = ContentType.SCRIPT;
-					}
-				}
-			}
+		//			if (r.LengthSquared() > 0)
+		//			{
+		//				panel.ContentType = ContentType.TEXT_AND_IMAGE;
+		//				panel.ContentType = ContentType.SCRIPT;
+		//			}
+		//		}
+		//	}
 
-			void DrawAgents(MySpriteDrawFrame frame)
-			{
-				var z = new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y / 2f);
-				foreach (var ag in _dispatcher.subordinates)
-				{
-					var pos = ag.Report.WM.Translation;
-					var task = _dispatcher.CurrentTask;
-					if (task != null)
-					{
-						var posLoc = Vector3D.Transform(pos, worldToScheme);
-						float scale = 3.5f;
-						var posViewport = z + new Vector2((float)posLoc.Y, (float)posLoc.X) * scale;
-						var btnSize = Vector2.One * scale * task.R * 2;
+		//	void DrawAgents(MySpriteDrawFrame frame)
+		//	{
+		//		var z = new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y / 2f);
+		//		foreach (var ag in _dispatcher.subordinates)
+		//		{
+		//			var pos = ag.Report.WM.Translation;
+		//			var task = _dispatcher.CurrentTask;
+		//			if (task != null)
+		//			{
+		//				var posLoc = Vector3D.Transform(pos, worldToScheme);
+		//				float scale = 3.5f;
+		//				var posViewport = z + new Vector2((float)posLoc.Y, (float)posLoc.X) * scale;
+		//				var btnSize = Vector2.One * scale * task.R * 2;
 
-						var btnSpr = new MySprite(SpriteType.TEXTURE, "AH_BoreSight", posViewport + new Vector2(0, 5), btnSize * 0.8f, ag.Report.ColorTag);
-						btnSpr.RotationOrScale = (float)Math.PI / 2f;
-						var btnSprBack = new MySprite(SpriteType.TEXTURE, "Textures\\FactionLogo\\Miners\\MinerIcon_3.dds", posViewport, btnSize * 1.2f, Color.Black);
+		//				var btnSpr = new MySprite(SpriteType.TEXTURE, "AH_BoreSight", posViewport + new Vector2(0, 5), btnSize * 0.8f, ag.Report.ColorTag);
+		//				btnSpr.RotationOrScale = (float)Math.PI / 2f;
+		//				var btnSprBack = new MySprite(SpriteType.TEXTURE, "Textures\\FactionLogo\\Miners\\MinerIcon_3.dds", posViewport, btnSize * 1.2f, Color.Black);
 
-						frame.Add(btnSprBack);
-						frame.Add(btnSpr);
-					}
-				}
-			}
+		//				frame.Add(btnSprBack);
+		//				frame.Add(btnSpr);
+		//			}
+		//		}
+		//	}
 
-			void DrawReportRepeater(MySpriteDrawFrame frame)
-			{
-				bool madeHeader = false;
-				int offY = 0, startY = 30;
-				foreach (var su in _dispatcher.subordinates)
-				{
-					if (!su.Report.KeyValuePairs.IsDefault)
-					{
-						int offX = 0, startX = 100, interval = 75;
-						if (!madeHeader)
-						{
-							foreach (var kvp in su.Report.KeyValuePairs)
-							{
-								frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(interval - 5, 40), Color.Black));
-								frame.Add(new MySprite(SpriteType.TEXT, kvp.Item1, new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
-								offX += interval;
-							}
-							madeHeader = true;
-							offY += 40;
-						}
+		//	void DrawReportRepeater(MySpriteDrawFrame frame)
+		//	{
+		//		bool madeHeader = false;
+		//		int offY = 0, startY = 30;
+		//		foreach (var su in _dispatcher.subordinates)
+		//		{
+		//			if (!su.Report.KeyValuePairs.IsDefault)
+		//			{
+		//				int offX = 0, startX = 100, interval = 75;
+		//				if (!madeHeader)
+		//				{
+		//					foreach (var kvp in su.Report.KeyValuePairs)
+		//					{
+		//						frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(interval - 5, 40), Color.Black));
+		//						frame.Add(new MySprite(SpriteType.TEXT, kvp.Item1, new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
+		//						offX += interval;
+		//					}
+		//					madeHeader = true;
+		//					offY += 40;
+		//				}
 
-						offX = 0;
-						foreach (var kvp in su.Report.KeyValuePairs)
-						{
-							frame.Add(new MySprite(SpriteType.TEXT, kvp.Item2, new Vector2(startX + offX, startY + offY), null,
-								su.Report.ColorTag, "Debug", TextAlignment.CENTER, 0.5f));
-							offX += interval;
-						}
-						offY += 40;
-					}
-				}
-			}
+		//				offX = 0;
+		//				foreach (var kvp in su.Report.KeyValuePairs)
+		//				{
+		//					frame.Add(new MySprite(SpriteType.TEXT, kvp.Item2, new Vector2(startX + offX, startY + offY), null,
+		//						su.Report.ColorTag, "Debug", TextAlignment.CENTER, 0.5f));
+		//					offX += interval;
+		//				}
+		//				offY += 40;
+		//			}
+		//		}
+		//	}
 
-			List<ActiveElement> shaftControls = new List<ActiveElement>();
-			public Action<int> OnShaftClick;
-			MySprite shaftTip;
-			MySprite buttonTip;
-			MySprite taskSummary;
+		//	List<ActiveElement> shaftControls = new List<ActiveElement>();
+		//	public Action<int> OnShaftClick;
+		//	MySprite shaftTip;
+		//	MySprite buttonTip;
+		//	MySprite taskSummary;
 
-			MatrixD worldToScheme;
+		//	MatrixD worldToScheme;
 
-			internal void UpdateMiningScheme(Dispatcher.MiningTask obj)
-			{
-				worldToScheme = MatrixD.Invert(MatrixD.CreateWorld(obj.corePoint, obj.miningPlaneNormal, obj.planeXunit));
+		//	internal void UpdateMiningScheme(Dispatcher.MiningTask obj)
+		//	{
+		//		worldToScheme = MatrixD.Invert(MatrixD.CreateWorld(obj.corePoint, obj.miningPlaneNormal, obj.planeXunit));
 
-				shaftControls = new List<ActiveElement>();
+		//		shaftControls = new List<ActiveElement>();
 
-				Vector2 bPos = new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y / 2f);
-				float scale = 3.5f;
-				Vector2 btnSize = Vector2.One * scale * obj.R * 1.6f;
+		//		Vector2 bPos = new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y / 2f);
+		//		float scale = 3.5f;
+		//		Vector2 btnSize = Vector2.One * scale * obj.R * 1.6f;
 
-				foreach (var t in obj.Shafts)
-				{
-					var pos = bPos + t.Point * scale;
+		//		foreach (var t in obj.Shafts)
+		//		{
+		//			var pos = bPos + t.Point * scale;
 
-					Color mainCol = Color.White;
-					if (t.State == ShaftState.Planned)
-						mainCol = Color.CornflowerBlue;
-					else if (t.State == ShaftState.Complete)
-						mainCol = Color.Darken(Color.CornflowerBlue, 0.4f);
-					else if (t.State == ShaftState.InProgress)
-						mainCol = Color.Lighten(Color.CornflowerBlue, 0.2f);
-					else if (t.State == ShaftState.Cancelled)
-						mainCol = Color.DarkSlateGray;
+		//			Color mainCol = Color.White;
+		//			if (t.State == ShaftState.Planned)
+		//				mainCol = Color.CornflowerBlue;
+		//			else if (t.State == ShaftState.Complete)
+		//				mainCol = Color.Darken(Color.CornflowerBlue, 0.4f);
+		//			else if (t.State == ShaftState.InProgress)
+		//				mainCol = Color.Lighten(Color.CornflowerBlue, 0.2f);
+		//			else if (t.State == ShaftState.Cancelled)
+		//				mainCol = Color.DarkSlateGray;
 
-					var btnSpr = new MySprite(SpriteType.TEXTURE, "Circle", new Vector2(0, 0), btnSize, mainCol);
-					var sprites = new List<MySprite>() { btnSpr };
-					var btn = new ActiveElement(sprites, btnSize, pos, viewPortSize);
+		//			var btnSpr = new MySprite(SpriteType.TEXTURE, "Circle", new Vector2(0, 0), btnSize, mainCol);
+		//			var sprites = new List<MySprite>() { btnSpr };
+		//			var btn = new ActiveElement(sprites, btnSize, pos, viewPortSize);
 
-					var hoverColor = Color.Red;
+		//			var hoverColor = Color.Red;
 
-					btn.OnHover = p => shaftTip.Data = $"id: {t.Id}, {t.State}";
+		//			btn.OnHover = p => shaftTip.Data = $"id: {t.Id}, {t.State}";
 
-					btn.OnMouseIn = () =>
-					{
-						btn.TransformSprites(spr => { var s1 = spr; s1.Color = hoverColor; s1.Size = btnSize * 1.05f; return spr.Type == SpriteType.TEXTURE ? s1 : spr; });
-					};
-					btn.OnMouseOut = () =>
-					{
-						btn.TransformSprites(spr => spr.Type == SpriteType.TEXTURE ? btnSpr : spr);
-						shaftTip.Data = "Hover over shaft for more info,\n tap E to cancel it";
-					};
+		//			btn.OnMouseIn = () =>
+		//			{
+		//				btn.TransformSprites(spr => { var s1 = spr; s1.Color = hoverColor; s1.Size = btnSize * 1.05f; return spr.Type == SpriteType.TEXTURE ? s1 : spr; });
+		//			};
+		//			btn.OnMouseOut = () =>
+		//			{
+		//				btn.TransformSprites(spr => spr.Type == SpriteType.TEXTURE ? btnSpr : spr);
+		//				shaftTip.Data = "Hover over shaft for more info,\n tap E to cancel it";
+		//			};
 
-					btn.OnClick = x => OnShaftClick?.Invoke(t.Id);
+		//			btn.OnClick = x => OnShaftClick?.Invoke(t.Id);
 
-					shaftControls.Add(btn);
-				}
-			}
+		//			shaftControls.Add(btn);
+		//		}
+		//	}
 
-			public void UpdateTaskSummary(Dispatcher d)
-			{
-				if (d?.CurrentTask != null)
-					taskSummary.Data = $"Kind: SpiralLayout\nShafts: {d.CurrentTask.Shafts.Count}\nRadius: {d.CurrentTask.R:f2}\n" +
-							$"Group: {d.CurrentTask.GroupConstraint}";
-			}
+		//	public void UpdateTaskSummary(Dispatcher d)
+		//	{
+		//		if (d?.CurrentTask != null)
+		//			taskSummary.Data = $"Kind: SpiralLayout\nShafts: {d.CurrentTask.Shafts.Count}\nRadius: {d.CurrentTask.R:f2}\n" +
+		//					$"Group: {d.CurrentTask.GroupConstraint}";
+		//	}
 
-			class ActiveElement
-			{
-				public Vector2 Min, Max, Center;
-				public List<MySprite> Sprites;
-				public Vector2 SizePx;
-				public Action OnMouseIn { get; set; }
-				public Action OnMouseOut { get; set; }
-				public Action<Vector2> OnHover { get; set; }
-				public Action<Vector2> OnClick { get; set; }
-				public bool Hover { get; set; }
-				public bool Visible = true;
-				Vector2 ContainerSize;
+		//	class ActiveElement
+		//	{
+		//		public Vector2 Min, Max, Center;
+		//		public List<MySprite> Sprites;
+		//		public Vector2 SizePx;
+		//		public Action OnMouseIn { get; set; }
+		//		public Action OnMouseOut { get; set; }
+		//		public Action<Vector2> OnHover { get; set; }
+		//		public Action<Vector2> OnClick { get; set; }
+		//		public bool Hover { get; set; }
+		//		public bool Visible = true;
+		//		Vector2 ContainerSize;
 
-				public ActiveElement(List<MySprite> sprites, Vector2 sizeN, Vector2 posN, Vector2 deviceSize)
-				{
-					Sprites = sprites;
-					if (Math.Abs(posN.X) > 1)
-						posN.X = posN.X / (deviceSize.X * 0.5f) - 1;
-					if (Math.Abs(posN.Y) > 1)
-						posN.Y = 1 - posN.Y / (deviceSize.Y * 0.5f);
-					ContainerSize = deviceSize;
-					SizePx = new Vector2(sizeN.X > 1 ? sizeN.X : sizeN.X * ContainerSize.X, sizeN.Y > 1 ? sizeN.Y : sizeN.Y * ContainerSize.Y);
-					Center = deviceSize / 2f * (Vector2.One + posN);
-					Min = Center - SizePx / 2f;
-					Max = Center + SizePx / 2f;
-				}
+		//		public ActiveElement(List<MySprite> sprites, Vector2 sizeN, Vector2 posN, Vector2 deviceSize)
+		//		{
+		//			Sprites = sprites;
+		//			if (Math.Abs(posN.X) > 1)
+		//				posN.X = posN.X / (deviceSize.X * 0.5f) - 1;
+		//			if (Math.Abs(posN.Y) > 1)
+		//				posN.Y = 1 - posN.Y / (deviceSize.Y * 0.5f);
+		//			ContainerSize = deviceSize;
+		//			SizePx = new Vector2(sizeN.X > 1 ? sizeN.X : sizeN.X * ContainerSize.X, sizeN.Y > 1 ? sizeN.Y : sizeN.Y * ContainerSize.Y);
+		//			Center = deviceSize / 2f * (Vector2.One + posN);
+		//			Min = Center - SizePx / 2f;
+		//			Max = Center + SizePx / 2f;
+		//		}
 
-				public bool CheckHover(Vector2 cursorPosition)
-				{
-					bool res = (cursorPosition.X > Min.X) && (cursorPosition.X < Max.X)
-								&& (cursorPosition.Y > Min.Y) && (cursorPosition.Y < Max.Y);
-					if (res)
-					{
-						if (!Hover)
-						{
-							OnMouseIn?.Invoke();
-						}
-						Hover = true;
-						OnHover?.Invoke(cursorPosition);
-					}
-					else
-					{
-						if (Hover)
-						{
-							OnMouseOut?.Invoke();
-						}
-						Hover = false;
-					}
+		//		public bool CheckHover(Vector2 cursorPosition)
+		//		{
+		//			bool res = (cursorPosition.X > Min.X) && (cursorPosition.X < Max.X)
+		//						&& (cursorPosition.Y > Min.Y) && (cursorPosition.Y < Max.Y);
+		//			if (res)
+		//			{
+		//				if (!Hover)
+		//				{
+		//					OnMouseIn?.Invoke();
+		//				}
+		//				Hover = true;
+		//				OnHover?.Invoke(cursorPosition);
+		//			}
+		//			else
+		//			{
+		//				if (Hover)
+		//				{
+		//					OnMouseOut?.Invoke();
+		//				}
+		//				Hover = false;
+		//			}
 
-					return res;
-				}
+		//			return res;
+		//		}
 
-				public void TransformSprites(Func<MySprite, MySprite> f)
-				{
-					for (int n = 0; n < Sprites.Count; n++)
-					{
-						Sprites[n] = f(Sprites[n]);
-					}
-				}
+		//		public void TransformSprites(Func<MySprite, MySprite> f)
+		//		{
+		//			for (int n = 0; n < Sprites.Count; n++)
+		//			{
+		//				Sprites[n] = f(Sprites[n]);
+		//			}
+		//		}
 
-				public IEnumerable<MySprite> GetSprites()
-				{
-					foreach (var x in Sprites)
-					{
-						var rect = SizePx;
+		//		public IEnumerable<MySprite> GetSprites()
+		//		{
+		//			foreach (var x in Sprites)
+		//			{
+		//				var rect = SizePx;
 
-						var x1 = x;
-						x1.Position = Center + SizePx / 2f * x.Position;
-						var sz = x.Size.Value;
-						x1.Size = new Vector2(sz.X > 1 ? sz.X : sz.X * rect.X, sz.Y > 1 ? sz.Y : sz.Y * rect.Y);
+		//				var x1 = x;
+		//				x1.Position = Center + SizePx / 2f * x.Position;
+		//				var sz = x.Size.Value;
+		//				x1.Size = new Vector2(sz.X > 1 ? sz.X : sz.X * rect.X, sz.Y > 1 ? sz.Y : sz.Y * rect.Y);
 
-						yield return x1;
-					}
-				}
-			}
-		}
+		//				yield return x1;
+		//			}
+		//		}
+		//	}
+		//}
 
 		public class AgentReport
 		{
