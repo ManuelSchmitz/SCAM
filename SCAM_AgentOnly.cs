@@ -309,15 +309,15 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						{
 							"create-task-raycast", (parts) => RaycastTaskHandler(parts)
 						},
-						{
-							"create-task-gps", (parts) => GPStaskHandler(parts)
-						},
+						//{
+						//	"create-task-gps", (parts) => GPStaskHandler(parts)
+						//},
 						{
 							"force-finish", (parts) => minerController?.FinishAndDockHandler()
 						},
-						{
-							"recall", (parts) => dispatcherService?.Recall()
-						},
+						//{
+						//	"recall", (parts) => dispatcherService?.Recall()
+						//},
 						{
 							"static-dock", (parts) => minerController?.SetStaticDockOverrideHandler(parts)
 						},
@@ -442,6 +442,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 					if (newRole == Role.Lone)
 					{
+						/* Create a simplified, "imaginary" dispatcher. */
 						minerController.LocalDispatcher = new Dispatcher(IGC, stateWrapper);
 					}
 
@@ -895,36 +896,36 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 		int iCount;
 
-		public void GPStaskHandler(string[] cmdString)
-		{
+		//public void GPStaskHandler(string[] cmdString)
+		//{
 			// add Lone role local disp
-			if (dispatcherService != null)
-			{
-				var vdtoArr = cmdString.Skip(2).ToArray();
-				var pos = new Vector3D(double.Parse(vdtoArr[0]), double.Parse(vdtoArr[1]), double.Parse(vdtoArr[2]));
-				Vector3D n;
-				if (vdtoArr.Length > 3)
-				{
-					n = Vector3D.Normalize(pos - new Vector3D(double.Parse(vdtoArr[3]), double.Parse(vdtoArr[4]), double.Parse(vdtoArr[5])));
-				}
-				else
-				{
-					E.DebugLog("WARNING: the normal was not supplied to check if we are in gravity");
-					throw new Exception("failed to check for gravity");
-				}
-				var c = Variables.Get<string>("group-constraint");
-				if (!string.IsNullOrEmpty(c))
-				{
-					dispatcherService.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"), pos, n, Variables.Get<int>("max-generations"), c);
-					dispatcherService.BroadcastStart(c);
-				}
+		//	if (dispatcherService != null)
+		//	{
+		//		var vdtoArr = cmdString.Skip(2).ToArray();
+		//		var pos = new Vector3D(double.Parse(vdtoArr[0]), double.Parse(vdtoArr[1]), double.Parse(vdtoArr[2]));
+		//		Vector3D n;
+		//		if (vdtoArr.Length > 3)
+		//		{
+		//			n = Vector3D.Normalize(pos - new Vector3D(double.Parse(vdtoArr[3]), double.Parse(vdtoArr[4]), double.Parse(vdtoArr[5])));
+		//		}
+		//		else
+		//		{
+		//			E.DebugLog("WARNING: the normal was not supplied to check if we are in gravity");
+		//			throw new Exception("failed to check for gravity");
+		//		}
+		//		var c = Variables.Get<string>("group-constraint");
+		//		if (!string.IsNullOrEmpty(c))
+		//		{
+		//			dispatcherService.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"), pos, n, Variables.Get<int>("max-generations"), c);
+		//			dispatcherService.BroadcastStart(c);
+		//		}
 
-				else
-					E.DebugLog("To use this mode specify group-constraint value and make sure you have intended circular-pattern-shaft-radius");
-			}
-			else
-				E.DebugLog("GPStaskHandler is intended for Dispatcher role");
-		}
+		//		else
+		//			E.DebugLog("To use this mode specify group-constraint value and make sure you have intended circular-pattern-shaft-radius");
+		//	}
+		//	else
+		//		E.DebugLog("GPStaskHandler is intended for Dispatcher role");
+		//}
 
 		List<IMyCameraBlock> cameras = new List<IMyCameraBlock>();
 		Vector3D? castedSurfacePoint;
@@ -993,15 +994,15 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 							E.DebugLog("Successfully got mining center and mining normal");
 							if (dispatcherService != null)
 							{
-								var c = Variables.Get<string>("group-constraint");
-								if (!string.IsNullOrEmpty(c))
-								{
-									dispatcherService.BroadcastStart(c);
-									dispatcherService.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"),
-											castedSurfacePoint.Value - castedNormal.Value * 10, castedNormal.Value, Variables.Get<int>("max-generations"), c);
-								}
-								else
-									Log("To use this mode specify group-constraint value and make sure you have intended circular-pattern-shaft-radius");
+							//	var c = Variables.Get<string>("group-constraint");
+							//	if (!string.IsNullOrEmpty(c))
+							//	{
+							//		dispatcherService.BroadcastStart(c);
+							//		dispatcherService.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"),
+							//				castedSurfacePoint.Value - castedNormal.Value * 10, castedNormal.Value, Variables.Get<int>("max-generations"), c);
+							//	}
+							//	else
+							//		Log("To use this mode specify group-constraint value and make sure you have intended circular-pattern-shaft-radius");
 							}
 							else if (minerController != null)
 							{
@@ -1039,19 +1040,19 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		Dispatcher dispatcherService;
 		public class Dispatcher
 		{
-			public List<Subordinate> subordinates = new List<Subordinate>();
+		//	public List<Subordinate> subordinates = new List<Subordinate>();
 			Dictionary<string, Queue<long>> sectionsLockRequests = new Dictionary<string, Queue<long>>();
 
 			public Action<MiningTask> OnTaskUpdate;
 
-			public class Subordinate
-			{
-				public long Id;
-				public string ObtainedLock;
-				public float Echelon;
-				public string Group;
-				public AgentReport Report;
-			}
+		//	public class Subordinate
+		//	{
+		//		public long Id;
+		//		public string ObtainedLock;
+		//		public float Echelon;
+		//		public string Group;
+		//		public AgentReport Report;
+		//	}
 
 			IMyIntergridCommunicationSystem IGC;
 
@@ -1070,203 +1071,203 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			public void HandleIGC(List<MyIGCMessage> uniMsgs)
 			{
-				var minerChannel = IGC.RegisterBroadcastListener("miners");
-				while (minerChannel.HasPendingMessage)
-				{
-					var msg = minerChannel.AcceptMessage();
-					if (msg.Data != null)
-					{
-						if (msg.Data.ToString().Contains("common-airspace-ask-for-lock"))
-						{
-							var sectionName = msg.Data.ToString().Split(':')[1];
+				//var minerChannel = IGC.RegisterBroadcastListener("miners");
+				//while (minerChannel.HasPendingMessage)
+				//{
+				//	var msg = minerChannel.AcceptMessage();
+				//	if (msg.Data != null)
+				//	{
+						//if (msg.Data.ToString().Contains("common-airspace-ask-for-lock"))
+						//{
+						//	var sectionName = msg.Data.ToString().Split(':')[1];
 
-							if (!subordinates.Any(s => s.ObtainedLock == sectionName && s.Id != msg.Source))
-							{
-								subordinates.First(s => s.Id == msg.Source).ObtainedLock = sectionName;
-								IGC.SendUnicastMessage(msg.Source, "miners", "common-airspace-lock-granted:" + sectionName);
-								Log(sectionName + " granted to " + msg.Source);
-							}
-							else
-							{
-								if (!sectionsLockRequests.ContainsKey(sectionName))
-									sectionsLockRequests.Add(sectionName, new Queue<long>());
-								if (!sectionsLockRequests[sectionName].Contains(msg.Source))
-									sectionsLockRequests[sectionName].Enqueue(msg.Source);
-								Log("commonSpaceLockOwner rejected, added to requests queue: " + msg.Source);
-							}
-						}
+						//	if (!subordinates.Any(s => s.ObtainedLock == sectionName && s.Id != msg.Source))
+						//	{
+						//		subordinates.First(s => s.Id == msg.Source).ObtainedLock = sectionName;
+						//		IGC.SendUnicastMessage(msg.Source, "miners", "common-airspace-lock-granted:" + sectionName);
+						//		Log(sectionName + " granted to " + msg.Source);
+						//	}
+						//	else
+						//	{
+						//		if (!sectionsLockRequests.ContainsKey(sectionName))
+						//			sectionsLockRequests.Add(sectionName, new Queue<long>());
+						//		if (!sectionsLockRequests[sectionName].Contains(msg.Source))
+						//			sectionsLockRequests[sectionName].Enqueue(msg.Source);
+						//		Log("commonSpaceLockOwner rejected, added to requests queue: " + msg.Source);
+						//	}
+						//}
 
-						if (msg.Data.ToString().Contains("common-airspace-lock-released"))
-						{
-							var sectionName = msg.Data.ToString().Split(':')[1];
-							Log("(Dispatcher) received lock-released notification " + sectionName + " from " + msg.Source);
-							subordinates.Single(s => s.Id == msg.Source).ObtainedLock = "";
+						//if (msg.Data.ToString().Contains("common-airspace-lock-released"))
+						//{
+						//	var sectionName = msg.Data.ToString().Split(':')[1];
+						//	Log("(Dispatcher) received lock-released notification " + sectionName + " from " + msg.Source);
+						//	subordinates.Single(s => s.Id == msg.Source).ObtainedLock = "";
 
-							if (sectionsLockRequests.ContainsKey(sectionName) && (sectionsLockRequests[sectionName].Count > 0))
-							{
-								var id = sectionsLockRequests[sectionName].Dequeue();
+						//	if (sectionsLockRequests.ContainsKey(sectionName) && (sectionsLockRequests[sectionName].Count > 0))
+						//	{
+						//		var id = sectionsLockRequests[sectionName].Dequeue();
 
-								IGC.SendUnicastMessage(id, "miners", "common-airspace-lock-granted:" + sectionName);
-								subordinates.First(s => s.Id == id).ObtainedLock = sectionName;
-								Log(sectionName + " common-airspace-lock-granted to " + id);
-							}
-						}
-					}
-				}
+						//		IGC.SendUnicastMessage(id, "miners", "common-airspace-lock-granted:" + sectionName);
+						//		subordinates.First(s => s.Id == id).ObtainedLock = sectionName;
+						//		Log(sectionName + " common-airspace-lock-granted to " + id);
+						//	}
+						//}
+				//	}
+				//}
 
-				var minerHandshakeChannel = IGC.RegisterBroadcastListener("miners.handshake");
-				while (minerHandshakeChannel.HasPendingMessage)
-				{
-					var msg = minerHandshakeChannel.AcceptMessage();
-					if (msg.Data is string)
-					{
-						var data = (string)msg.Data;
+				//var minerHandshakeChannel = IGC.RegisterBroadcastListener("miners.handshake");
+				//while (minerHandshakeChannel.HasPendingMessage)
+				//{
+				//	var msg = minerHandshakeChannel.AcceptMessage();
+				//	if (msg.Data is string)
+				//	{
+				//		var data = (string)msg.Data;
 
-						Log($"Initiated handshake by {msg.Source}, group tag: {data}");
+				//		Log($"Initiated handshake by {msg.Source}, group tag: {data}");
 
-						Subordinate sb;
-						if (!subordinates.Any(s => s.Id == msg.Source))
-						{
-							sb = new Subordinate { Id = msg.Source, Echelon = (subordinates.Count + 1) * Variables.Get<float>("echelon-offset") + 10f, Group = data };
-							subordinates.Add(sb);
-							sb.Report = new AgentReport() { Id = sb.Id, ColorTag = Color.White };
-						}
-						else
-						{
-							sb = subordinates.Single(s => s.Id == msg.Source);
-							sb.Group = data;
-						}
+				//		Subordinate sb;
+				//		if (!subordinates.Any(s => s.Id == msg.Source))
+				//		{
+				//			sb = new Subordinate { Id = msg.Source, Echelon = (subordinates.Count + 1) * Variables.Get<float>("echelon-offset") + 10f, Group = data };
+				//			subordinates.Add(sb);
+				//			sb.Report = new AgentReport() { Id = sb.Id, ColorTag = Color.White };
+				//		}
+				//		else
+				//		{
+				//			sb = subordinates.Single(s => s.Id == msg.Source);
+				//			sb.Group = data;
+				//		}
 
-						IGC.SendUnicastMessage(msg.Source, "miners.handshake.reply", IGC.Me);
-						IGC.SendUnicastMessage(msg.Source, "miners.echelon", sb.Echelon);
-						if (stateWrapper.PState.miningPlaneNormal.HasValue)
-						{
-							IGC.SendUnicastMessage(msg.Source, "miners.normal", stateWrapper.PState.miningPlaneNormal.Value);
-						}
-						var vals = new string[] { "skip-depth", "depth-limit", "getAbove-altitude" };
-						Scheduler.C.After(500).RunCmd(() => {
-							foreach (var v in vals)
-							{
-								Log($"Propagating set-value:'{v}' to {msg.Source}");
-								IGC.SendUnicastMessage(msg.Source, "set-value", $"{v}:{Variables.Get<float>(v)}");
-							}
-						});
-					}
-				}
+				//		IGC.SendUnicastMessage(msg.Source, "miners.handshake.reply", IGC.Me);
+				//		IGC.SendUnicastMessage(msg.Source, "miners.echelon", sb.Echelon);
+				//		if (stateWrapper.PState.miningPlaneNormal.HasValue)
+				//		{
+				//			IGC.SendUnicastMessage(msg.Source, "miners.normal", stateWrapper.PState.miningPlaneNormal.Value);
+				//		}
+				//		var vals = new string[] { "skip-depth", "depth-limit", "getAbove-altitude" };
+				//		Scheduler.C.After(500).RunCmd(() => {
+				//			foreach (var v in vals)
+				//			{
+				//				Log($"Propagating set-value:'{v}' to {msg.Source}");
+				//				IGC.SendUnicastMessage(msg.Source, "set-value", $"{v}:{Variables.Get<float>(v)}");
+				//			}
+				//		});
+				//	}
+				//}
 
-				var minerReportChannel = IGC.RegisterBroadcastListener("miners.report");
-				while (minerReportChannel.HasPendingMessage)
-				{
-					var msg = minerReportChannel.AcceptMessage();
-					var data = (MyTuple<long, MatrixD, Vector4, ImmutableArray<MyTuple<string, string>>>)msg.Data;
-					var sub = subordinates.FirstOrDefault(s => s.Id == msg.Source);
-					if (sub != null)
-						sub.Report.UpdateFromIgc(data);
-				}
+				//var minerReportChannel = IGC.RegisterBroadcastListener("miners.report");
+				//while (minerReportChannel.HasPendingMessage)
+				//{
+				//	var msg = minerReportChannel.AcceptMessage();
+				//	var data = (MyTuple<long, MatrixD, Vector4, ImmutableArray<MyTuple<string, string>>>)msg.Data;
+				//	var sub = subordinates.FirstOrDefault(s => s.Id == msg.Source);
+				//	if (sub != null)
+				//		sub.Report.UpdateFromIgc(data);
+				//}
 
-				foreach (var msg in uniMsgs)
-				{
+				//foreach (var msg in uniMsgs)
+				//{
 					//Log("Dispatcher has received private message from " + msg.Source);
-					if (msg.Tag == "create-task")
-					{
-						var data = (MyTuple<float, Vector3D, Vector3D>)msg.Data;
+					//if (msg.Tag == "create-task")
+					//{
+					//	var data = (MyTuple<float, Vector3D, Vector3D>)msg.Data;
 
-						Log("Got new mining task from agent");
-						var sub = subordinates.First(s => s.Id == msg.Source);
-						sub.ObtainedLock = LOCK_NAME_GeneralSection;
-						CreateTask(data.Item1, data.Item2, data.Item3, Variables.Get<int>("max-generations"), sub.Group);
-						BroadcastStart(sub.Group);
-					}
+					//	Log("Got new mining task from agent");
+					//	var sub = subordinates.First(s => s.Id == msg.Source);
+					//	sub.ObtainedLock = LOCK_NAME_GeneralSection;
+					//	CreateTask(data.Item1, data.Item2, data.Item3, Variables.Get<int>("max-generations"), sub.Group);
+					//	BroadcastStart(sub.Group);
+					//}
 
-					if (msg.Tag.Contains("request-new"))
-					{
-						if (msg.Tag == "shaft-complete-request-new")
-						{
-							CompleteShaft((int)msg.Data);
-							E.DebugLog($"Shaft {msg.Data} complete");
-						}
+					//if (msg.Tag.Contains("request-new"))
+					//{
+					//	if (msg.Tag == "shaft-complete-request-new")
+					//	{
+					//		CompleteShaft((int)msg.Data);
+					//		E.DebugLog($"Shaft {msg.Data} complete");
+					//	}
 
 						// assign and send new shaft points
-						Vector3D? entry = Vector3D.Zero;
-						Vector3D? getabove = Vector3D.Zero;
-						int shId = 0;
-						if ((CurrentTask != null) && AssignNewShaft(ref entry, ref getabove, ref shId))
-						{
-							IGC.SendUnicastMessage(msg.Source, "miners.assign-shaft", new MyTuple<int, Vector3D, Vector3D>(shId, entry.Value, getabove.Value));
-							E.DebugLog($"AssignNewShaft with id {shId} sent");
-						}
-						else
-						{
-							IGC.SendUnicastMessage(msg.Source, "command", "force-finish");
-						}
-					}
-					if (msg.Tag == "ban-direction")
-					{
-						BanDirectionByPoint((int)msg.Data);
-					}
-				}
+					//	Vector3D? entry = Vector3D.Zero;
+					//	Vector3D? getabove = Vector3D.Zero;
+					//	int shId = 0;
+					//	if ((CurrentTask != null) && AssignNewShaft(ref entry, ref getabove, ref shId))
+					//	{
+					//		IGC.SendUnicastMessage(msg.Source, "miners.assign-shaft", new MyTuple<int, Vector3D, Vector3D>(shId, entry.Value, getabove.Value));
+					//		E.DebugLog($"AssignNewShaft with id {shId} sent");
+					//	}
+					//	else
+					//	{
+					//		IGC.SendUnicastMessage(msg.Source, "command", "force-finish");
+					//	}
+					//}
+					//if (msg.Tag == "ban-direction")
+					//{
+					//	BanDirectionByPoint((int)msg.Data);
+					//}
+				//}
 
-				foreach (var s in subordinates)
-				{
-					E.Echo(s.Id + ": echelon = " + s.Echelon + " lock: " + s.ObtainedLock);
-				}
+				//foreach (var s in subordinates)
+				//{
+				//	E.Echo(s.Id + ": echelon = " + s.Echelon + " lock: " + s.ObtainedLock);
+				//}
 			}
 
-			public void BroadcastResume()
-			{
-				var g = stateWrapper.PState.CurrentTaskGroup;
-				if (!string.IsNullOrEmpty(g))
-				{
-					Log($"Broadcasting task resume for mining group '{g}'");
-					foreach (var s in subordinates.Where(x => x.Group == g))
-					{
-						IGC.SendUnicastMessage(s.Id, "miners.resume", stateWrapper.PState.miningPlaneNormal.Value);
-					}
-				}
-			}
+			//public void BroadcastResume()
+			//{
+			//	var g = stateWrapper.PState.CurrentTaskGroup;
+			//	if (!string.IsNullOrEmpty(g))
+			//	{
+			//		Log($"Broadcasting task resume for mining group '{g}'");
+			//		foreach (var s in subordinates.Where(x => x.Group == g))
+			//		{
+			//			IGC.SendUnicastMessage(s.Id, "miners.resume", stateWrapper.PState.miningPlaneNormal.Value);
+			//		}
+			//	}
+			//}
 
-			public void BroadCastHalt()
-			{
-				Log($"Broadcasting global Halt & Clear state");
-				IGC.SendBroadcastMessage("miners.command", "command:halt");
-			}
+			//public void BroadCastHalt()
+			//{
+			//	Log($"Broadcasting global Halt & Clear state");
+			//	IGC.SendBroadcastMessage("miners.command", "command:halt");
+			//}
 
-			public void BroadcastStart(string group)
-			{
-				Log($"Preparing start for mining group '{group}'");
-				IGC.SendBroadcastMessage("miners.command", "command:clear-storage-state");
-				Scheduler.C.Clear();
-				stateWrapper.PState.LifetimeAcceptedTasks++;
+			//public void BroadcastStart(string group)
+			//{
+			//	Log($"Preparing start for mining group '{group}'");
+			//	IGC.SendBroadcastMessage("miners.command", "command:clear-storage-state");
+			//	Scheduler.C.Clear();
+			//	stateWrapper.PState.LifetimeAcceptedTasks++;
 
-				Scheduler.C.After(500).RunCmd(() => {
-					foreach (var s in subordinates.Where(x => x.Group == group))
-					{
-						IGC.SendUnicastMessage(s.Id, "miners.normal", stateWrapper.PState.miningPlaneNormal.Value);
-					}
-				});
+			//	Scheduler.C.After(500).RunCmd(() => {
+			//		foreach (var s in subordinates.Where(x => x.Group == group))
+			//		{
+			//			IGC.SendUnicastMessage(s.Id, "miners.normal", stateWrapper.PState.miningPlaneNormal.Value);
+			//		}
+			//	});
 
-				Scheduler.C.After(1000).RunCmd(() => {
-					Log($"Broadcasting start for mining group '{group}'");
-					foreach (var s in subordinates.Where(x => x.Group == group))
-					{
-						IGC.SendUnicastMessage(s.Id, "command", "mine");
-					}
-				});
-			}
+			//	Scheduler.C.After(1000).RunCmd(() => {
+			//		Log($"Broadcasting start for mining group '{group}'");
+			//		foreach (var s in subordinates.Where(x => x.Group == group))
+			//		{
+			//			IGC.SendUnicastMessage(s.Id, "command", "mine");
+			//		}
+			//	});
+			//}
 
-			public void Recall()
-			{
-				IGC.SendBroadcastMessage("miners.command", "command:force-finish");
-				Log($"Broadcasting Recall");
-			}
+			//public void Recall()
+			//{
+			//	IGC.SendBroadcastMessage("miners.command", "command:force-finish");
+			//	Log($"Broadcasting Recall");
+			//}
 
-			public void PurgeLocks()
-			{
-				IGC.SendBroadcastMessage("miners.command", "command:dispatch");
-				sectionsLockRequests.Clear();
-				subordinates.ForEach(x => x.ObtainedLock = "");
-				Log($"WARNING! Purging Locks, green light for everybody...");
-			}
+			//public void PurgeLocks()
+			//{
+			//	IGC.SendBroadcastMessage("miners.command", "command:dispatch");
+			//	sectionsLockRequests.Clear();
+			//	subordinates.ForEach(x => x.ObtainedLock = "");
+			//	Log($"WARNING! Purging Locks, green light for everybody...");
+			//}
 
 
 			public MiningTask CurrentTask;
@@ -1407,7 +1408,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				sb.Clear();
 				sb.AppendLine($"CircularPattern radius: {stateWrapper.PState.shaftRadius:f2}");
 				sb.AppendLine($" ");
-				sb.AppendLine($"Total subordinates: {subordinates.Count}");
+				//sb.AppendLine($"Total subordinates: {subordinates.Count}");
 				sb.AppendLine($"Lock queue: {sectionsLockRequests.Count}");
 				sb.AppendLine($"LifetimeAcceptedTasks: {stateWrapper.PState.LifetimeAcceptedTasks}");
 				return sb.ToString();
@@ -1417,7 +1418,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		MinerController minerController;
 		public class MinerController
 		{
-			public Dispatcher LocalDispatcher { get; set; }
+			public Dispatcher LocalDispatcher { get; set; } // Local dispatcher for "Lone" role.
 			TimerTriggerService tts;
 
 			public MiningJob CurrentJob { get; private set; }
