@@ -269,15 +269,15 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 								}
 							}
 						},
-						{
-							"add-gui-controller", (parts) => {
-								List<IMyShipController> b = new List<IMyShipController>();
-								GridTerminalSystem.GetBlocksOfType(b, x => x.IsSameConstructAs(Me) && x.CustomName.Contains(parts[2]));
-								guiSeat = b.FirstOrDefault();
-								if (guiSeat != null)
-									E.DebugLog($"Added {guiSeat.CustomName} as GUI controller");
-							}
-						},
+						//{
+						//	"add-gui-controller", (parts) => {
+						//		List<IMyShipController> b = new List<IMyShipController>();
+						//		GridTerminalSystem.GetBlocksOfType(b, x => x.IsSameConstructAs(Me) && x.CustomName.Contains(parts[2]));
+						//		guiSeat = b.FirstOrDefault();
+						//		if (guiSeat != null)
+						//			E.DebugLog($"Added {guiSeat.CustomName} as GUI controller");
+						//	}
+						//},
 						{
 							"add-logger", (parts) => {
 								List<IMyTextPanel> b = new List<IMyTextPanel>();
@@ -908,26 +908,9 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				}
 				else
 				{
-					if (guiSeat == null)
-					{
-						E.DebugLog("WARNING: the normal was not supplied and there is no Control Station available to check if we are in gravity");
-						n = -dockHost.GetFirstNormal();
-						E.DebugLog("Using 'first dock connector Backward' as a normal");
-					}
-					else
-					{
-						Vector3D pCent;
-						if (guiSeat.TryGetPlanetPosition(out pCent))
-						{
-							n = Vector3D.Normalize(pCent - pos);
-							E.DebugLog("Using mining-center-to-planet-center direction as a normal because we are in gravity");
-						}
-						else
-						{
-							n = -dockHost.GetFirstNormal();
-							E.DebugLog("Using 'first dock connector Backward' as a normal");
-						}
-					}
+					E.DebugLog("WARNING: the normal was not supplied to check if we are in gravity");
+					n = -dockHost.GetFirstNormal();
+					E.DebugLog("Using 'first dock connector Backward' as a normal");
 				}
 				var c = Variables.Get<string>("group-constraint");
 				if (!string.IsNullOrEmpty(c))
@@ -964,7 +947,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						Log($"GPS:Raycasted base point:{VectorOpsHelper.V3DtoBroadcastString(dei.HitPosition.Value)}:");
 						cam.CustomData += "GPS:castedSurfacePoint:" + VectorOpsHelper.V3DtoBroadcastString(castedSurfacePoint.Value) + ":\n";
 
-						IMyShipController gravGetter = minerController?.remCon ?? guiSeat;
+						IMyShipController gravGetter = minerController?.remCon;
 						Vector3D pCent;
 						if ((gravGetter != null) && gravGetter.TryGetPlanetPosition(out pCent))
 						{
@@ -3058,7 +3041,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		}
 
 		IMyTextPanel rawPanel;
-		IMyShipController guiSeat;
+		//IMyShipController guiSeat;
 
 		public void FlushFeedbackBuffer()
 		{
