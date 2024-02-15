@@ -992,8 +992,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						if (castedNormal.HasValue && castedSurfacePoint.HasValue)
 						{
 							E.DebugLog("Successfully got mining center and mining normal");
-							if (dispatcherService != null)
-							{
+							//if (dispatcherService != null)
+							//{
 							//	var c = Variables.Get<string>("group-constraint");
 							//	if (!string.IsNullOrEmpty(c))
 							//	{
@@ -1003,12 +1003,22 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 							//	}
 							//	else
 							//		Log("To use this mode specify group-constraint value and make sure you have intended circular-pattern-shaft-radius");
-							}
-							else if (minerController != null)
+							//}
+							//else
+							if (minerController != null)
 							{
 								if (minerController.LocalDispatcher != null)
 								{
-									dispatcherService.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"),
+									/*
+									 * FIXME: If minerController != NULL, then dispatcherService must be NULL! (
+									 *        (The PB is either agent or dispatcher.)
+									 *        
+									 *        This must be localDispatcher.CreateTask(...
+									 */
+									//dispatcherService.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"),
+									//		castedSurfacePoint.Value - castedNormal.Value * 10, castedNormal.Value,
+									//		Variables.Get<int>("max-generations"), "LocalDispatcher");
+									minerController.LocalDispatcher.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"),
 											castedSurfacePoint.Value - castedNormal.Value * 10, castedNormal.Value,
 											Variables.Get<int>("max-generations"), "LocalDispatcher");
 									minerController.MineCommandHandler();
@@ -1037,7 +1047,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			}
 		}
 
-		Dispatcher dispatcherService;
+		//Dispatcher dispatcherService;
 		public class Dispatcher
 		{
 		//	public List<Subordinate> subordinates = new List<Subordinate>();
