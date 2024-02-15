@@ -44,6 +44,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		//static string LOCK_NAME_ForceFinishSection = "general";
 		static string LOCK_NAME_ForceFinishSection = "force-finish";
 
+		static IMyProgrammableBlock hostPb; ///< Reference to the programmable block on which this script is running. (same as "Me", but available in all scopes)
+
 		Action<IMyTextPanel> outputPanelInitializer = x =>
 		{
 			x.ContentType = ContentType.TEXT_AND_IMAGE;
@@ -718,6 +720,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 		public Program()
 		{
+			hostPb = Me;
 			Runtime.UpdateFrequency = UpdateFrequency.Update1;
 
 			Ctor();
@@ -1707,6 +1710,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 					if (msg.Tag == "report.request")
 					{
+						/* Progress report requested, compile and send the report. */
 						var report = new AgentReport();
 						report.Id = IGC.Me;
 						report.WM = fwReferenceBlock.WorldMatrix;
@@ -2741,7 +2745,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				public void UpdateReport(AgentReport report, MinerState state)
 				{
 					var b = ImmutableArray.CreateBuilder<MyTuple<string, string>>(10);
-					b.Add(new MyTuple<string, string>("State", state.ToString()));
+					b.Add(new MyTuple<string, string>("Name\nState", hostPb.CubeGrid.CustomName + "\n" + state.ToString()));
 					b.Add(new MyTuple<string, string>("Adaptive\nmode", Toggle.C.Check("adaptive-mining") ? "Y" : "N"));
 					b.Add(new MyTuple<string, string>("Session\nore mined", SessionOreMined.ToString("f2")));
 					b.Add(new MyTuple<string, string>("Last found\nore depth", (lastFoundOreDepth ?? 0f).ToString("f2")));
