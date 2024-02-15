@@ -44,7 +44,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		//static string LOCK_NAME_ForceFinishSection = "general";
 		static string LOCK_NAME_ForceFinishSection = "force-finish";
 
-		static IMyProgrammableBlock hostPb; ///< Reference to the programmable block on which this script is running. (same as "Me", but available in all scopes)
+		static IMyProgrammableBlock me; ///< Reference to the programmable block on which this script is running. (same as "Me", but available in all scopes)
 
 		Action<IMyTextPanel> outputPanelInitializer = x =>
 		{
@@ -212,7 +212,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			if (!string.IsNullOrEmpty(Me.CustomData))
 				pendingInitSequence = true;
 
-			E.Init(Echo, GridTerminalSystem, Me);
+			E.Init(Echo, GridTerminalSystem);
 			Toggle.Init(new Dictionary<string, bool>
 			{
 				{ "adaptive-mining", false },
@@ -406,14 +406,14 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					var b = new List<IMyProgrammableBlock>();
 					GridTerminalSystem.GetBlocksOfType(b, pb => pb.CustomName.Contains("core") && pb.IsSameConstructAs(Me) && pb.Enabled);
 					pillockCore = b.FirstOrDefault();
-					minerController = new MinerController(newRole, GridTerminalSystem, IGC, stateWrapper, GetNTV, Me);
+					minerController = new MinerController(newRole, GridTerminalSystem, IGC, stateWrapper, GetNTV);
 					if (pillockCore != null)
 					{
 						minerController.SetControlledUnit(pillockCore);
 					}
 					else
 					{
-						coreUnit = new APckUnit(Me, stateWrapper.PState, GridTerminalSystem, IGC, GetNTV);
+						coreUnit = new APckUnit(stateWrapper.PState, GridTerminalSystem, IGC, GetNTV);
 						minerController.SetControlledUnit(coreUnit);
 						minerController.ApckRegistry = new CommandRegistry(
 							new Dictionary<string, Action<string[]>>
@@ -720,7 +720,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 		public Program()
 		{
-			hostPb = Me;
+			me = Me;
 			Runtime.UpdateFrequency = UpdateFrequency.Update1;
 
 			Ctor();
@@ -1491,7 +1491,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			Func<string, TargetTelemetry> ntv;
 			StateWrapper stateWrapper;
 			public MinerController(Role role, IMyGridTerminalSystem gts, IMyIntergridCommunicationSystem igc, StateWrapper stateWrapper,
-					Func<string, TargetTelemetry> GetNTV, IMyTerminalBlock me)
+					Func<string, TargetTelemetry> GetNTV)
 			{
 				ntv = GetNTV;
 				this.CurrentRole = role;
@@ -2745,7 +2745,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				public void UpdateReport(AgentReport report, MinerState state)
 				{
 					var b = ImmutableArray.CreateBuilder<MyTuple<string, string>>(10);
-					b.Add(new MyTuple<string, string>("Name\nState", hostPb.CubeGrid.CustomName + "\n" + state.ToString()));
+					b.Add(new MyTuple<string, string>("Name\nState", me.CubeGrid.CustomName + "\n" + state.ToString()));
 					b.Add(new MyTuple<string, string>("Adaptive\nmode", Toggle.C.Check("adaptive-mining") ? "Y" : "N"));
 					b.Add(new MyTuple<string, string>("Session\nore mined", SessionOreMined.ToString("f2")));
 					b.Add(new MyTuple<string, string>("Last found\nore depth", (lastFoundOreDepth ?? 0f).ToString("f2")));
@@ -3121,7 +3121,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			static IMyTextSurface p;
 			static IMyTextSurface l;
 			public static double T;
-			public static void Init(Action<string> echo, IMyGridTerminalSystem g, IMyProgrammableBlock me)
+			public static void Init(Action<string> echo, IMyGridTerminalSystem g)
 			{
 				e = echo;
 				p = me.GetSurface(0);
@@ -3307,7 +3307,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				return f;
 			}
 
-			public APckUnit(IMyProgrammableBlock me, PersistentState ps, IMyGridTerminalSystem gts, IMyIntergridCommunicationSystem igc, Func<string, TargetTelemetry> gtt)
+			public APckUnit(PersistentState ps, IMyGridTerminalSystem gts, IMyIntergridCommunicationSystem igc, Func<string, TargetTelemetry> gtt)
 			{
 				_gts = gts;
 				_getTV = gtt;
