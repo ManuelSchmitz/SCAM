@@ -773,6 +773,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				}
 				else if (m.Tag == "apck.docking.approach" || m.Tag == "apck.depart.approach")
 				{
+					/* We are cleared for departure/landing. */
 					if (minerController?.pCore != null)
 					{
 						IGC.SendUnicastMessage(minerController.pCore.EntityId, m.Tag, (ImmutableArray<Vector3D>)m.Data);
@@ -786,7 +787,11 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 							f.OnComplete = () => IGC.SendUnicastMessage(m.Source, "apck.depart.complete", "");
 							coreUnit.CreateWP(f);
 						}
+
+						/* Disconnect from base (if departure). */
 						coreUnit.docker.Disconnect();
+
+						/* Depart/approach on assign flight path (given by ATC). */
 						var path = (ImmutableArray<Vector3D>)m.Data;
 						if (path.Length > 0)
 						{
@@ -1339,6 +1344,15 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					sh.State = state;
 				}
 
+				/**
+				 * \brief Returns a job to be performed.
+				 * \details Returns the parameters of the shaft. The returned job is marked as "in
+				 * progress".
+				 * \param[out] entry Center point on the shaft entry face in world coordinates.
+				 * \param[out] getAbove Center point above "entry" in world coordinates, depends
+				 * on the "getAbove-altitude". Use as waypoint for the approach and departure.
+				 */
+				//TODO: The getAbove height should be negotiated with ATC for each flight.
 				public bool RequestShaft(ref Vector3D? entry, ref Vector3D? getAbove, ref int id)
 				{
 					var sh = Shafts.FirstOrDefault(x => x.State == ShaftState.Planned);
@@ -1616,8 +1630,10 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				{
 					if (!msg.Tag.Contains("set-vectors"))
 						LogMsg(msg, false);
+
 					if ((msg.Tag == "miners.assign-shaft") && (msg.Data is MyTuple<int, Vector3D, Vector3D>) && (CurrentRole == Role.Agent))
 					{
+						/* We have been assigned a new job (=shaft) to work on. */
 						var data = (MyTuple<int, Vector3D, Vector3D>)msg.Data;
 						if (j != null)
 						{
@@ -2312,9 +2328,9 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 				public void SetShaftVectors(int id, Vector3D miningEntryPoint, Vector3D getAbovePt)
 				{
-					c.pState.miningEntryPoint = miningEntryPoint;
-					c.pState.getAbovePt = getAbovePt;
-					c.pState.CurrentShaftId = id;
+					c.pState.miningEntryPoint = miningEntryPoint; ///< Center point on the shaft's upper face.
+					c.pState.getAbovePt       = getAbovePt;       ///< Point above the shaft, depending on the get-above altitude. Used for approach/departure.
+					c.pState.CurrentShaftId   = id;               ///< The job ID from the dispatcher.
 				}
 
 				public void HandleState(MinerState state)
