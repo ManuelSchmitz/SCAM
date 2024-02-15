@@ -375,27 +375,28 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 				if (newRole == Role.Dispatcher)
 				{
-					dispatcherService = new Dispatcher(IGC, stateWrapper);
-					var dockingPoints = new List<IMyShipConnector>();
-					GridTerminalSystem.GetBlocksOfType(dockingPoints, c => c.IsSameConstructAs(Me) && c.CustomName.Contains(DockHostTag));
-					if (ClearDocksOnReload)
-						dockingPoints.ForEach(d => d.CustomData = "");
-					dockHost = new DockHost(dockingPoints, stateWrapper.PState, GridTerminalSystem);
+					throw new Exception("This script is for agents only (command:set-role:agent or command:set-role:lone).");
+					//	dispatcherService = new Dispatcher(IGC, stateWrapper);
+					//	var dockingPoints = new List<IMyShipConnector>();
+					//	GridTerminalSystem.GetBlocksOfType(dockingPoints, c => c.IsSameConstructAs(Me) && c.CustomName.Contains(DockHostTag));
+					//	if (ClearDocksOnReload)
+					//		dockingPoints.ForEach(d => d.CustomData = "");
+					//	dockHost = new DockHost(dockingPoints, stateWrapper.PState, GridTerminalSystem);
 
-					if (stateWrapper.PState.ShaftStates.Count > 0)
-					{
-						var cap = stateWrapper.PState.ShaftStates;
-						dispatcherService.CreateTask(stateWrapper.PState.shaftRadius.Value, stateWrapper.PState.corePoint.Value,
-								stateWrapper.PState.miningPlaneNormal.Value, stateWrapper.PState.MaxGenerations, stateWrapper.PState.CurrentTaskGroup);
-						for (int n = 0; n < dispatcherService.CurrentTask.Shafts.Count; n++)
-						{
-							dispatcherService.CurrentTask.Shafts[n].State = (ShaftState)cap[n];
-						}
-						stateWrapper.PState.ShaftStates = dispatcherService.CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
-						E.DebugLog($"Restored task from pstate, shaft count: {cap.Count}");
-					}
+					//	if (stateWrapper.PState.ShaftStates.Count > 0)
+					//	{
+					//		var cap = stateWrapper.PState.ShaftStates;
+					//		dispatcherService.CreateTask(stateWrapper.PState.shaftRadius.Value, stateWrapper.PState.corePoint.Value,
+					//				stateWrapper.PState.miningPlaneNormal.Value, stateWrapper.PState.MaxGenerations, stateWrapper.PState.CurrentTaskGroup);
+					//		for (int n = 0; n < dispatcherService.CurrentTask.Shafts.Count; n++)
+					//		{
+					//			dispatcherService.CurrentTask.Shafts[n].State = (ShaftState)cap[n];
+					//		}
+					//		stateWrapper.PState.ShaftStates = dispatcherService.CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
+					//		E.DebugLog($"Restored task from pstate, shaft count: {cap.Count}");
+					//	}
 
-					BroadcastToChannel("miners", "dispatcher-change");
+					//	BroadcastToChannel("miners", "dispatcher-change");
 				}
 				else
 				{
@@ -749,18 +750,18 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						IGC.SendUnicastMessage(minerController.pCore.EntityId, "apck.ntv.update", igcDto);
 					}
 				}
-				else if (m.Tag == "apck.depart.complete")
-				{
-					dockHost?.DepartComplete(m.Source.ToString());
-				}
-				else if (m.Tag == "apck.depart.request")
-				{
-					dockHost.RequestDocking(m.Source, (Vector3D)m.Data, true);
-				}
-				else if (m.Tag == "apck.docking.request")
-				{
-					dockHost.RequestDocking(m.Source, (Vector3D)m.Data);
-				}
+				//else if (m.Tag == "apck.depart.complete")
+				//{
+				//	dockHost?.DepartComplete(m.Source.ToString());
+				//}
+				//else if (m.Tag == "apck.depart.request")
+				//{
+				//	dockHost.RequestDocking(m.Source, (Vector3D)m.Data, true);
+				//}
+				//else if (m.Tag == "apck.docking.request")
+				//{
+				//	dockHost.RequestDocking(m.Source, (Vector3D)m.Data);
+				//}
 				else if (m.Tag == "apck.depart.complete")
 				{
 					if (minerController?.DispatcherId != null)
@@ -909,8 +910,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				else
 				{
 					E.DebugLog("WARNING: the normal was not supplied to check if we are in gravity");
-					n = -dockHost.GetFirstNormal();
-					E.DebugLog("Using 'first dock connector Backward' as a normal");
+					throw new Exception("failed to check for gravity");
 				}
 				var c = Variables.Get<string>("group-constraint");
 				if (!string.IsNullOrEmpty(c))
@@ -4730,16 +4730,16 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			}
 		}
 
-		DockHost dockHost;
-		public class DockHost
-		{
-			List<IMyShipConnector> ports;
-			Dictionary<IMyShipConnector, Vector3D> pPositions = new Dictionary<IMyShipConnector, Vector3D>();
+		//DockHost dockHost;
+		//public class DockHost
+		//{
+		//	List<IMyShipConnector> ports;
+		//	Dictionary<IMyShipConnector, Vector3D> pPositions = new Dictionary<IMyShipConnector, Vector3D>();
 
-			public DockHost(List<IMyShipConnector> docks, PersistentState ps, IMyGridTerminalSystem gts)
-			{
-				ports = docks;
-				ports.ForEach(x => pPositions.Add(x, x.GetPosition()));
+		//	public DockHost(List<IMyShipConnector> docks, PersistentState ps, IMyGridTerminalSystem gts)
+		//	{
+		//		ports = docks;
+		//		ports.ForEach(x => pPositions.Add(x, x.GetPosition()));
 				/*
 				foreach (var n in ps.NavTreeNodes)
 				{
@@ -4763,161 +4763,161 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				{
 					E.DebugLog($"{string.Concat(nd.tags)}, Pa {nd.Pa != null} Ch {nd.Ch.Count}");
 				}*/
-			}
-			public void Build(List<IMyTerminalBlock> b)
-			{
-				foreach (var x in b)
-				{
-					var nm = x.CustomName.Split('/')[1];
-					var tags = nm.ToCharArray();
+		//	}
+		//	public void Build(List<IMyTerminalBlock> b)
+		//	{
+		//		foreach (var x in b)
+		//		{
+		//			var nm = x.CustomName.Split('/')[1];
+		//			var tags = nm.ToCharArray();
 
-					var node = new NavMeshNode();
-					node.tags = tags;
-					node.loc = x.Position;
-					nodes.Add(node);
-				}
-			}
-			void NodeRecu(NavMeshNode n)
-			{
-				var c = string.Concat(n.tags);
-				E.DebugLog("checkin " + c);
-				foreach (var ch in nodes.Where(x => x.Pa == null && x.Ch.Count == 0 && (x != n) && x.tags.Any(t => c.Contains(t))))
-				{
-					n.Ch.Add(ch);
-					ch.Pa = n;
-					NodeRecu(ch);
-				}
-			}
+		//			var node = new NavMeshNode();
+		//			node.tags = tags;
+		//			node.loc = x.Position;
+		//			nodes.Add(node);
+		//		}
+		//	}
+		//	void NodeRecu(NavMeshNode n)
+		//	{
+		//		var c = string.Concat(n.tags);
+		//		E.DebugLog("checkin " + c);
+		//		foreach (var ch in nodes.Where(x => x.Pa == null && x.Ch.Count == 0 && (x != n) && x.tags.Any(t => c.Contains(t))))
+		//		{
+		//			n.Ch.Add(ch);
+		//			ch.Pa = n;
+		//			NodeRecu(ch);
+		//		}
+		//	}
 
-			public void Handle(IMyIntergridCommunicationSystem i, int t)
-			{
-				E.Echo("Navmesh: " + nodes.Count);
-				var z = new List<MyTuple<Vector3D, Vector3D, Vector4>>();
-				foreach (var n in nodes.Where(x => x.Pa != null))
-				{
-					var gr = ports.First().CubeGrid;
-					z.Add(new MyTuple<Vector3D, Vector3D, Vector4>(gr.GridIntegerToWorld(n.loc), gr.GridIntegerToWorld(n.Pa.loc), Color.SeaGreen.ToVector4()));
-				}
+		//	public void Handle(IMyIntergridCommunicationSystem i, int t)
+		//	{
+		//		E.Echo("Navmesh: " + nodes.Count);
+		//		var z = new List<MyTuple<Vector3D, Vector3D, Vector4>>();
+		//		foreach (var n in nodes.Where(x => x.Pa != null))
+		//		{
+		//			var gr = ports.First().CubeGrid;
+		//			z.Add(new MyTuple<Vector3D, Vector3D, Vector4>(gr.GridIntegerToWorld(n.loc), gr.GridIntegerToWorld(n.Pa.loc), Color.SeaGreen.ToVector4()));
+		//		}
 
-				i.SendUnicastMessage(DbgIgc, "draw-lines", z.ToImmutableArray());
+		//		i.SendUnicastMessage(DbgIgc, "draw-lines", z.ToImmutableArray());
 
-				foreach (var s in dockRequests)
-					E.Echo(s + " awaits docking");
-				foreach (var s in depRequests)
-					E.Echo(s + " awaits dep");
+		//		foreach (var s in dockRequests)
+		//			E.Echo(s + " awaits docking");
+		//		foreach (var s in depRequests)
+		//			E.Echo(s + " awaits dep");
 
-				if (dockRequests.Any())
-				{
-					var fd = ports.FirstOrDefault(d =>
-						(string.IsNullOrEmpty(d.CustomData) || (d.CustomData == dockRequests.Peek().ToString())) && (d.Status == MyShipConnectorStatus.Unconnected));
-					if (fd != null)
-					{
-						var id = dockRequests.Dequeue();
-						fd.CustomData = id.ToString();
-						var inv = MatrixD.Transpose(fd.WorldMatrix);
-						var a = GetPath(dests[id]).Reverse().Select(x => Vector3D.TransformNormal(x - fd.GetPosition(), inv)).ToImmutableArray();
-						E.DebugLog($"Sent {a.Length}-node approach path");
-						i.SendUnicastMessage(id, "apck.docking.approach", a);
-					}
-				}
-				if (depRequests.Any())
-				{
-					foreach (var s in depRequests)
-					{
-						E.Echo(s + " awaits departure");
-					}
-					var r = depRequests.Peek();
-					var bd = ports.FirstOrDefault(d => d.CustomData == r.ToString());
-					if (bd != null)
-					{
-						depRequests.Dequeue();
-						var inv = MatrixD.Transpose(bd.WorldMatrix);
-						var a = GetPath(dests[r]).Select(x => Vector3D.TransformNormal(x - bd.GetPosition(), inv)).ToImmutableArray();
-						E.DebugLog($"Sent {a.Length}-node departure path");
-						i.SendUnicastMessage(r, "apck.depart.approach", a);
-					}
-				}
-				foreach (var d in ports.Where(d => !string.IsNullOrEmpty(d.CustomData)))
-				{
-					long id;
-					if (long.TryParse(d.CustomData, out id))
-					{
-						E.Echo($"Channeling DV to {id}");
-						var x = new TargetTelemetry(1, "docking");
-						var m = d.WorldMatrix;
-						x.SetPosition(m.Translation + m.Forward * (d.CubeGrid.GridSizeEnum == MyCubeSize.Large ? 1.25 : 0.5), t);
+		//		if (dockRequests.Any())
+		//		{
+		//			var fd = ports.FirstOrDefault(d =>
+		//				(string.IsNullOrEmpty(d.CustomData) || (d.CustomData == dockRequests.Peek().ToString())) && (d.Status == MyShipConnectorStatus.Unconnected));
+		//			if (fd != null)
+		//			{
+		//				var id = dockRequests.Dequeue();
+		//				fd.CustomData = id.ToString();
+		//				var inv = MatrixD.Transpose(fd.WorldMatrix);
+		//				var a = GetPath(dests[id]).Reverse().Select(x => Vector3D.TransformNormal(x - fd.GetPosition(), inv)).ToImmutableArray();
+		//				E.DebugLog($"Sent {a.Length}-node approach path");
+		//				i.SendUnicastMessage(id, "apck.docking.approach", a);
+		//			}
+		//		}
+		//		if (depRequests.Any())
+		//		{
+		//			foreach (var s in depRequests)
+		//			{
+		//				E.Echo(s + " awaits departure");
+		//			}
+		//			var r = depRequests.Peek();
+		//			var bd = ports.FirstOrDefault(d => d.CustomData == r.ToString());
+		//			if (bd != null)
+		//			{
+		//				depRequests.Dequeue();
+		//				var inv = MatrixD.Transpose(bd.WorldMatrix);
+		//				var a = GetPath(dests[r]).Select(x => Vector3D.TransformNormal(x - bd.GetPosition(), inv)).ToImmutableArray();
+		//				E.DebugLog($"Sent {a.Length}-node departure path");
+		//				i.SendUnicastMessage(r, "apck.depart.approach", a);
+		//			}
+		//		}
+		//		foreach (var d in ports.Where(d => !string.IsNullOrEmpty(d.CustomData)))
+		//		{
+		//			long id;
+		//			if (long.TryParse(d.CustomData, out id))
+		//			{
+		//				E.Echo($"Channeling DV to {id}");
+		//				var x = new TargetTelemetry(1, "docking");
+		//				var m = d.WorldMatrix;
+		//				x.SetPosition(m.Translation + m.Forward * (d.CubeGrid.GridSizeEnum == MyCubeSize.Large ? 1.25 : 0.5), t);
 
-						if (pPositions[d] != Vector3D.Zero)
-							x.Velocity = (d.GetPosition() - pPositions[d]) / Dt;
-						pPositions[d] = d.GetPosition();
+		//				if (pPositions[d] != Vector3D.Zero)
+		//					x.Velocity = (d.GetPosition() - pPositions[d]) / Dt;
+		//				pPositions[d] = d.GetPosition();
 
-						x.OrientationUnit = m;
-						var k = x.GetIgcDto();
-						i.SendUnicastMessage(id, "apck.ntv.update", k);
-					}
-				}
+		//				x.OrientationUnit = m;
+		//				var k = x.GetIgcDto();
+		//				i.SendUnicastMessage(id, "apck.ntv.update", k);
+		//			}
+		//		}
 
-			}
+		//	}
 
-			public void DepartComplete(string id)
-			{
-				ports.First(x => x.CustomData == id).CustomData = "";
-			}
+		//	public void DepartComplete(string id)
+		//	{
+		//		ports.First(x => x.CustomData == id).CustomData = "";
+		//	}
 
-			public void RequestDocking(long id, Vector3D d, bool depart = false)
-			{
-				if (depart)
-				{
-					if (!depRequests.Contains(id))
-						depRequests.Enqueue(id);
-				}
-				else
-				{
-					if (!dockRequests.Contains(id))
-						dockRequests.Enqueue(id);
-				}
-				dests[id] = d;
-			}
+		//	public void RequestDocking(long id, Vector3D d, bool depart = false)
+		//	{
+		//		if (depart)
+		//		{
+		//			if (!depRequests.Contains(id))
+		//				depRequests.Enqueue(id);
+		//		}
+		//		else
+		//		{
+		//			if (!dockRequests.Contains(id))
+		//				dockRequests.Enqueue(id);
+		//		}
+		//		dests[id] = d;
+		//	}
 
-			Dictionary<long, Vector3D> dests = new Dictionary<long, Vector3D>();
-			Queue<long> dockRequests = new Queue<long>();
-			Queue<long> depRequests = new Queue<long>();
+		//	Dictionary<long, Vector3D> dests = new Dictionary<long, Vector3D>();
+		//	Queue<long> dockRequests = new Queue<long>();
+		//	Queue<long> depRequests = new Queue<long>();
 
-			public IEnumerable<Vector3D> GetPath(Vector3D o)
-			{
-				var gr = ports.First().CubeGrid;
-				var n = nodes.Where(x => x.Ch.Count == 0).OrderBy(x => (gr.GridIntegerToWorld(x.loc) - o).LengthSquared()).FirstOrDefault();
-				if (n != null)
-				{
-					var c = n;
-					do
-					{
-						yield return gr.GridIntegerToWorld(c.loc);
-						c = c.Pa;
-					} while (c != null);
-				}
-			}
+		//	public IEnumerable<Vector3D> GetPath(Vector3D o)
+		//	{
+		//		var gr = ports.First().CubeGrid;
+		//		var n = nodes.Where(x => x.Ch.Count == 0).OrderBy(x => (gr.GridIntegerToWorld(x.loc) - o).LengthSquared()).FirstOrDefault();
+		//		if (n != null)
+		//		{
+		//			var c = n;
+		//			do
+		//			{
+		//				yield return gr.GridIntegerToWorld(c.loc);
+		//				c = c.Pa;
+		//			} while (c != null);
+		//		}
+		//	}
 
-			public Vector3D GetFirstNormal()
-			{
-				return ports.First().WorldMatrix.Forward;
-			}
+		//	public Vector3D GetFirstNormal()
+		//	{
+		//		return ports.First().WorldMatrix.Forward;
+		//	}
 
-			public List<IMyShipConnector> GetPorts()
-			{
-				return ports;
-			}
+		//	public List<IMyShipConnector> GetPorts()
+		//	{
+		//		return ports;
+		//	}
 
 			//NavMeshNode root;
-			public List<NavMeshNode> nodes = new List<NavMeshNode>();
-			public class NavMeshNode
-			{
-				public NavMeshNode Pa;
-				public List<NavMeshNode> Ch = new List<NavMeshNode>();
-				public char[] tags;
-				public Vector3I loc;
-			}
-		}
+		//	public List<NavMeshNode> nodes = new List<NavMeshNode>();
+		//	public class NavMeshNode
+		//	{
+		//		public NavMeshNode Pa;
+		//		public List<NavMeshNode> Ch = new List<NavMeshNode>();
+		//		public char[] tags;
+		//		public Vector3I loc;
+		//	}
+		//}
 
 		//GuiHandler guiH;
 		//public class GuiHandler
