@@ -484,8 +484,14 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 #region mdk preserve
 		public enum MinerState : byte
 		{
-			Disabled = 0, Idle, GoingToEntry, Drilling, GettingOutTheShaft, GoingToUnload, WaitingForDocking,
-			Docking, ReturningToShaft, WaitingForLockInShaft, ChangingShaft, Maintenance, ForceFinish
+			Disabled = 0, Idle, 
+			GoingToEntry,          ///< Descending to shaft, through shared airspace.
+			Drilling,              ///< Descending into the shaft, until there is a reasong to leave.
+			GettingOutTheShaft, GoingToUnload, WaitingForDocking,
+			Docking,               ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
+			ReturningToShaft,      ///< Traveling from base to point above shaft on a reserved flight level.
+			WaitingForLockInShaft, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
+			ChangingShaft, Maintenance, ForceFinish
 		}
 
 		public enum ShaftState { Planned, InProgress, Complete, Cancelled }
@@ -571,7 +577,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			public float? shaftRadius;
 
 			public float? maxDepth;
-			public Vector3D? currentWp;
+			public Vector3D? currentWp; ///< Current target waypoint for autopilot.
 			public float? skipDepth;
 
 			public float? lastFoundOreDepth;
@@ -2337,31 +2343,41 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					c.pState.CurrentShaftId   = id;               ///< The job ID from the dispatcher.
 				}
 
+				/**
+				 * \brief Processes the agent's state transitions.
+				 */
 				public void HandleState(MinerState state)
 				{
-					if (state == MinerState.GoingToEntry)
-					{
-						if (CurrentWpReached(0.5f))
-						{
-							c.ReleaseLock(LOCK_NAME_GeneralSection);
-							c.drills.ForEach(d => d.Enabled = true);
-							c.SetState(MinerState.Drilling);
-							//c.CommandAutoPillock("command:create-wp:Name=drill,Ng=Forward,PosDirectionOverride=Forward,SpeedLimit=0.6:0:0:0");
-							c.CommandAutoPillock("command:create-wp:Name=drill,Ng=Forward,PosDirectionOverride=Forward" +
-								",AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') +
-								",UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-drill") + ":0:0:0");
-						}
-					}
+					if (state == MinerState.GoingToEntry) {
 
-					if (state == MinerState.Drilling)
-					{
+						if (!CurrentWpReached(0.5f))
+							return; // We are not there yet. Keep descending.
+						
+						/* We just left controlled airspace. Release the lock. */
+						c.ReleaseLock(LOCK_NAME_GeneralSection);
+
+						/* Switch on the drills, if not running already. */
+						c.drills.ForEach(d => d.Enabled = true);
+
+						/* Descend into the shaft. */
+						c.SetState(MinerState.Drilling);
+						//c.CommandAutoPillock("command:create-wp:Name=drill,Ng=Forward,PosDirectionOverride=Forward,SpeedLimit=0.6:0:0:0");
+						c.CommandAutoPillock("command:create-wp:Name=drill,Ng=Forward,PosDirectionOverride=Forward" +
+							",AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') +
+							",UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-drill") + ":0:0:0");
+
+					} else if (state == MinerState.Drilling) {
+
+						/* Update some repoting stuff. */
 						currentDepth = (float)(c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length();
 						E.Echo($"Depth: current: {currentDepth:f1} skip: {c.pState.skipDepth:f1}");
-						if (c.pState.maxDepth.HasValue && (currentDepth > c.pState.maxDepth.Value)
-							|| !c.CheckBatteriesAndIntegrityThrottled(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
-						{
-							GetOutTheShaft();
-						}
+						
+						if (c.pState.maxDepth.HasValue && (currentDepth > c.pState.maxDepth.Value))
+							GetOutTheShaft(); // We have reached max depth, job complete.
+
+						if (!c.CheckBatteriesAndIntegrityThrottled(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
+							GetOutTheShaft(); // We need to return to base for maintenance reasons. //TODO: Prioritise with ATC, because we may run out of gas or power.
+							                                                                        //TODO: Emit MAYDAY if docking port is damaged or we cannot make it back to base for other reasons.
 
 						if ((!c.pState.skipDepth.HasValue) || (currentDepth > c.pState.skipDepth))
 						{
@@ -2388,15 +2404,11 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 							else
 							{
 								if (lastFoundOreDepth.HasValue && (currentDepth - lastFoundOreDepth > 2))
-								{
-									GetOutTheShaft();
-								}
+									GetOutTheShaft(); // No more ore expected in this shaft, job complete.
 							}
 
 							if (CargoIsFull())
-							{
-								GetOutTheShaft();
-							}
+								GetOutTheShaft(); // Cargo full, return to base.
 						}
 						else
 						{
@@ -2404,33 +2416,31 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						}
 					}
 
-					if ((state == MinerState.GettingOutTheShaft) || (state == MinerState.WaitingForLockInShaft))
-					{
-						if (CurrentWpReached(0.5f))
+					if ((state == MinerState.GettingOutTheShaft) || (state == MinerState.WaitingForLockInShaft)) {
+						if (!CurrentWpReached(0.5f))
+							return; // We have not reached the top of the shaft yet.
+						
+						// kinda expensive
+						if (CargoIsFull() || !c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
 						{
-							// kinda expensive
-							if (CargoIsFull() || !c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
+							// we reached cargo limit
+							c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
 							{
-								// we reached cargo limit
-								c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
-								{
-									mc.SetState(MinerState.GoingToUnload);
-									mc.drills.ForEach(d => d.Enabled = false);
-									var pt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
-									mc.CommandAutoPillock("command:create-wp:Name=GoingToUnload,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-									c.pState.currentWp = pt;
-								});
-							}
-							else
-							{
-								// we reached depth limit
-								SkipShaft();
-							}
+								mc.SetState(MinerState.GoingToUnload);
+								mc.drills.ForEach(d => d.Enabled = false);
+								var pt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
+								mc.CommandAutoPillock("command:create-wp:Name=GoingToUnload,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
+								c.pState.currentWp = pt;
+							});
 						}
-					}
+						else
+						{
+							// we reached depth limit
+							SkipShaft();
+						}
 
-					if (state == MinerState.ChangingShaft)
-					{
+					} else if (state == MinerState.ChangingShaft) {
+
 						// triggered 15m above old mining entry
 						if (CurrentWpReached(0.5f))
 						{
