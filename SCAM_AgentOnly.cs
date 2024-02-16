@@ -489,7 +489,9 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			Disabled = 0, Idle, 
 			GoingToEntry,          ///< Descending to shaft, through shared airspace.
 			Drilling,              ///< Descending into the shaft, until there is a reasong to leave.
-			GettingOutTheShaft, GoingToUnload, WaitingForDocking,
+			GettingOutTheShaft, 
+			GoingToUnload,         ///< Ascending from the shaft, through shared airspace, into assigned flight level.
+			WaitingForDocking,     ///< Loitering above the shaft, waiting to be assign a docking port for returning home.
 			Docking,               ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
 			ReturningToShaft,      ///< Traveling from base to point above shaft on a reserved flight level.
 			WaitingForLockInShaft, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
@@ -573,7 +575,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			// cleared by clear-storage-state (task-dependent)
 			public MinerState MinerState = MinerState.Idle;
 			public Vector3D? miningPlaneNormal;
-			public Vector3D? getAbovePt;
+			public Vector3D? getAbovePt;       ///< Point above the current shaft. (Add echelon value to get intersection of shaft and assigned flight level.)
 			public Vector3D? miningEntryPoint;
 			public Vector3D? corePoint;
 			public float? shaftRadius;
@@ -1940,6 +1942,12 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				return false;
 			}
 
+			/**
+			 * \brief Plan the agent's way home.
+			 * \details To be called when the agent is above the shaft, at the intersection
+			 * with its flight level. It has already been decided that the agent is going
+			 * home (not changing shafts).
+			 */
 			public void ArrangeDocking()
 			{
 				bool finishSession = GetState() == MinerState.ForceFinish;
@@ -1949,7 +1957,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					{
 						// Static docking, we are safe at own echelon
 						if (!WholeAirspaceLocking)
-							ReleaseLock(LOCK_NAME_GeneralSection);
+							ReleaseLock(ObtainedLock);
 						if (!finishSession)
 							SetState(MinerState.Docking);
 					}
@@ -1961,7 +1969,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						// Multi-agent mode, dynamic docking, respect shared space
 						// Release lock as we are safe at own echelon while sitting on WaitingForDocking
 						if (!WholeAirspaceLocking)
-							ReleaseLock(LOCK_NAME_GeneralSection);
+							ReleaseLock(ObtainedLock);
 						InvalidateDockingDto?.Invoke();
 						IGC.SendUnicastMessage(DispatcherId.Value, "apck.docking.request", docker.GetPosition());
 						SetState(MinerState.WaitingForDocking);
@@ -2422,6 +2430,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					}
 
 					if ((state == MinerState.GettingOutTheShaft) || (state == MinerState.WaitingForLockInShaft)) {
+
 						if (!CurrentWpReached(0.5f))
 							return; // We have not reached the top of the shaft yet.
 						
@@ -2429,7 +2438,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						if (CargoIsFull() || !c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
 						{
 							// we reached cargo limit
-							c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
+							c.EnterSharedSpace(LOCK_NAME_MiningSection, mc =>
 							{
 								mc.SetState(MinerState.GoingToUnload);
 								mc.drills.ForEach(d => d.Enabled = false);
