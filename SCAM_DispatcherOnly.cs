@@ -41,6 +41,8 @@ namespace IngameScript
 		static bool MoreRejectDampening = true;
 
 		static string LOCK_NAME_GeneralSection = "general";
+		static string LOCK_NAME_MiningSection = "mining-site";///< Airspace above the mining site.
+		static string LOCK_NAME_BaseSection = "base";         ///< Airspace above the base.
 		//static string LOCK_NAME_ForceFinishSection = "general";
 		//static string LOCK_NAME_ForceFinishSection = "force-finish";
 
@@ -1121,6 +1123,22 @@ namespace IngameScript
 				E.DebugLog(msg);
 			}
 
+			/**
+			 * \brief Enqueues a request from an agent for an airspace lock.
+			 * \details The lock must be currently in use by another agent. When the other
+			 * agent releases that lock (cooperatively!), it is granted to the applicant.
+			 * \param[in] src The ID of the applicants PB. It is used to send the answer via IGC.
+			 * \param[in] lockName The name of the requested lock.
+			 */
+			private void EnqueueLockRequest(long src, string lockName)
+			{
+				if (!sectionsLockRequests.ContainsKey(lockName))
+					sectionsLockRequests.Add(lockName, new Queue<long>());
+				if (!sectionsLockRequests[lockName].Contains(src))
+					sectionsLockRequests[lockName].Enqueue(src);
+				Log("commonSpaceLockOwner rejected, added to requests queue: " + src);
+			}
+
 			public void HandleIGC(List<MyIGCMessage> uniMsgs)
 			{
 				/* First process broadcasted messages. */
@@ -1135,20 +1153,24 @@ namespace IngameScript
 					{
 						var sectionName = msg.Data.ToString().Split(':')[1];
 
-						if (!subordinates.Any(s => s.ObtainedLock == sectionName && s.Id != msg.Source))
+						if (subordinates.Any(s => s.ObtainedLock == sectionName && s.Id != msg.Source))
+							/* Requested lock is held by another agent. Enqueue request. */
+							EnqueueLockRequest(msg.Source, sectionName);
+						if (sectionName == LOCK_NAME_MiningSection && subordinates.Any(s => s.ObtainedLock == LOCK_NAME_GeneralSection && s.Id != msg.Source))
+							/* Cannot grant "mining-site" lock, because "general" lock is currently granted. */
+							EnqueueLockRequest(msg.Source, sectionName);
+						if (sectionName == LOCK_NAME_BaseSection && subordinates.Any(s => s.ObtainedLock == LOCK_NAME_GeneralSection && s.Id != msg.Source))
+							/* Cannot grant "base" lock, because "general" lock is currently granted. */
+							EnqueueLockRequest(msg.Source, sectionName);
+						else
 						{
+							/* Requested lock is not held by any other agent.
+							 * Grant immediately to the applicant.             */
 							subordinates.First(s => s.Id == msg.Source).ObtainedLock = sectionName;
 							IGC.SendUnicastMessage(msg.Source, "miners", "common-airspace-lock-granted:" + sectionName);
 							Log(sectionName + " granted to " + msg.Source);
 						}
-						else
-						{
-							if (!sectionsLockRequests.ContainsKey(sectionName))
-								sectionsLockRequests.Add(sectionName, new Queue<long>());
-							if (!sectionsLockRequests[sectionName].Contains(msg.Source))
-								sectionsLockRequests[sectionName].Enqueue(msg.Source);
-							Log("commonSpaceLockOwner rejected, added to requests queue: " + msg.Source);
-						}
+							
 					}
 
 					if (msg.Data.ToString().Contains("common-airspace-lock-released"))
