@@ -16,12 +16,11 @@ using VRage.Game.ModAPI.Ingame;
 
 using VRageMath;
 
-namespace ConsoleApplication1.UtilityPillockMonolith
+namespace IngameScript
 {
 	class Program : MyGridProgram
 	{
-
-
+#region mdk preserve
 		string Ver = "0.9.68";
 
 		//static bool WholeAirspaceLocking = false;
@@ -141,6 +140,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				return sw.Select(n => new MyTuple<string, string>("Toggle " + n.Key + (n.Value ? " (off)" : " (on)"), "toggle:" + n.Key)).ToImmutableArray();
 			}
 		}
+
+#endregion
 
 		bool pendingInitSequence; // Do first-cycle initialsation?
 		CommandRegistry commandRegistry;
@@ -490,6 +491,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		}
 
 		//////////////////// ignore section for MDK minifier
+#region mdk preserve
 		public enum MinerState : byte
 		{
 			Disabled = 0, Idle, GoingToEntry, Drilling, GettingOutTheShaft, GoingToUnload, WaitingForDocking,
@@ -674,6 +676,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				}
 				return this;
 			}
+#endregion
 
 			public void Save(Action<string> store)
 			{
