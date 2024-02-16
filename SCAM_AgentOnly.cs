@@ -16,7 +16,7 @@ using VRage.Game.ModAPI.Ingame;
 
 using VRageMath;
 
-namespace ConsoleApplication1.UtilityPillockMonolith
+namespace IngameScript
 {
 	class Program : MyGridProgram
 	{
