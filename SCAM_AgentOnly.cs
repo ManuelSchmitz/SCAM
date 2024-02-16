@@ -2456,35 +2456,38 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 					if (state == MinerState.ReturningToShaft)
 					{
-						if (CurrentWpReached(1))
+						if (!CurrentWpReached(1.0f))
+							return; // Not reached the point above the shaft yet. Keep flying.
+						
+						c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
 						{
-							c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
+							mc.SetState(MinerState.GoingToEntry);
+
+							/* Start the drills. */
+							c.drills.ForEach(d => d.Enabled = true);
+
+							/* Command the auto pilot to descend to the shaft. */
+							var entry = $"command:create-wp:Name=drill entry,Ng=Forward,UpNormal=1;0;0,AimNormal=" +
+									$"{VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}:";
+
+							double elevation;
+							if (Toggle.C.Check("adjust-entry-by-elevation") && c.remCon.TryGetPlanetElevation(MyPlanetElevation.Surface, out elevation))
 							{
-								mc.SetState(MinerState.GoingToEntry);
-								c.drills.ForEach(d => d.Enabled = true);
+								Vector3D plCenter;
+								c.remCon.TryGetPlanetPosition(out plCenter);
+								var plNorm = Vector3D.Normalize(c.pState.miningEntryPoint.Value - plCenter);
+								var h = (c.fwReferenceBlock.WorldMatrix.Translation - plCenter).Length() - elevation + 5f;
 
-								var entry = $"command:create-wp:Name=drill entry,Ng=Forward,UpNormal=1;0;0,AimNormal=" +
-										$"{VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}:";
-
-								double elevation;
-								if (Toggle.C.Check("adjust-entry-by-elevation") && c.remCon.TryGetPlanetElevation(MyPlanetElevation.Surface, out elevation))
-								{
-									Vector3D plCenter;
-									c.remCon.TryGetPlanetPosition(out plCenter);
-									var plNorm = Vector3D.Normalize(c.pState.miningEntryPoint.Value - plCenter);
-									var h = (c.fwReferenceBlock.WorldMatrix.Translation - plCenter).Length() - elevation + 5f;
-
-									var elevationAdjustedEntryPoint = plCenter + plNorm * h;
-									mc.CommandAutoPillock(entry + VectorOpsHelper.V3DtoBroadcastString(elevationAdjustedEntryPoint));
-									c.pState.currentWp = elevationAdjustedEntryPoint;
-								}
-								else
-								{
-									mc.CommandAutoPillock(entry + VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value));
-									c.pState.currentWp = c.pState.miningEntryPoint;
-								}
-							});
-						}
+								var elevationAdjustedEntryPoint = plCenter + plNorm * h;
+								mc.CommandAutoPillock(entry + VectorOpsHelper.V3DtoBroadcastString(elevationAdjustedEntryPoint));
+								c.pState.currentWp = elevationAdjustedEntryPoint;
+							}
+							else
+							{
+								mc.CommandAutoPillock(entry + VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value));
+								c.pState.currentWp = c.pState.miningEntryPoint;
+							}
+						});
 					}
 
 					if (state == MinerState.GoingToUnload)
@@ -2553,69 +2556,75 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 					if (state == MinerState.Docking)
 					{
-						if (c.docker.Status == MyShipConnectorStatus.Connected)
-						{
-							if (!c.DockingHandled)
-							{
-								c.DockingHandled = true;
-								E.DebugLog("Regular docking handled");
-
-								c.CommandAutoPillock("command:pillock-mode:Disabled");
-								c.remCon.DampenersOverride = false;
-								c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
-								c.docker.OtherConnector.CustomData = "";
-								c.InvalidateDockingDto?.Invoke();
-								c.tanks.ForEach(b => b.Stockpile = true);
-
-								if (c.ObtainedLock == LOCK_NAME_GeneralSection)
-									c.ReleaseLock(LOCK_NAME_GeneralSection);
-							}
-
-							E.Echo("Docking: Connected");
-							if (!CargoFlush())
-							{
-								E.Echo("Docking: still have items");
-							}
-							else
-							{
-								// Docking => Maintenance => Disabled => Docking
-								if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
-								{
-									c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
-									{
-										c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Auto);
-										c.tanks.ForEach(b => b.Stockpile = false);
-										//c.docker.OtherConnector.CustomData = "";
-										AccountUnload();
-										HandleUnload(c.docker.OtherConnector);
-										c.docker.Disconnect();
-										c.SetState(MinerState.ReturningToShaft);
-									});
-								}
-								else
-								{
-									c.SetState(MinerState.Maintenance);
-									c.pState.LifetimeWentToMaintenance++;
-									Scheduler.C.After(10000).RepeatWhile(() => c.GetState() == MinerState.Maintenance).RunCmd(() => {
-										if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-full-factor"), 0.99f))
-										{
-											c.SetState(MinerState.Docking);
-										}
-									});
-								}
-							}
-						}
-						else
-						{
+						/* Connect the connector, if not done already. */
+						if (c.docker.Status != MyShipConnectorStatus.Connected) {
 							if (c.DockingHandled)
 								c.DockingHandled = false;
 							if (c.pState.StaticDockOverride.HasValue)
 								c.docker.Connect();
+							return;
 						}
-					}
 
-					if (state == MinerState.Maintenance)
-					{
+						/* If just connected, disable autopilot and release airspace lock.
+						 * Set fuel tanks to stockpile, and batteries to recharge.       */
+						if (!c.DockingHandled)
+						{
+							c.DockingHandled = true;
+							E.DebugLog("Regular docking handled");
+
+							c.CommandAutoPillock("command:pillock-mode:Disabled");
+							c.remCon.DampenersOverride = false;
+							c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
+							c.docker.OtherConnector.CustomData = "";
+							c.InvalidateDockingDto?.Invoke();
+							c.tanks.ForEach(b => b.Stockpile = true);
+
+							if (c.ObtainedLock == LOCK_NAME_GeneralSection)
+								c.ReleaseLock(LOCK_NAME_GeneralSection);
+						}
+
+						E.Echo("Docking: Connected");
+						if (!CargoFlush()) {
+							/* Still unloading, remain docked. */
+							E.Echo("Docking: still have items"); //TODO: This information should be shown on the LCD screen, too.
+							return;
+						}
+						
+						// Docking => Maintenance => Disabled => Docking
+						if (!c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor"))) {
+							/* We need to remain docked for maintenance. */
+							c.SetState(MinerState.Maintenance);
+							c.pState.LifetimeWentToMaintenance++;
+							Scheduler.C.After(10000).RepeatWhile(() => c.GetState() == MinerState.Maintenance).RunCmd(() => {
+								if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-full-factor"), 0.99f))
+								{
+									c.SetState(MinerState.Docking);
+								}
+							});
+							return;
+						}
+
+						/* Unload and return to work. */
+						c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
+						{
+							/* Switch to internal power and open fuel tanks. */
+							c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Auto);
+							c.tanks.ForEach(b => b.Stockpile = false);
+
+							//c.docker.OtherConnector.CustomData = "";
+							AccountUnload();
+
+							/* Lay in a course to the point above the shaft
+							 * and engage autopilot.                       */
+							HandleUnload(c.docker.OtherConnector);
+
+							/* Disconnect and lift off. */
+							c.docker.Disconnect();
+							c.SetState(MinerState.ReturningToShaft);
+						});
+
+					} else if (state == MinerState.Maintenance) {
+
 						// for world reload
 						if ((c.PrevState != MinerState.Docking) && (c.docker.Status == MyShipConnectorStatus.Connected))
 						{
@@ -2783,7 +2792,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					return sb.ToString();
 				}
 
-				float currentDepth;
+				float currentDepth;        ///< Last recorded depth inside the shaft.
 				public float SessionOreMined;
 				public DateTime SessionStartedAt;
 
