@@ -40,7 +40,9 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		static bool MaxAccelInProximity = false;
 		static bool MoreRejectDampening = true;
 
-		static string LOCK_NAME_GeneralSection = "general";
+		static string LOCK_NAME_GeneralSection     = "general";
+		static string LOCK_NAME_MiningSection      = "mining-site";///< Airspace above the mining site.
+		static string LOCK_NAME_BaseSection        = "base";       ///< Airspace above the base.
 		//static string LOCK_NAME_ForceFinishSection = "general";
 		static string LOCK_NAME_ForceFinishSection = "force-finish";
 
@@ -1461,7 +1463,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			public Role CurrentRole;
 			public long? DispatcherId;
-			public float? Echelon;
+			public float? Echelon;              ///< [m] Additional vertical distance from the docking port and mining plane. 
 			public string ObtainedLock = "";
 			public string WaitedSection = "";
 			public bool WaitingForLock;
@@ -1699,18 +1701,20 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 					if (msg.Data.ToString().Contains("common-airspace-lock-granted"))
 					{
-						var sectionName = msg.Data.ToString().Split(':')[1];
+						var grantedSection = msg.Data.ToString().Split(':')[1];
 
-						if (!string.IsNullOrEmpty(ObtainedLock) && (ObtainedLock != sectionName))
+						if (!string.IsNullOrEmpty(ObtainedLock) && (ObtainedLock != grantedSection))
 						{
 							//ReleaseLock(ObtainedLock);
-							Log($"{sectionName} common-airspace-lock hides current ObtainedLock {ObtainedLock}!");
+							Log($"{grantedSection} common-airspace-lock hides current ObtainedLock {ObtainedLock}!");
 						}
-						ObtainedLock = sectionName;
-						Log(sectionName + " common-airspace-lock-granted");
+						ObtainedLock = grantedSection;
+						Log(grantedSection + " common-airspace-lock-granted");
 
 						// can fly!
-						if (WaitedSection == sectionName)
+						// ("general" also covers "mining-site")
+						if (   WaitedSection == grantedSection
+							|| (WaitedSection == LOCK_NAME_MiningSection && grantedSection == LOCK_NAME_GeneralSection))
 							Dispatch();
 					}
 
@@ -2352,9 +2356,10 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 						if (!CurrentWpReached(0.5f))
 							return; // We are not there yet. Keep descending.
-						
-						/* We just left controlled airspace. Release the lock. */
-						c.ReleaseLock(LOCK_NAME_GeneralSection);
+
+						/* We just left controlled airspace. Release the lock ("mining-site"
+						 * or "general", whatever we have been granted).                      */
+						c.ReleaseLock(c.ObtainedLock);
 
 						/* Switch on the drills, if not running already. */
 						c.drills.ForEach(d => d.Enabled = true);
@@ -2459,7 +2464,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						if (!CurrentWpReached(1.0f))
 							return; // Not reached the point above the shaft yet. Keep flying.
 						
-						c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
+						c.EnterSharedSpace(LOCK_NAME_MiningSection, mc =>
 						{
 							mc.SetState(MinerState.GoingToEntry);
 
@@ -2895,8 +2900,11 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 								+ VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') + ":"
 								+ VectorOpsHelper.V3DtoBroadcastString(c.AddEchelonOffset(c.pState.getAbovePt.Value));
 
-					var aboveDock = c.AddEchelonOffset(otherConnector.WorldMatrix.Translation, otherConnector.WorldMatrix.Backward) -
-												otherConnector.WorldMatrix.Backward * Variables.Get<float>("getAbove-altitude");
+					/* Construct point above docking port: To the position of the docking port, add
+					 * (a) the echelon offset (optional) and
+					 * (b) the get-above altitude.                                                   */
+					var aboveDock = c.AddEchelonOffset(otherConnector.WorldMatrix.Translation, otherConnector.WorldMatrix.Backward)
+                                  - otherConnector.WorldMatrix.Backward * Variables.Get<float>("getAbove-altitude");
 
 					//var aboveDock = c.AddEchelonOffset(c.fwReferenceBlock.GetPosition()) - c.GetMiningPlaneNormal() * Variables.Get<float>("getAbove-altitude");
 					var seq = "[command:pillock-mode:Disabled],[command:create-wp:Name=Dock.Echelon,Ng=Forward:"
