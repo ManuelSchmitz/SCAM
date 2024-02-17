@@ -1082,7 +1082,7 @@ namespace IngameScript
 		//		public string ObtainedLock;
 		//		public float Echelon;
 		//		public string Group;
-		//		public AgentReport Report;
+		//		public TransponderMsg Report;
 		//	}
 
 			IMyIntergridCommunicationSystem IGC;
@@ -1161,7 +1161,7 @@ namespace IngameScript
 				//		{
 				//			sb = new Subordinate { Id = msg.Source, Echelon = (subordinates.Count + 1) * Variables.Get<float>("echelon-offset") + 10f, Group = data };
 				//			subordinates.Add(sb);
-				//			sb.Report = new AgentReport() { Id = sb.Id, ColorTag = Color.White };
+				//			sb.Report = new TransponderMsg() { Id = sb.Id, ColorTag = Color.White };
 				//		}
 				//		else
 				//		{
@@ -1723,7 +1723,7 @@ namespace IngameScript
 					if (msg.Tag == "report.request")
 					{
 						/* Progress report requested, compile and send the report. */
-						//var report = new AgentReport();
+						//var report = new TransponderMsg();
 						//report.Id       = IGC.Me;
 						//report.WM       = fwReferenceBlock.WorldMatrix;
 						//report.v        = new Vector3D();//TODO: Get linear velocity from remote control Vector3D GetShipVelocities().LinearVelocity
@@ -2778,7 +2778,7 @@ namespace IngameScript
 				}
 
 
-				public void UpdateReport(AgentReport report, MinerState state)
+				public void UpdateReport(TransponderMsg report, MinerState state)
 				{
 					var b = ImmutableArray.CreateBuilder<MyTuple<string, string>>(10);
 					b.Add(new MyTuple<string, string>("Name\nState", me.CubeGrid.CustomName + "\n" + state.ToString()));
@@ -5361,7 +5361,7 @@ namespace IngameScript
 		 * collaborative airspace control. Also, it can be used by the dispatcher for
 		 * progress monitoring.
 		 */
-		public class AgentReport
+		public class TransponderMsg
 		{
 			public long       Id;   ///< Entity ID of the agent's PB.
 			public string     name; ///< Grid name of the agent.
