@@ -1723,12 +1723,15 @@ namespace IngameScript
 					if (msg.Tag == "report.request")
 					{
 						/* Progress report requested, compile and send the report. */
-						var report = new AgentReport();
-						report.Id = IGC.Me;
-						report.WM = fwReferenceBlock.WorldMatrix;
-						report.ColorTag = refLight?.Color ?? Color.White;
-						CurrentJob?.UpdateReport(report, pState.MinerState);
-						IGC.SendBroadcastMessage("miners.report", report.ToIgc());
+						//var report = new AgentReport();
+						//report.Id       = IGC.Me;
+						//report.WM       = fwReferenceBlock.WorldMatrix;
+						//report.v        = new Vector3D();//TODO: Get linear velocity from remote control Vector3D GetShipVelocities().LinearVelocity
+						//report.state    = pState.MinerState; //TODO: Duplicate, also in the dictionary, see UpdateReport()
+						//report.name     = ""; //TODO: Duplicate, also in the dictionary, see UpdateReport()
+						//report.ColorTag = refLight?.Color ?? Color.White;
+						//CurrentJob?.UpdateReport(report, pState.MinerState);
+						//IGC.SendBroadcastMessage("miners.report", report.ToIgc());
 					}
 				}
 
@@ -5352,29 +5355,44 @@ namespace IngameScript
 		//	}
 		//}
 
+		/**
+		 * \brief Transponder message, to be broadcasted by an agent.
+		 * \details This message informs ATC about the status of the agent, used for
+		 * collaborative airspace control. Also, it can be used by the dispatcher for
+		 * progress monitoring.
+		 */
 		public class AgentReport
 		{
-			public MatrixD WM;
-			public Color ColorTag;
-			public long Id;
-
+			public long       Id;   ///< Entity ID of the agent's PB.
+			public string     name; ///< Grid name of the agent.
+			public MatrixD    WM;   ///< World matrix of the agent.
+			public Vector3D   v;    ///< [m/s] Velocity of the agent.
+			public MinerState state;///< Current state of the agent.
+			public Color      ColorTag;
 			public ImmutableArray<MyTuple<string, string>> KeyValuePairs;
 
-			public void UpdateFromIgc(MyTuple<long, MatrixD, Vector4, ImmutableArray<MyTuple<string, string>>> dto)
-			{
-				Id = dto.Item1;
-				WM = dto.Item2;
-				ColorTag = dto.Item3;
-				KeyValuePairs = dto.Item4;
-			}
+			// Note: Commented out, because only required by the receiver of this datagram.
+			//public void UpdateFromIgc(MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>> dto)
+			//{
+			//	Id       = dto.Item1.Item1;
+			//	name     = dto.Item1.Item2;
+			//	WM       = dto.Item2;
+			//	v        = dto.Item3;
+			//	state    = (MinerState)dto.Item4;
+			//	ColorTag = dto.Item5;
+			//	KeyValuePairs = dto.Item6;
+			//}
 
-			public MyTuple<long, MatrixD, Vector4, ImmutableArray<MyTuple<string, string>>> ToIgc()
+			public MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>> ToIgc()
 			{
-				var dto = new MyTuple<long, MatrixD, Vector4, ImmutableArray<MyTuple<string, string>>>();
-				dto.Item1 = Id;
+				var dto = new MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>();
+				dto.Item1.Item1 = Id;
+				dto.Item1.Item2 = name;
 				dto.Item2 = WM;
-				dto.Item3 = ColorTag.ToVector4();
-				dto.Item4 = KeyValuePairs;
+				dto.Item3 = v;
+				dto.Item4 = (byte)state;
+				dto.Item5 = ColorTag.ToVector4();
+				dto.Item6 = KeyValuePairs;
 				return dto;
 			}
 		}
