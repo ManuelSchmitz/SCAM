@@ -1107,11 +1107,11 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			public class Subordinate
 			{
-				public long Id;            ///< Handle of the agent's programmable block.
+				public long Id;               ///< Handle of the agent's programmable block.
 				public string ObtainedLock;
 				public float Echelon;
 				public string Group;
-				public AgentReport Report;
+				public TransponderMsg Report; ///< Last received transponder status (position, velocity, ...).
 				//TODO: Add software version for compatibility check.
 			}
 
@@ -1239,7 +1239,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					{
 						sb = new Subordinate { Id = msg.Source, Echelon = (subordinates.Count + 1) * Variables.Get<float>("echelon-offset") + 10f, Group = data };
 						subordinates.Add(sb);
-						sb.Report = new AgentReport() { Id = sb.Id, ColorTag = Color.White };
+						sb.Report = new TransponderMsg() { Id = sb.Id, ColorTag = Color.White };
 					}
 					else
 					{
@@ -1797,7 +1797,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			//			if (msg.Tag == "report.request")
 			//			{
-			//				var report = new AgentReport();
+			//				var report = new TransponderMsg();
 			//				report.Id = IGC.Me;
 			//				report.WM = fwReferenceBlock.WorldMatrix;
 			//				report.ColorTag = refLight?.Color ?? Color.White;
@@ -2828,7 +2828,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//		}
 
 
-			//		public void UpdateReport(AgentReport report, MinerState state)
+			//		public void UpdateReport(TransponderMsg report, MinerState state)
 			//		{
 			//			var b = ImmutableArray.CreateBuilder<MyTuple<string, string>>(10);
 			//			b.Add(new MyTuple<string, string>("State", state.ToString()));
@@ -5433,7 +5433,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		 * collaborative airspace control. Also, it can be used by the dispatcher for
 		 * progress monitoring.
 		 */
-		public class AgentReport
+		public class TransponderMsg
 		{
 			public long      Id;   ///< Entity ID of the agent's PB.
 			public string    name; ///< Grid name of the agent.
