@@ -1270,10 +1270,11 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				while (minerReportChannel.HasPendingMessage)
 				{
 					var msg = minerReportChannel.AcceptMessage();
-					var data = (MyTuple<long, MatrixD, Vector4, ImmutableArray<MyTuple<string, string>>>)msg.Data;
 					var sub = subordinates.FirstOrDefault(s => s.Id == msg.Source);
-					if (sub != null)
-						sub.Report.UpdateFromIgc(data);
+					if (sub == null)
+						continue; // None of our subordinates.
+					var data = (MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>)msg.Data;
+					sub.Report.UpdateFromIgc(data);
 				}
 
 				/* Finally, process unicast messages.*/
@@ -5427,35 +5428,45 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		}
 
 		/**
-		 * \brief Status report about the current job.
-		 * \details Broadcasted by the agent upon request. The dispatcher collects those
-		 * for display on the GUI screen.
+		 * \brief Transponder message, to be broadcasted by an agent.
+		 * \details This message informs ATC about the status of the agent, used for
+		 * collaborative airspace control. Also, it can be used by the dispatcher for
+		 * progress monitoring.
 		 */
 		public class AgentReport
 		{
-			public MatrixD WM;
+			public long      Id;   ///< Entity ID of the agent's PB.
+			public string    name; ///< Grid name of the agent.
+			public MatrixD   WM;   ///< World matrix of the agent.
+			public Vector3D  v;    ///< [m/s] Velocity of the agent.
+			public MinerState state;///< Current state of the agent.
 			public Color ColorTag;
-			public long Id;
-
 			public ImmutableArray<MyTuple<string, string>> KeyValuePairs;
 
-			public void UpdateFromIgc(MyTuple<long, MatrixD, Vector4, ImmutableArray<MyTuple<string, string>>> dto)
+			public void UpdateFromIgc(MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>> dto)
 			{
-				Id = dto.Item1;
-				WM = dto.Item2;
-				ColorTag = dto.Item3;
-				KeyValuePairs = dto.Item4;
+				Id       = dto.Item1.Item1;
+				name     = dto.Item1.Item2;
+				WM       = dto.Item2;
+				v        = dto.Item3;
+				state    = (MinerState)dto.Item4;
+				ColorTag = dto.Item5;
+				KeyValuePairs = dto.Item6;
 			}
 
-			public MyTuple<long, MatrixD, Vector4, ImmutableArray<MyTuple<string, string>>> ToIgc()
-			{
-				var dto = new MyTuple<long, MatrixD, Vector4, ImmutableArray<MyTuple<string, string>>>();
-				dto.Item1 = Id;
-				dto.Item2 = WM;
-				dto.Item3 = ColorTag.ToVector4();
-				dto.Item4 = KeyValuePairs;
-				return dto;
-			}
+			// Note: Commented out, because only required by the sender of this datagram.
+			//public MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>> ToIgc()
+			//{
+			//	var dto = new MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>();
+			//	dto.Item1.Item1 = Id;
+			//	dto.Item1.Item2 = name;
+			//	dto.Item2 = WM;
+			//	dto.Item3 = v;
+			//	dto.Item4 = (byte)state;
+			//	dto.Item5 = ColorTag.ToVector4();
+			//	dto.Item6 = KeyValuePairs;
+			//	return dto;
+			//}
 		}
 
 		List<MyTuple<string, Vector3D, ImmutableArray<string>>> prjs = new List<MyTuple<string, Vector3D, ImmutableArray<string>>>();
