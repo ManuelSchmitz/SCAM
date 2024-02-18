@@ -499,7 +499,8 @@ namespace IngameScript
 			WaitingForLockInShaft = 9, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
 			ChangingShaft        = 10,
 			Maintenance          = 11,
-			ForceFinish          = 12
+			ForceFinish          = 12,
+			Takeoff              = 13  ///< Ascending from docking port, through shared airspace, into assigned flight level.
 		}
 
 		public enum ShaftState { Planned, InProgress, Complete, Cancelled }
@@ -2475,8 +2476,24 @@ namespace IngameScript
 						}
 					}
 
-					if (state == MinerState.ReturningToShaft)
+					if (state == MinerState.Takeoff)
 					{
+						if (!CurrentWpReached(1.0f))
+							return; // Not reached the point above the docking port yet. Keep flying.
+
+						/* Release the "general" or "base" airspace lock, if held. */
+						if (c.ObtainedLock != null)
+							c.ReleaseLock(c.ObtainedLock);
+
+						/* Lay in a course to above the shaft. */
+						c.CommandAutoPillock("command:create-wp:Name=xy,Ng=Forward,AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':',';')
+                                            + ":" + VectorOpsHelper.V3DtoBroadcastString(c.AddEchelonOffset(c.pState.getAbovePt.Value)));
+						c.pState.currentWp = c.AddEchelonOffset(c.pState.getAbovePt.Value);
+						c.SetState(MinerState.ReturningToShaft);
+						return;
+
+					} else if (state == MinerState.ReturningToShaft) {
+
 						if (!CurrentWpReached(1.0f))
 							return; // Not reached the point above the shaft yet. Keep flying.
 
@@ -2640,13 +2657,13 @@ namespace IngameScript
 							//c.docker.OtherConnector.CustomData = "";
 							AccountUnload();
 
-							/* Lay in a course to the point above the shaft
-							 * and engage autopilot.                       */
+							/* Lay in a course to the point above
+							 * docking port and engage autopilot. */
 							HandleUnload(c.docker.OtherConnector);
 
 							/* Disconnect and lift off. */
 							c.docker.Disconnect();
-							c.SetState(MinerState.ReturningToShaft);
+							c.SetState(MinerState.Takeoff);
 						});
 
 					} else if (state == MinerState.Maintenance) {
@@ -2917,22 +2934,17 @@ namespace IngameScript
 
 				void HandleUnload(IMyShipConnector otherConnector)
 				{
-					string pathFromDockToAbovePt = "command:create-wp:Name=drill getAbovePt,Ng=Forward,AimNormal="
-								+ VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') + ":"
-								+ VectorOpsHelper.V3DtoBroadcastString(c.AddEchelonOffset(c.pState.getAbovePt.Value));
-
 					/* Construct point above docking port: To the position of the docking port, add
 					 * (a) the echelon offset (optional) and
 					 * (b) the get-above altitude.                                                   */
 					var aboveDock = c.AddEchelonOffset(otherConnector.WorldMatrix.Translation, otherConnector.WorldMatrix.Backward)
                                   - otherConnector.WorldMatrix.Backward * Variables.Get<float>("getAbove-altitude");
 
-					//var aboveDock = c.AddEchelonOffset(c.fwReferenceBlock.GetPosition()) - c.GetMiningPlaneNormal() * Variables.Get<float>("getAbove-altitude");
 					var seq = "[command:pillock-mode:Disabled],[command:create-wp:Name=Dock.Echelon,Ng=Forward:"
-								+ VectorOpsHelper.V3DtoBroadcastString(aboveDock) + ":" + pathFromDockToAbovePt + "]";
+								+ VectorOpsHelper.V3DtoBroadcastString(aboveDock) + "]";
 
 					c.CommandAutoPillock(seq);
-					c.pState.currentWp = c.AddEchelonOffset(c.pState.getAbovePt.Value);
+					c.pState.currentWp = aboveDock;
 				}
 			}
 		}

@@ -509,7 +509,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			WaitingForLockInShaft = 9, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
 			ChangingShaft        = 10,
 			Maintenance          = 11,
-			ForceFinish          = 12
+			ForceFinish          = 12,
+			Takeoff              = 13  ///< Ascending from docking port, through shared airspace, into assigned flight level.
 		}
 
 		public enum ShaftState { Planned, InProgress, Complete, Cancelled }
@@ -1210,6 +1211,11 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						case MinerState.GoingToUnload:// Agent is ascending from its shaft. // TODO: If the agent has arrived at the hold position on its flight level, and waiting for permission to dock, it would not be a problem.
 						case MinerState.ChangingShaft:// Agent is moving above the mining site.
 							if (lockName == LOCK_NAME_MiningSection)
+								return false;
+							else
+								continue;
+						case MinerState.Takeoff:      // Agent is ascending from its docking port.
+							if (lockName == LOCK_NAME_BaseSection)
 								return false;
 							else
 								continue;
