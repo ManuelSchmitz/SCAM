@@ -1115,6 +1115,16 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				//TODO: Add software version for compatibility check.
 			}
 
+			/**
+			 * \brief Returns the subordinate's name from the entity ID of its PB.
+			 * \return The name of the subordinate, or "n/a" if the subordinate has no name
+			 * or the subordinate does not exist.
+			 */
+			public string GetSubordinateName(long id) {
+				var sb = subordinates.FirstOrDefault(s => s.Id == id);
+				return sb == null ? "n/a" : sb.Report.name;
+			}
+
 			IMyIntergridCommunicationSystem IGC;
 
 			StateWrapper stateWrapper;
@@ -1176,7 +1186,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 							 * Grant immediately to the applicant.             */
 							subordinates.First(s => s.Id == msg.Source).ObtainedLock = sectionName;
 							IGC.SendUnicastMessage(msg.Source, "miners", "common-airspace-lock-granted:" + sectionName);
-							Log(sectionName + " granted to " + msg.Source);
+							Log(sectionName + " granted to " + GetSubordinateName(msg.Source));
 						}
 							
 					}
@@ -1184,7 +1194,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					if (msg.Data.ToString().Contains("common-airspace-lock-released"))
 					{
 						var sectionName = msg.Data.ToString().Split(':')[1];
-						Log("(Dispatcher) received lock-released notification " + sectionName + " from " + msg.Source);
+						Log("(Dispatcher) received lock-released notification " + sectionName + " from " + GetSubordinateName(msg.Source));
 						subordinates.Single(s => s.Id == msg.Source).ObtainedLock = "";
 
 						/* See if we can grant a lock to another agent. */
@@ -1213,7 +1223,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 							sectionsLockRequests.Dequeue();
 							subordinates.First(s => s.Id == cand.id).ObtainedLock = cand.lockName;
 							IGC.SendUnicastMessage(cand.id, "miners", "common-airspace-lock-granted:" + cand.lockName);
-							Log(cand.lockName + " granted to " + cand.id);
+							Log(cand.lockName + " granted to " + GetSubordinateName(cand.id));
 
 						}
 

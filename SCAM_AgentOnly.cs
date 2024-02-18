@@ -1723,15 +1723,15 @@ namespace IngameScript
 					if (msg.Tag == "report.request")
 					{
 						/* Progress report requested, compile and send the report. */
-						//var report = new TransponderMsg();
-						//report.Id       = IGC.Me;
-						//report.WM       = fwReferenceBlock.WorldMatrix;
-						//report.v        = new Vector3D();//TODO: Get linear velocity from remote control Vector3D GetShipVelocities().LinearVelocity
-						//report.state    = pState.MinerState; //TODO: Duplicate, also in the dictionary, see UpdateReport()
-						//report.name     = ""; //TODO: Duplicate, also in the dictionary, see UpdateReport()
-						//report.ColorTag = refLight?.Color ?? Color.White;
-						//CurrentJob?.UpdateReport(report, pState.MinerState);
-						//IGC.SendBroadcastMessage("miners.report", report.ToIgc());
+						var report = new TransponderMsg();
+						report.Id       = IGC.Me;
+						report.WM       = fwReferenceBlock.WorldMatrix;
+						report.v        = remCon.GetShipVelocities().LinearVelocity;
+						report.state    = pState.MinerState; //TODO: Duplicate, also in the dictionary, see UpdateReport()
+						report.name     = me.CubeGrid.CustomName; //TODO: Duplicate, also in the dictionary, see UpdateReport()
+						report.ColorTag = refLight?.Color ?? Color.White;
+						CurrentJob?.UpdateReport(report, pState.MinerState);
+						IGC.SendBroadcastMessage("miners.report", report.ToIgc());
 					}
 				}
 
