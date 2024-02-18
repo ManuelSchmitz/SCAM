@@ -484,18 +484,22 @@ namespace IngameScript
 
 		//////////////////// ignore section for MDK minifier
 #region mdk preserve
+		/** \note Must have same values in the dispatcher script!  */
 		public enum MinerState : byte
 		{
-			Disabled = 0, Idle, 
-			GoingToEntry,          ///< Descending to shaft, through shared airspace.
-			Drilling,              ///< Descending into the shaft, until there is a reasong to leave.
-			GettingOutTheShaft, 
-			GoingToUnload,         ///< Ascending from the shaft, through shared airspace, into assigned flight level.
-			WaitingForDocking,     ///< Loitering above the shaft, waiting to be assign a docking port for returning home.
-			Docking,               ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
-			ReturningToShaft,      ///< Traveling from base to point above shaft on a reserved flight level.
-			WaitingForLockInShaft, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
-			ChangingShaft, Maintenance, ForceFinish
+			Disabled              = 0,
+			Idle                  = 1, 
+			GoingToEntry          = 2, ///< Descending to shaft, through shared airspace.
+			Drilling              = 3, ///< Descending into the shaft, until there is a reasong to leave.
+			GettingOutTheShaft    = 4, 
+			GoingToUnload         = 5, ///< Ascending from the shaft, through shared airspace, into assigned flight level.
+			WaitingForDocking     = 6, ///< Loitering above the shaft, waiting to be assign a docking port for returning home.
+			Docking               = 7, ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
+			ReturningToShaft      = 8, ///< Traveling from base to point above shaft on a reserved flight level.
+			WaitingForLockInShaft = 9, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
+			ChangingShaft        = 10,
+			Maintenance          = 11,
+			ForceFinish          = 12
 		}
 
 		public enum ShaftState { Planned, InProgress, Complete, Cancelled }
