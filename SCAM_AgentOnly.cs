@@ -2475,7 +2475,12 @@ namespace IngameScript
 					{
 						if (!CurrentWpReached(1.0f))
 							return; // Not reached the point above the shaft yet. Keep flying.
-						
+
+						/* Release the "general" airspace lock, if held. */
+						if (c.ObtainedLock == LOCK_NAME_GeneralSection)
+							c.ReleaseLock(LOCK_NAME_GeneralSection);
+
+						/* Acquire "mining-site" airspace lock before descending into the shaft. */
 						c.EnterSharedSpace(LOCK_NAME_MiningSection, mc =>
 						{
 							mc.SetState(MinerState.GoingToEntry);
