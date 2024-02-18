@@ -1167,8 +1167,43 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				if (lockName == LOCK_NAME_MiningSection && subordinates.Any(s => s.ObtainedLock == LOCK_NAME_GeneralSection && s.Id != agentId))
 					return false; // Cannot grant "mining-site" lock, because "general" lock is currently granted.
 				if (lockName == LOCK_NAME_BaseSection && subordinates.Any(s => s.ObtainedLock == LOCK_NAME_GeneralSection && s.Id != agentId))
-					return false;
-				//TODO: Check status of all other subordinates.
+					return false; // Cannot grant "base" lock, because "general" lock is currently granted.
+
+				/* For local locks, ensure that no other aircraft flying in the surrounding. */
+				if (lockName == LOCK_NAME_MiningSection || lockName == LOCK_NAME_BaseSection)
+					foreach (var sb in subordinates) {
+						if (sb.Id == agentId)
+							continue; // Check only the _other_ agents.
+						switch (sb.Report.state)
+						{
+							case MinerState.Disabled:     // Passive agents will not enter airspace without asking permission first.
+							case MinerState.Idle:         // Passive agents will not enter airspace without asking permission first.
+							case MinerState.Drilling:     // Drilling agents will request lock before moving out of their shaft and into airspace.
+							case MinerState.WaitingForLockInShaft:// Agent is loitering in its shaft.
+							case MinerState.Maintenance:  // Agent is docked to base, and will not enter airspace without permission.
+								continue;
+							case MinerState.GoingToEntry: // Agent is descending to its shaft.
+							case MinerState.GoingToUnload:// Agent is ascending from its shaft. // TODO: If the agent has arrived at the hold position on its flight level, and waiting for permission to dock, it would not be a problem.
+							case MinerState.ChangingShaft:// Agent is moving above the mining site.
+								if (lockName == LOCK_NAME_MiningSection)
+									return false;
+								else
+									continue;
+							case MinerState.GettingOutTheShaft: // (Can never happen, because only used by Lone mode.)
+							case MinerState.WaitingForDocking:  //TODO: How to handle this case?
+							case MinerState.ForceFinish:        // Maybe a MAYDAY or recall. No experiments.
+							default:                            // Something went wrong. No experiments. //TODO: Better log an error message!
+								return false;
+							case MinerState.ReturningToShaft:
+							case MinerState.Docking:
+								/* The agent is moving on its flight level, but
+								 * potentially through the local protected airspaces. */
+								//TODO: Check if the other drone is on a higher flight level.
+								//TODO: Check distance and relative velocity.
+								return false;
+						}
+					}
+
 				return true; // The lock can safely be granted.
 			}
 
