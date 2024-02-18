@@ -843,6 +843,10 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				E.Echo(dispatcherService.ToString());
 				dispatcherService.HandleIGC(uniMsgs);
 
+				/* Check if we can grant airspace locks. */
+				//FIXME: This might be a performance problem. It is sufficient to only check every 1 s or so.
+				dispatcherService.GrantAirspaceLocks();
+
 				/* Request GUI data from the agents. */
 				if (guiH != null)
 				{
@@ -1159,7 +1163,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			/**
 			 * \brief Tests, if a lock is granteable to an applicant.
 			 * \param[in] lockName The name of the lock to grant.
-			 * \param[in] agentId The entity ID of the applicant agent's PB.
+			 * \param[in] agentId The entity ID of the applicant agent's PB. Must
+			 * be a subordinate of this dispatcher.
 			 */
 			public bool IsLockGranteable(string lockName, long agentId) {
 				if (subordinates.Any(s => s.ObtainedLock == lockName && s.Id != agentId))
@@ -1170,41 +1175,96 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					return false; // Cannot grant "base" lock, because "general" lock is currently granted.
 
 				/* For local locks, ensure that no other aircraft flying in the surrounding. */
-				if (lockName == LOCK_NAME_MiningSection || lockName == LOCK_NAME_BaseSection)
+				if (lockName == LOCK_NAME_MiningSection || lockName == LOCK_NAME_BaseSection) {
+
+					var applicant = subordinates.FirstOrDefault(s => s.Id == agentId);
+	
 					foreach (var sb in subordinates) {
 						if (sb.Id == agentId)
 							continue; // Check only the _other_ agents.
+						//FIXME: We should check the age of the sb.Report (introduce timestamping!
+						//       If the report is older than 2s, don't grant permission and emit log message.
+						//       If the report is older than 30s, assume the agent is gone for good, and grant permission.
+						//       (Don't keep airspace locked forever, just because of 1 uncooperative drone.)
 						switch (sb.Report.state)
 						{
-							case MinerState.Disabled:     // Passive agents will not enter airspace without asking permission first.
-							case MinerState.Idle:         // Passive agents will not enter airspace without asking permission first.
-							case MinerState.Drilling:     // Drilling agents will request lock before moving out of their shaft and into airspace.
-							case MinerState.WaitingForLockInShaft:// Agent is loitering in its shaft.
-							case MinerState.Maintenance:  // Agent is docked to base, and will not enter airspace without permission.
+						case MinerState.Disabled:     // Passive agents will not enter airspace without asking permission first.
+						case MinerState.Idle:         // Passive agents will not enter airspace without asking permission first.
+						case MinerState.Drilling:     // Drilling agents will request lock before moving out of their shaft and into airspace.
+						case MinerState.WaitingForLockInShaft:// Agent is loitering in its shaft.
+						case MinerState.Maintenance:  // Agent is docked to base, and will not enter airspace without permission.
+							continue;
+						case MinerState.GoingToEntry: // Agent is descending to its shaft.
+						case MinerState.GoingToUnload:// Agent is ascending from its shaft. // TODO: If the agent has arrived at the hold position on its flight level, and waiting for permission to dock, it would not be a problem.
+						case MinerState.ChangingShaft:// Agent is moving above the mining site.
+							if (lockName == LOCK_NAME_MiningSection)
+								return false;
+							else
 								continue;
-							case MinerState.GoingToEntry: // Agent is descending to its shaft.
-							case MinerState.GoingToUnload:// Agent is ascending from its shaft. // TODO: If the agent has arrived at the hold position on its flight level, and waiting for permission to dock, it would not be a problem.
-							case MinerState.ChangingShaft:// Agent is moving above the mining site.
-								if (lockName == LOCK_NAME_MiningSection)
-									return false;
-								else
-									continue;
-							case MinerState.GettingOutTheShaft: // (Can never happen, because only used by Lone mode.)
-							case MinerState.WaitingForDocking:  //TODO: How to handle this case?
-							case MinerState.ForceFinish:        // Maybe a MAYDAY or recall. No experiments.
-							default:                            // Something went wrong. No experiments. //TODO: Better log an error message!
-								return false;
-							case MinerState.ReturningToShaft:
-							case MinerState.Docking:
-								/* The agent is moving on its flight level, but
-								 * potentially through the local protected airspaces. */
-								//TODO: Check if the other drone is on a higher flight level.
-								//TODO: Check distance and relative velocity.
-								return false;
+						case MinerState.GettingOutTheShaft: // (Can never happen, because only used by Lone mode.)
+						case MinerState.WaitingForDocking:  //TODO: How to handle this case?
+						case MinerState.ForceFinish:        // Maybe a MAYDAY or recall. No experiments.
+						default:                            // Something went wrong. No experiments. //TODO: Better log an error message!
+							return false;
+						case MinerState.ReturningToShaft:
+						case MinerState.Docking:
+
+							/* The agent is moving on its flight level, but
+							 * potentially through the local protected airspaces. */
+
+							Vector3D dist  = sb.Report.WM.Translation - applicant.Report.WM.Translation; // applicant --> other
+							Vector3D v_rel = sb.Report.v - applicant.Report.v;
+
+							/* If the other agent moving away and has at least 100 m
+							 * distance, then it is not a problem.                   */
+							if (   Vector3D.Dot(sb.Report.v, applicant.Report.v) > 0
+								&& dist.Length() > 100.0                                )
+								continue;
+
+							/* If the other agent is at least 10s away, then it should
+							   not be a problem. (Assuming applicant can vertically traverse
+							   all flight levels in 10s or less.                           */
+							if (dist.Length() > 1000.0) // Even of other agent is closing in at 100m/s, it would take 10s to reach.
+								continue;
+
+							/* If the other agent is traveling on a higher flight level, no problem. */
+							if (applicant.Echelon < sb.Echelon)
+								continue;
+
+							/* If the other agent is holding position and
+							 * waiting for a lock too, no problem (prevents deadlocks).  */
+							if (sb.Report.v.Length() <= 0.1 && sectionsLockRequests.Any(s => s.id == sb.Id))
+								continue;
+
+							return false; // There is in fact another drone with collision risk. Cannot grant airspace lock.
 						}
 					}
+				}
 
 				return true; // The lock can safely be granted.
+			}
+
+			/**
+			 * \brief Grants granteable locks.
+			 * \details To be called periodically. The method will observe priorities and queues.
+			 */
+			public void GrantAirspaceLocks() {
+				while (sectionsLockRequests.Count > 0) {
+
+					//TODO: Prefer agents which are in the air (=not docked). No necessarily the first one.
+					//TODO: Prefer agents with low fuel or low battery.
+					LockRequest cand = sectionsLockRequests.Peek();
+
+					if (!IsLockGranteable(cand.lockName, cand.id))
+						break;
+
+					/* Requested lock is not held by any other agent.
+					 * Grant immediately to the applicant.             */
+					sectionsLockRequests.Dequeue();
+					subordinates.First(s => s.Id == cand.id).ObtainedLock = cand.lockName;
+					IGC.SendUnicastMessage(cand.id, "miners", "common-airspace-lock-granted:" + cand.lockName);
+					Log(cand.lockName + " granted to " + GetSubordinateName(cand.id));
+				}
 			}
 
 			public void HandleIGC(List<MyIGCMessage> uniMsgs)
@@ -1220,19 +1280,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					if (msg.Data.ToString().Contains("common-airspace-ask-for-lock"))
 					{
 						var sectionName = msg.Data.ToString().Split(':')[1];
-
-						if (!IsLockGranteable(sectionName, msg.Source))
-							/* Cannot serve the request now. */
-							EnqueueLockRequest(msg.Source, sectionName);
-						else
-						{
-							/* Requested lock is not held by any other agent.
-							 * Grant immediately to the applicant.             */
-							subordinates.First(s => s.Id == msg.Source).ObtainedLock = sectionName;
-							IGC.SendUnicastMessage(msg.Source, "miners", "common-airspace-lock-granted:" + sectionName);
-							Log(sectionName + " granted to " + GetSubordinateName(msg.Source));
-						}
-							
+						EnqueueLockRequest(msg.Source, sectionName);
 					}
 
 					if (msg.Data.ToString().Contains("common-airspace-lock-released"))
@@ -1240,26 +1288,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						var sectionName = msg.Data.ToString().Split(':')[1];
 						Log("(Dispatcher) received lock-released notification " + sectionName + " from " + GetSubordinateName(msg.Source));
 						subordinates.Single(s => s.Id == msg.Source).ObtainedLock = "";
-
-						/* See if we can grant a lock to another agent. */
-						while (sectionsLockRequests.Count > 0) {
-
-							//TODO: Prefer agents which are in the air (=not docked). No necessarily the first one.
-							//TODO: Prefer agents with low fuel or low battery.
-							LockRequest cand = sectionsLockRequests.Peek();
-
-							if (!IsLockGranteable(cand.lockName, cand.id))
-								break;
-
-							/* Requested lock is not held by any other agent.
-							 * Grant immediately to the applicant.             */
-							sectionsLockRequests.Dequeue();
-							subordinates.First(s => s.Id == cand.id).ObtainedLock = cand.lockName;
-							IGC.SendUnicastMessage(cand.id, "miners", "common-airspace-lock-granted:" + cand.lockName);
-							Log(cand.lockName + " granted to " + GetSubordinateName(cand.id));
-
-						}
-
 					}
 				}
 
