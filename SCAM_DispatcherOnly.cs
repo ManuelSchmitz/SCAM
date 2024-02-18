@@ -1153,7 +1153,23 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					sectionsLockRequests.Enqueue(new LockRequest(src, lockName));
 				//else
 					; //TODO: Update existing lock request with new lockName
-				Log("commonSpaceLockOwner rejected, added to requests queue: " + src);
+				Log("Airspace permission request added to requests queue: " + GetSubordinateName(src) + " / " + lockName);
+			}
+
+			/**
+			 * \brief Tests, if a lock is granteable to an applicant.
+			 * \param[in] lockName The name of the lock to grant.
+			 * \param[in] agentId The entity ID of the applicant agent's PB.
+			 */
+			public bool IsLockGranteable(string lockName, long agentId) {
+				if (subordinates.Any(s => s.ObtainedLock == lockName && s.Id != agentId))
+					return false; // Requested lock is held by another agent.
+				if (lockName == LOCK_NAME_MiningSection && subordinates.Any(s => s.ObtainedLock == LOCK_NAME_GeneralSection && s.Id != agentId))
+					return false; // Cannot grant "mining-site" lock, because "general" lock is currently granted.
+				if (lockName == LOCK_NAME_BaseSection && subordinates.Any(s => s.ObtainedLock == LOCK_NAME_GeneralSection && s.Id != agentId))
+					return false;
+				//TODO: Check status of all other subordinates.
+				return true; // The lock can safely be granted.
 			}
 
 			public void HandleIGC(List<MyIGCMessage> uniMsgs)
@@ -1170,16 +1186,9 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					{
 						var sectionName = msg.Data.ToString().Split(':')[1];
 
-						if (subordinates.Any(s => s.ObtainedLock == sectionName && s.Id != msg.Source))
-							/* Requested lock is held by another agent. Enqueue request. */
+						if (!IsLockGranteable(sectionName, msg.Source))
+							/* Cannot serve the request now. */
 							EnqueueLockRequest(msg.Source, sectionName);
-						else if (sectionName == LOCK_NAME_MiningSection && subordinates.Any(s => s.ObtainedLock == LOCK_NAME_GeneralSection && s.Id != msg.Source))
-							/* Cannot grant "mining-site" lock, because "general" lock is currently granted. */
-							EnqueueLockRequest(msg.Source, sectionName);
-						else if (sectionName == LOCK_NAME_BaseSection && subordinates.Any(s => s.ObtainedLock == LOCK_NAME_GeneralSection && s.Id != msg.Source))
-							/* Cannot grant "base" lock, because "general" lock is currently granted. */
-							EnqueueLockRequest(msg.Source, sectionName);
-						//TODO: Check status of all other subordinates.
 						else
 						{
 							/* Requested lock is not held by any other agent.
@@ -1204,19 +1213,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 							//TODO: Prefer agents with low fuel or low battery.
 							LockRequest cand = sectionsLockRequests.Peek();
 
-							if (subordinates.Any(s => s.ObtainedLock == cand.lockName && s.Id != cand.id))
-								/* Requested lock is held by another agent. */
+							if (!IsLockGranteable(cand.lockName, cand.id))
 								break;
-
-							if (cand.lockName == LOCK_NAME_MiningSection && subordinates.Any(s => s.ObtainedLock == LOCK_NAME_GeneralSection && s.Id != cand.id))
-								/* Cannot grant "mining-site" lock, because "general" lock is currently granted. */
-								break;
-
-							if (cand.lockName == LOCK_NAME_BaseSection && subordinates.Any(s => s.ObtainedLock == LOCK_NAME_GeneralSection && s.Id != cand.id))
-								/* Cannot grant "base" lock, because "general" lock is currently granted. */
-								break;
-
-							//TODO: Check status of all other subordinates.
 
 							/* Requested lock is not held by any other agent.
 							 * Grant immediately to the applicant.             */
