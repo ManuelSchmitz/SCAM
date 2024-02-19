@@ -2644,9 +2644,10 @@ namespace IngameScript
 							c.InvalidateDockingDto?.Invoke();
 							c.tanks.ForEach(b => b.Stockpile = true);
 
-							//TODO: Return any lock, not just general.
-							if (c.ObtainedLock == LOCK_NAME_GeneralSection)
-								c.ReleaseLock(LOCK_NAME_GeneralSection);
+							/* We just left controlled airspace. Release the lock ("base"
+							 * or "general", whatever we have been granted).              */
+							if (c.ObtainedLock != null)
+								c.ReleaseLock(c.ObtainedLock);
 
 							c.SetState(MinerState.Docked);
 						}
