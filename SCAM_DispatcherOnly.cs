@@ -510,7 +510,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			ChangingShaft        = 10,
 			Maintenance          = 11,
 			ForceFinish          = 12,
-			Takeoff              = 13  ///< Ascending from docking port, through shared airspace, into assigned flight level.
+			Takeoff              = 13, ///< Ascending from docking port, through shared airspace, into assigned flight level.
+			ReturningHome        = 14  ///< Traveling from the point above the shaft to the base on a reserved flight level.
 		}
 
 		public enum ShaftState { Planned, InProgress, Complete, Cancelled }
@@ -1206,6 +1207,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						case MinerState.Drilling:     // Drilling agents will request lock before moving out of their shaft and into airspace.
 						case MinerState.WaitingForLockInShaft:// Agent is loitering in its shaft.
 						case MinerState.Maintenance:  // Agent is docked to base, and will not enter airspace without permission.
+						case MinerState.Docking:      // //TODO: Rename to "docked"
 							continue;
 						case MinerState.GoingToEntry: // Agent is descending to its shaft.
 						case MinerState.GoingToUnload:// Agent is ascending from its shaft. // TODO: If the agent has arrived at the hold position on its flight level, and waiting for permission to dock, it would not be a problem.
@@ -1214,6 +1216,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 								return false;
 							else
 								continue;
+						//TODO: Distinguish between "docking" (final approach) and "docked".
+						//case MinerState.Docking:      // Agent is descending to its docking port.
 						case MinerState.Takeoff:      // Agent is ascending from its docking port.
 							if (lockName == LOCK_NAME_BaseSection)
 								return false;
@@ -1225,7 +1229,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						default:                            // Something went wrong. No experiments. //TODO: Better log an error message!
 							return false;
 						case MinerState.ReturningToShaft:
-						case MinerState.Docking:
+						case MinerState.ReturningHome:
 
 							/* The agent is moving on its flight level, but
 							 * potentially through the local protected airspaces. */
@@ -4395,14 +4399,14 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 		public class TargetTelemetry
 		{
-			public long TickStamp;
+			public long TickStamp;                          ///< Timestamp in ticks (TODO: tick timer is reset on reload!)
 			int clock;
-			public string Name;
+			public string Name;                             ///< Purpose for which the data is sent, e.g. "docking".
 			public long EntityId;
-			public Vector3D? Position { get; private set; }
-			public Vector3D? Velocity;
+			public Vector3D? Position { get; private set; } ///< Interface position of the docking port. (centerline intersects docking ring)
+			public Vector3D? Velocity;                      ///< [m/s] Velocity of docking port.
 			public Vector3D? Acceleration;
-			public MatrixD? OrientationUnit;
+			public MatrixD? OrientationUnit;                ///< World matrix of docking port.
 			public BoundingBoxD? BoundingBox;
 			public int? ExpiresAfterTicks = 60;
 			public MyDetectedEntityType? Type { get; set; }
@@ -4947,7 +4951,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		public class DockHost
 		{
 			List<IMyShipConnector> ports;
-			Dictionary<IMyShipConnector, Vector3D> pPositions = new Dictionary<IMyShipConnector, Vector3D>();
+			Dictionary<IMyShipConnector, Vector3D> pPositions = new Dictionary<IMyShipConnector, Vector3D>(); // Positions of `ports`.
 
 			public DockHost(List<IMyShipConnector> docks, PersistentState ps, IMyGridTerminalSystem gts)
 			{
@@ -4977,34 +4981,38 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					E.DebugLog($"{string.Concat(nd.tags)}, Pa {nd.Pa != null} Ch {nd.Ch.Count}");
 				}*/
 			}
-			public void Build(List<IMyTerminalBlock> b)
-			{
-				foreach (var x in b)
-				{
-					var nm = x.CustomName.Split('/')[1];
-					var tags = nm.ToCharArray();
 
-					var node = new NavMeshNode();
-					node.tags = tags;
-					node.loc = x.Position;
-					nodes.Add(node);
-				}
-			}
-			void NodeRecu(NavMeshNode n)
-			{
-				var c = string.Concat(n.tags);
-				E.DebugLog("checkin " + c);
-				foreach (var ch in nodes.Where(x => x.Pa == null && x.Ch.Count == 0 && (x != n) && x.tags.Any(t => c.Contains(t))))
-				{
-					n.Ch.Add(ch);
-					ch.Pa = n;
-					NodeRecu(ch);
-				}
-			}
+			//TODO: Never used?
+			//public void Build(List<IMyTerminalBlock> b)
+			//{
+			//	foreach (var x in b)
+			//	{
+			//		var nm = x.CustomName.Split('/')[1];
+			//		var tags = nm.ToCharArray();
+
+			//		var node = new NavMeshNode();
+			//		node.tags = tags;
+			//		node.loc = x.Position;
+			//		nodes.Add(node);
+			//	}
+			//}
+
+			//TODO: NEver used?
+			//void NodeRecu(NavMeshNode n)
+			//{
+			//	var c = string.Concat(n.tags);
+			//	E.DebugLog("checkin " + c);
+			//	foreach (var ch in nodes.Where(x => x.Pa == null && x.Ch.Count == 0 && (x != n) && x.tags.Any(t => c.Contains(t))))
+			//	{
+			//		n.Ch.Add(ch);
+			//		ch.Pa = n;
+			//		NodeRecu(ch);
+			//	}
+			//}
 
 			public void Handle(IMyIntergridCommunicationSystem i, int t)
 			{
-				E.Echo("Navmesh: " + nodes.Count);
+			//	E.Echo("Navmesh: " + nodes.Count);
 				var z = new List<MyTuple<Vector3D, Vector3D, Vector4>>();
 				foreach (var n in nodes.Where(x => x.Pa != null))
 				{
@@ -5062,24 +5070,26 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					}
 				}
 
+				/* For all reserved docking ports, sent the position to the incoming agent. */
 				foreach (var d in ports.Where(d => !string.IsNullOrEmpty(d.CustomData)))
 				{
 					long id;
-					if (long.TryParse(d.CustomData, out id))
-					{
-						E.Echo($"Channeling DV to {id}");
-						var x = new TargetTelemetry(1, "docking");
-						var m = d.WorldMatrix;
-						x.SetPosition(m.Translation + m.Forward * (d.CubeGrid.GridSizeEnum == MyCubeSize.Large ? 1.25 : 0.5), t);
+					if (!long.TryParse(d.CustomData, out id))
+						continue;
+					
+					E.Echo($"Channeling DV to {id}");
+					var x = new TargetTelemetry(1, "docking");
+					var m = d.WorldMatrix;
+					x.SetPosition(m.Translation + m.Forward * (d.CubeGrid.GridSizeEnum == MyCubeSize.Large ? 1.25 : 0.5), t);
 
-						if (pPositions[d] != Vector3D.Zero)
-							x.Velocity = (d.GetPosition() - pPositions[d]) / Dt;
-						pPositions[d] = d.GetPosition();
+					/* Calculate velocity of docking port. */
+					if (pPositions[d] != Vector3D.Zero)
+						x.Velocity = (d.GetPosition() - pPositions[d]) / Dt;
+					pPositions[d] = d.GetPosition();
 
-						x.OrientationUnit = m;
-						var k = x.GetIgcDto();
-						i.SendUnicastMessage(id, "apck.ntv.update", k);
-					}
+					x.OrientationUnit = m;
+					var k = x.GetIgcDto();
+					i.SendUnicastMessage(id, "apck.ntv.update", k);
 				}
 
 			}
@@ -5113,16 +5123,26 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				dests[id] = d;
 			}
 
-			Dictionary<long, Vector3D> dests = new Dictionary<long, Vector3D>();
+			Dictionary<long, Vector3D> dests = new Dictionary<long, Vector3D>(); ///< Position of the agent's docking port at the time of the last docking/departure request.
 			Queue<long> dockRequests = new Queue<long>(); ///< Requesting agent's PB handles.
 			Queue<long> depRequests = new Queue<long>();  ///< Requesting agent's PB handles.
 
+			/**
+			 * \brief Generates a departure path from a docking port.
+			 * \details For approach, simply reverse the order of points.
+			 * \param[in] o The current location of the agent's docking port.
+			 */
 			public IEnumerable<Vector3D> GetPath(Vector3D o)
 			{
-				var gr = ports.First().CubeGrid;
+				var gr = ports.First().CubeGrid; // (For conversion of grid coordinates to world coordinates.)
+
+				/* Find the node that is closest to the agent. (Its docking port, to be precise.) */
+				//TODO: What is the x.Ch.Count == 0 condition?
 				var n = nodes.Where(x => x.Ch.Count == 0).OrderBy(x => (gr.GridIntegerToWorld(x.loc) - o).LengthSquared()).FirstOrDefault();
-				if (n != null)
-				{
+
+				if (n != null) {
+				
+					//TODO: This actually looks like a for-loop.
 					var c = n;
 					do
 					{

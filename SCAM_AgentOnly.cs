@@ -500,7 +500,8 @@ namespace IngameScript
 			ChangingShaft        = 10,
 			Maintenance          = 11,
 			ForceFinish          = 12,
-			Takeoff              = 13  ///< Ascending from docking port, through shared airspace, into assigned flight level.
+			Takeoff              = 13, ///< Ascending from docking port, through shared airspace, into assigned flight level.
+			ReturningHome        = 14  ///< Traveling from the point above the shaft to the base on a reserved flight level.
 		}
 
 		public enum ShaftState { Planned, InProgress, Complete, Cancelled }
@@ -764,6 +765,7 @@ namespace IngameScript
 			{
 				if (m.Tag == "apck.ntv.update")
 				{
+					/* We have received telemtry (about the assigned docking port). */
 					var igcDto = (MyTuple<MyTuple<string, long, long, byte, byte>, Vector3D, Vector3D, MatrixD, BoundingBoxD>)m.Data;
 					var name = igcDto.Item1.Item1;
 					UpdateNTV(name, igcDto);
@@ -2539,61 +2541,81 @@ namespace IngameScript
 						{
 							c.ArrangeDocking();
 						}
-					}
 
-					if (state == MinerState.WaitingForDocking)
-					{
-						var dv = c.ntv("docking");
-						if (dv.Position.HasValue)
+					} else if (state == MinerState.ReturningHome) {
+						
+						//TODO: Perform midcourse corrections (MCC) if docking port has moved by more than 1m.
+                        //      (e.g. issue a new APck command)
+
+						if (!CurrentWpReached(1.0f))
+							return; // Not reached the point above the docking port yet. Keep flying.
+
+						c.EnterSharedSpace(LOCK_NAME_BaseSection, mc =>
 						{
-							if (c.PrevState == MinerState.ForceFinish)
-							{
-								Vector3D dockingTransEntryPt;
-								if (c.pState.getAbovePt.HasValue)
-								{
-									dockingTransEntryPt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
-								}
-								else // assuming we didn't mine and just want to RTB
-								{
-									var dockPosDiff = dv.Position.Value - c.docker.GetPosition();
-									var n = dv.OrientationUnit.Value.Backward;
-									var altDiff = Vector3D.ProjectOnVector(ref dockPosDiff, ref n);
-									dockingTransEntryPt = c.AddEchelonOffset(c.docker.GetPosition() + altDiff, n);
-								}
+							TargetTelemetry dv = c.ntv("docking");
+							Vector3D r_aboveDock = c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward)
+							                     - dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude");
+							c.CommandAutoPillock("command:create-wp:Name=DynamicDock.echelon,Ng=Forward,AimNormal="
+							+ VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')
+							+ ",TransformChannel=docking:"
+							+ VectorOpsHelper.V3DtoBroadcastString(Vector3D.Transform(r_aboveDock, MatrixD.Invert(dv.OrientationUnit.Value)))
+							+ ":command:pillock-mode:DockingFinal");
+							c.SetState(MinerState.Docking);
+						});
 
-								// releasing that when we leave mining area zone
-								//c.EnterSharedSpace("general", mc =>
-								//{
-								// getAboveShaft, then follow up with:
-								// ForceFinish.dock-echelon - vertical offset in assigned docks' local coordinates, then follow up with:
-								// DockingFinal behavior
-								c.CommandAutoPillock("command:create-wp:Name=ForceFinish.getAbovePt,SpeedLimit=" + Variables.Get<float>("speed-clear") + ",Ng=Forward:" +
-										VectorOpsHelper.V3DtoBroadcastString(dockingTransEntryPt)
-								+ ":command:create-wp:Name=ForceFinish.dock-echelon,Ng=Forward,TransformChannel=docking:"
-								+ VectorOpsHelper.V3DtoBroadcastString(Vector3D.Transform(
-										c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward) -
-												dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude"),
-												MatrixD.Invert(dv.OrientationUnit.Value)))
-								+ ":command:pillock-mode:DockingFinal");
+					} else if (state == MinerState.WaitingForDocking) {
 
-								c.SetState(MinerState.ForceFinish);
-								//});
-							}
-							else
+						/* Get position (and other data) of the assigned docking port.
+						 * (Updated live, because it could be moving.)               */
+						TargetTelemetry dv = c.ntv("docking");
+						if (!dv.Position.HasValue)
+							return; // We have not yet received a position information for the docking port.
+						
+						if (c.PrevState == MinerState.ForceFinish)
+						{
+							Vector3D dockingTransEntryPt;
+							if (c.pState.getAbovePt.HasValue)
 							{
-								//c.EnterSharedSpace("general", mc =>
-								//{
-								c.CommandAutoPillock("command:create-wp:Name=DynamicDock.echelon,Ng=Forward,AimNormal="
-								+ VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')
-								+ ",TransformChannel=docking:"
-								+ VectorOpsHelper.V3DtoBroadcastString(Vector3D.Transform(
-									c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward) -
-											dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude"),
-											MatrixD.Invert(dv.OrientationUnit.Value)))
-								+ ":command:pillock-mode:DockingFinal");
-								c.SetState(MinerState.Docking);
-								//});
+								dockingTransEntryPt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
 							}
+							else // assuming we didn't mine and just want to RTB
+							{
+								var dockPosDiff = dv.Position.Value - c.docker.GetPosition();
+								var n = dv.OrientationUnit.Value.Backward;
+								var altDiff = Vector3D.ProjectOnVector(ref dockPosDiff, ref n);
+								dockingTransEntryPt = c.AddEchelonOffset(c.docker.GetPosition() + altDiff, n);
+							}
+
+							// releasing that when we leave mining area zone
+							//c.EnterSharedSpace("general", mc =>
+							//{
+							// getAboveShaft, then follow up with:
+							// ForceFinish.dock-echelon - vertical offset in assigned docks' local coordinates, then follow up with:
+							// DockingFinal behavior
+							Vector3D r_aboveDock = c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward)
+							                     - dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude");
+							c.CommandAutoPillock("command:create-wp:Name=ForceFinish.getAbovePt,SpeedLimit=" + Variables.Get<float>("speed-clear") + ",Ng=Forward:" +
+									VectorOpsHelper.V3DtoBroadcastString(dockingTransEntryPt)
+							+ ":command:create-wp:Name=ForceFinish.dock-echelon,Ng=Forward,TransformChannel=docking:"
+							+ VectorOpsHelper.V3DtoBroadcastString(Vector3D.Transform(r_aboveDock, MatrixD.Invert(dv.OrientationUnit.Value)))
+							+ ":command:pillock-mode:DockingFinal");
+
+							c.SetState(MinerState.ForceFinish);
+							//});
+						}
+						else
+						{
+							/* Normal return home to base. */
+							
+							/* Lay in a course to above the shaft. */
+							Vector3D r_aboveDock = c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward)
+							                     - dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude");
+							
+							//TODO: Set AimNormal to direction of docking port, not mining plane.
+							c.CommandAutoPillock("command:create-wp:Name=xy,Ng=Forward,AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':',';')
+								                + ":" + VectorOpsHelper.V3DtoBroadcastString(r_aboveDock));
+							c.pState.currentWp = r_aboveDock;
+							c.SetState(MinerState.ReturningHome);
 						}
 					}
 
@@ -2648,7 +2670,7 @@ namespace IngameScript
 						}
 
 						/* Unload and return to work. */
-						c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
+						c.EnterSharedSpace(LOCK_NAME_BaseSection, mc =>
 						{
 							/* Switch to internal power and open fuel tanks. */
 							c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Auto);
@@ -3327,7 +3349,7 @@ namespace IngameScript
 		APckUnit coreUnit;
 		public class APckUnit
 		{
-			public IMyShipConnector docker;
+			public IMyShipConnector docker; ///< Agent's docking port.
 			public List<IMyWarhead> wh;
 
 			IMyRadioAntenna antenna;
@@ -4267,7 +4289,7 @@ namespace IngameScript
 			}
 		}
 
-		Dictionary<string, TargetTelemetry> NamedTeleData = new Dictionary<string, TargetTelemetry>();
+		Dictionary<string, TargetTelemetry> NamedTeleData = new Dictionary<string, TargetTelemetry>(); ///< Live telemetry about the (potentially moving) docking port at the base.
 
 		public struct TeleDto
 		{
