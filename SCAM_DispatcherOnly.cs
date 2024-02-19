@@ -504,14 +504,15 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			GettingOutTheShaft    = 4, 
 			GoingToUnload         = 5, ///< Ascending from the shaft, through shared airspace, into assigned flight level.
 			WaitingForDocking     = 6, ///< Loitering above the shaft, waiting to be assign a docking port for returning home.
-			Docking               = 7, ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
+			Docked                = 7, ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
 			ReturningToShaft      = 8, ///< Traveling from base to point above shaft on a reserved flight level.
 			WaitingForLockInShaft = 9, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
 			ChangingShaft        = 10,
 			Maintenance          = 11,
 			ForceFinish          = 12,
 			Takeoff              = 13, ///< Ascending from docking port, through shared airspace, into assigned flight level.
-			ReturningHome        = 14  ///< Traveling from the point above the shaft to the base on a reserved flight level.
+			ReturningHome        = 14, ///< Traveling from the point above the shaft to the base on a reserved flight level.
+			Docking              = 15  ///< Descending to the docking port through shared airspace. (docking final approach)
 		}
 
 		public enum ShaftState { Planned, InProgress, Complete, Cancelled }
@@ -1207,7 +1208,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						case MinerState.Drilling:     // Drilling agents will request lock before moving out of their shaft and into airspace.
 						case MinerState.WaitingForLockInShaft:// Agent is loitering in its shaft.
 						case MinerState.Maintenance:  // Agent is docked to base, and will not enter airspace without permission.
-						case MinerState.Docking:      // //TODO: Rename to "docked"
+						case MinerState.Docked:      // Agent is docked to base, and will not enter airspace without permission.
 							continue;
 						case MinerState.GoingToEntry: // Agent is descending to its shaft.
 						case MinerState.GoingToUnload:// Agent is ascending from its shaft. // TODO: If the agent has arrived at the hold position on its flight level, and waiting for permission to dock, it would not be a problem.
@@ -1216,8 +1217,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 								return false;
 							else
 								continue;
-						//TODO: Distinguish between "docking" (final approach) and "docked".
-						//case MinerState.Docking:      // Agent is descending to its docking port.
+						case MinerState.Docking:      // Agent is descending to its docking port.
 						case MinerState.Takeoff:      // Agent is ascending from its docking port.
 							if (lockName == LOCK_NAME_BaseSection)
 								return false;
