@@ -11,9 +11,29 @@ A job is shaft, processed by an individual agent. The dispatcher will usually as
 
 ## Air Traffic Control (ATC)
 
-ATC pevents collisions in mid-air. It grants permissions to the agents when it is safe for them to proceed into protected areas.
+ATC pevents collisions in mid-air. It grants permissions to the agents when it is safe for them to proceed into protected areas of the airspace.
 
 Generally, agents move along horizontal planes, so called _flight levels_. Each agent has its own flight level.
+
+Agents can also move vertically, accross the flight levels of other agents. This happens at the
+mining site, or near the base. Agents must aquire a local airspace lock for that:
+
+- Lock **`mining-site`**
+  - The lock grants permission to traverse other flight levels at the mining site in a strictly vertical direction.
+  - To grant this lock, all other agents must fulfill at least one of the following conditions:
+	- The other agent is in its shaft (or at least below the get-above altitude of the current job).
+	- The other agent is waiting at the intersection between its shaft and its flight level (e.g. end of returning to shaft).
+	- The other agent is far away (1k), moving away or moving on a higher flight level.
+- Lock **`base`**
+  - The lock grants permission to traverse other flight levels at the base (docking ports) in a strictly vertical direction.
+  - To grant this lock, all other agents must fulfill at least one of the following conditions:
+	- The other agent is docked.
+	- The other agent is waiting at the intersection between its approach corridor (cylinder above docking port) and its flight level.
+	- The other agent is far away (1k), moving away or moving on a higher flight level.
+
+Base and mining site must not overlap, or there will be undefined behaviour.
+
+There are two more airspace locks, "general" and "force-finish", which have legacy or special functionalities.
 
 ## Protocol Messages
 
@@ -59,7 +79,7 @@ Generally, agents move along horizontal planes, so called _flight levels_. Each 
 ### `apck.ntv.update` (ATC/ILS)
 
 - Sent from the dispatcher to the agent.
-- 
+- Contains data about the assigned docking port, so that the agent can dock to a moving base (e.g. rover or ship).
 
 #### `miners` (ATC)
 
