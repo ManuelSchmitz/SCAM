@@ -494,14 +494,15 @@ namespace IngameScript
 			GettingOutTheShaft    = 4, 
 			GoingToUnload         = 5, ///< Ascending from the shaft, through shared airspace, into assigned flight level.
 			WaitingForDocking     = 6, ///< Loitering above the shaft, waiting to be assign a docking port for returning home.
-			Docking               = 7, ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
+			Docked                = 7, ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
 			ReturningToShaft      = 8, ///< Traveling from base to point above shaft on a reserved flight level.
 			WaitingForLockInShaft = 9, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
 			ChangingShaft        = 10,
 			Maintenance          = 11,
 			ForceFinish          = 12,
 			Takeoff              = 13, ///< Ascending from docking port, through shared airspace, into assigned flight level.
-			ReturningHome        = 14  ///< Traveling from the point above the shaft to the base on a reserved flight level.
+			ReturningHome        = 14, ///< Traveling from the point above the shaft to the base on a reserved flight level.
+			Docking              = 15  ///< Descending to the docking port through shared airspace. (docking final approach)
 		}
 
 		public enum ShaftState { Planned, InProgress, Complete, Cancelled }
@@ -2619,8 +2620,7 @@ namespace IngameScript
 						}
 					}
 
-					if (state == MinerState.Docking)
-					{
+					if (state == MinerState.Docking) {
 						/* Connect the connector, if not done already. */
 						if (c.docker.Status != MyShipConnectorStatus.Connected) {
 							if (c.DockingHandled)
@@ -2644,9 +2644,16 @@ namespace IngameScript
 							c.InvalidateDockingDto?.Invoke();
 							c.tanks.ForEach(b => b.Stockpile = true);
 
+							//TODO: Return any lock, not just general.
 							if (c.ObtainedLock == LOCK_NAME_GeneralSection)
 								c.ReleaseLock(LOCK_NAME_GeneralSection);
+
+							c.SetState(MinerState.Docked);
 						}
+					}
+
+					if (state == MinerState.Docked)
+					{
 
 						E.Echo("Docking: Connected");
 						if (!CargoFlush()) {
