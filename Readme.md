@@ -9,6 +9,24 @@ A task is a collection of jobs (shafts), and is usually processed by a dispatche
 
 A job is shaft, processed by an individual agent. The dispatcher will usually assign a job to the individual agents.
 
+## Agent Commands
+
+### `command:create-task`
+
+Starts a mining task: 
+1. Position the agent slightly above the center of the desired mining area.
+2. On planets, the mining plane will start 5 m above the planet's surface. In space, the mining plane will start at the position of the agent.
+3. On planets, the mining direction will be along the gravitational acceleration. In space, the drone's orientation will define the mining direction.
+4. Run `command:create-task`.
+5. The agent will sent its `circular-pattern-shaft-radius`, the normal vector and the center point of the mining task to the dispatcher in a `create-task` message. This is only at task proposal at this point.
+6. The dispatcher may perform checks to validate the proposal.
+7. The dispatcher starts the task, and instruct other agents to commence work. 
+   1. Only agents of the same group as the designating agent will be used.
+   2. The dispatcher will instruct all agents (even other groups!) to clear their storage state with a `miners.command` / `command:clear-storage-state` broadcast.
+   3. The dispatcher will send the task's normal vector to all same-group agents with a `miners.normal` message.
+   4. The dispatcher will send a `command` / `mine` message to all same-group agents.
+8. The same-group agents will start mining ...
+
 ## Air Traffic Control (ATC)
 
 ATC pevents collisions in mid-air. It grants permissions to the agents when it is safe for them to proceed into protected areas of the airspace.

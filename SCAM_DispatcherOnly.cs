@@ -1378,8 +1378,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					{
 						var data = (MyTuple<float, Vector3D, Vector3D>)msg.Data;
 
-						Log("Got new mining task from agent");
 						var sub = subordinates.First(s => s.Id == msg.Source);
+						Log("Got new mining task from agent " + sub.Report.name);
 						sub.ObtainedLock = LOCK_NAME_GeneralSection;
 						CreateTask(data.Item1, data.Item2, data.Item3, Variables.Get<int>("max-generations"), sub.Group);
 						BroadcastStart(sub.Group);

@@ -1866,6 +1866,9 @@ namespace IngameScript
 				pState.skipDepth = Variables.Get<float>("skip-depth");
 				if (!TryResumeFromDock())
 				{
+					/* This is the agent that was used for task designation.
+					 * Start in state "ChangingShaft", because we are already
+					 * at the mining site.                                    */
 					CurrentJob.Start();
 				}
 			}
@@ -2040,26 +2043,27 @@ namespace IngameScript
 
 			public bool TryResumeFromDock()
 			{
-				if (docker.Status == MyShipConnectorStatus.Connected)
+				if (docker.Status != MyShipConnectorStatus.Connected)
+					return false; // We are the agent who designated the mining task, and are already at the mining site.
+				
+				if (pState.getAbovePt.HasValue)
 				{
-					if (pState.getAbovePt.HasValue)
-					{
-						SetState(MinerState.Docking);
-						return true;
-					}
-					else
-					{
-						if (CurrentRole == Role.Agent)
-						{
-							UnicastToDispatcher("request-new", "");
-							WaitForDispatch("", mc => {
-								mc.SetState(MinerState.Docking);
-							});
-							return true;
-						}
-					}
+					/* We already have a job. */
+					SetState(MinerState.Docked);
+					return true;
 				}
-				return false;
+				
+				if (CurrentRole == Role.Agent)
+				{
+					/* We are docked and unemployed. */
+					UnicastToDispatcher("request-new", "");
+					WaitForDispatch("", mc => {
+						mc.SetState(MinerState.Docked);
+					});
+					return true;
+				}
+				
+				return false; //TODO: Never happens.
 			}
 
 			public void EnterSharedSpace(string sectionName, Action<MinerController> task)
@@ -2259,6 +2263,11 @@ namespace IngameScript
 					c = minerController;
 				}
 
+				/**
+				 * \brief Start mining job right here.
+				 * \details To be called if we are already at the mining site, e.g. the agent
+				 * who designated the mining task.
+				 */
 				public void Start()
 				{
 					if (c.CurrentRole == Role.Agent)
