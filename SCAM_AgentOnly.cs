@@ -2671,7 +2671,7 @@ namespace IngameScript
 							Scheduler.C.After(10000).RepeatWhile(() => c.GetState() == MinerState.Maintenance).RunCmd(() => {
 								if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-full-factor"), 0.99f))
 								{
-									c.SetState(MinerState.Docking);
+									c.SetState(MinerState.Docked);
 								}
 							});
 							return;
