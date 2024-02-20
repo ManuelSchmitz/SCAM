@@ -2274,7 +2274,7 @@ namespace IngameScript
 					{
 						c.UnicastToDispatcher("request-new", "");
 						c.WaitForDispatch("", mc => {
-							c.EnterSharedSpace(LOCK_NAME_GeneralSection, x =>
+							c.EnterSharedSpace(LOCK_NAME_MiningSection, x =>
 							{
 								x.SetState(MinerState.ChangingShaft);
 								x.drills.ForEach(d => d.Enabled = false);
@@ -2342,7 +2342,7 @@ namespace IngameScript
 						c.UnicastToDispatcher("shaft-complete-request-new", c.pState.CurrentShaftId.Value);
 
 						c.WaitForDispatch("", mc => {
-							c.EnterSharedSpace(LOCK_NAME_GeneralSection, x =>
+							c.EnterSharedSpace(LOCK_NAME_MiningSection, x =>
 							{
 								x.SetState(MinerState.ChangingShaft);
 								x.drills.ForEach(d => d.Enabled = false);
