@@ -1237,16 +1237,16 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 							Vector3D dist  = sb.Report.WM.Translation - applicant.Report.WM.Translation; // applicant --> other
 							Vector3D v_rel = sb.Report.v - applicant.Report.v;
 
-							/* If the other agent moving away and has at least 100 m
+							/* If the other agent moving away and has at least 50 m
 							 * distance, then it is not a problem.                   */
 							if (   Vector3D.Dot(sb.Report.v, applicant.Report.v) > 0
-								&& dist.Length() > 100.0                                )
+								&& dist.Length() > 50.0                                )
 								continue;
 
-							/* If the other agent is at least 10s away, then it should
+							/* If the other agent is at least 6s away, then it should
 							   not be a problem. (Assuming applicant can vertically traverse
-							   all flight levels in 10s or less.                           */
-							if (dist.Length() > 1000.0) // Even of other agent is closing in at 100m/s, it would take 10s to reach.
+							   all flight levels in 6s or less.                           */
+							if (dist.Length() > 600.0) // Even of other agent is closing in at 100m/s, it would take 6s to reach.
 								continue;
 
 							/* If the other agent is traveling on a higher flight level, no problem. */
