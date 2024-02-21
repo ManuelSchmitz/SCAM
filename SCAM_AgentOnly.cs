@@ -33,7 +33,6 @@ namespace IngameScript
 		const float G = 9.81f;
 		const string DockHostTag = "docka-min3r";
 		const string ForwardGyroTag = "forward-gyro";
-		bool ClearDocksOnReload = false;
 
 		static float StoppingPowerQuotient = 0.5f;
 		static bool MaxBrakeInProximity = true;
@@ -274,15 +273,6 @@ namespace IngameScript
 								}
 							}
 						},
-						//{
-						//	"add-gui-controller", (parts) => {
-						//		List<IMyShipController> b = new List<IMyShipController>();
-						//		GridTerminalSystem.GetBlocksOfType(b, x => x.IsSameConstructAs(Me) && x.CustomName.Contains(parts[2]));
-						//		guiSeat = b.FirstOrDefault();
-						//		if (guiSeat != null)
-						//			E.DebugLog($"Added {guiSeat.CustomName} as GUI controller");
-						//	}
-						//},
 						{
 							"add-logger", (parts) => {
 								List<IMyTextPanel> b = new List<IMyTextPanel>();
@@ -320,9 +310,6 @@ namespace IngameScript
 						{
 							"force-finish", (parts) => minerController?.FinishAndDockHandler()
 						},
-						//{
-						//	"recall", (parts) => dispatcherService?.Recall()
-						//},
 						{
 							"static-dock", (parts) => minerController?.SetStaticDockOverrideHandler(parts)
 						},
@@ -381,27 +368,6 @@ namespace IngameScript
 				if (newRole == Role.Dispatcher)
 				{
 					throw new Exception("This script is for agents only (command:set-role:agent or command:set-role:lone).");
-					//	dispatcherService = new Dispatcher(IGC, stateWrapper);
-					//	var dockingPoints = new List<IMyShipConnector>();
-					//	GridTerminalSystem.GetBlocksOfType(dockingPoints, c => c.IsSameConstructAs(Me) && c.CustomName.Contains(DockHostTag));
-					//	if (ClearDocksOnReload)
-					//		dockingPoints.ForEach(d => d.CustomData = "");
-					//	dockHost = new DockHost(dockingPoints, stateWrapper.PState, GridTerminalSystem);
-
-					//	if (stateWrapper.PState.ShaftStates.Count > 0)
-					//	{
-					//		var cap = stateWrapper.PState.ShaftStates;
-					//		dispatcherService.CreateTask(stateWrapper.PState.shaftRadius.Value, stateWrapper.PState.corePoint.Value,
-					//				stateWrapper.PState.miningPlaneNormal.Value, stateWrapper.PState.MaxGenerations, stateWrapper.PState.CurrentTaskGroup);
-					//		for (int n = 0; n < dispatcherService.CurrentTask.Shafts.Count; n++)
-					//		{
-					//			dispatcherService.CurrentTask.Shafts[n].State = (ShaftState)cap[n];
-					//		}
-					//		stateWrapper.PState.ShaftStates = dispatcherService.CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
-					//		E.DebugLog($"Restored task from pstate, shaft count: {cap.Count}");
-					//	}
-
-					//	BroadcastToChannel("miners", "dispatcher-change");
 				}
 				else
 				{
@@ -675,7 +641,6 @@ namespace IngameScript
 
 					CurrentShaftId = ParseValue<int?>(values, "CurrentShaftId");
 					MaxGenerations = ParseValue<int>(values, "MaxGenerations");
-					CurrentTaskGroup = ParseValue<string>(values, "CurrentTaskGroup");
 
 					lastAPckCommand = ParseValue<string>(values, "lastAPckCommand");
 
@@ -715,7 +680,6 @@ namespace IngameScript
 					"maxFoundOreDepth=" + maxFoundOreDepth,
 					"CurrentShaftId=" + CurrentShaftId ?? "",
 					"MaxGenerations=" + MaxGenerations,
-					"CurrentTaskGroup=" + CurrentTaskGroup,
 					"ShaftStates=" + string.Join(":", ShaftStates),
 					"lastAPckCommand=" + lastAPckCommand
 				};
@@ -775,18 +739,6 @@ namespace IngameScript
 						IGC.SendUnicastMessage(minerController.pCore.EntityId, "apck.ntv.update", igcDto);
 					}
 				}
-				//else if (m.Tag == "apck.depart.complete")
-				//{
-				//	dockHost?.DepartComplete(m.Source.ToString());
-				//}
-				//else if (m.Tag == "apck.depart.request")
-				//{
-				//	dockHost.RequestDocking(m.Source, (Vector3D)m.Data, true);
-				//}
-				//else if (m.Tag == "apck.docking.request")
-				//{
-				//	dockHost.RequestDocking(m.Source, (Vector3D)m.Data);
-				//}
 				else if (m.Tag == "apck.depart.complete")
 				{
 					if (minerController?.DispatcherId != null)
@@ -841,73 +793,42 @@ namespace IngameScript
 
 			E.Echo($"Version: {Ver}");
 			E.Echo("Min3r role: " + CurrentRole);
-			if (CurrentRole == Role.Dispatcher)
+			
+			minerController.Handle(uniMsgs);
+			E.Echo("Min3r state: " + minerController.GetState());
+			E.Echo("Static dock override: " + (stateWrapper.PState.StaticDockOverride.HasValue ? "ON" : "OFF"));
+			E.Echo("Dispatcher: " + minerController.DispatcherId);
+			E.Echo("Echelon: " + minerController.Echelon);
+			E.Echo("HoldingLock: " + minerController.ObtainedLock);
+			E.Echo("WaitedSection: " + minerController.WaitedSection);
+			E.Echo($"Estimated shaft radius: {Variables.Get<float>("circular-pattern-shaft-radius"):f2}");
+			E.Echo("LifetimeAcceptedTasks: " + stateWrapper.PState.LifetimeAcceptedTasks);
+			E.Echo("LifetimeOreAmount: " + FormatNumberToNeatString(stateWrapper.PState.LifetimeOreAmount));
+			E.Echo("LifetimeOperationTime: " + TimeSpan.FromSeconds(stateWrapper.PState.LifetimeOperationTime).ToString());
+			E.Echo("LifetimeWentToMaintenance: " + stateWrapper.PState.LifetimeWentToMaintenance);
+
+			if (coreUnit != null)
 			{
-			//	E.Echo(dispatcherService.ToString());
-			//	dispatcherService.HandleIGC(uniMsgs);
-			//	if (guiH != null)
-			//	{
-			//		foreach (var s in dispatcherService.subordinates)
-			//			IGC.SendUnicastMessage(s.Id, "report.request", "");
-			//	}
-			//	guiH?.UpdateTaskSummary(dispatcherService);
-			//	dockHost.Handle(IGC, TickCount);
-
-			//	if (rawPanel != null)
-			//	{
-			//		if (guiSeat != null)
-			//		{
-			//			if (guiH == null)
-			//			{
-			//				guiH = new GuiHandler(rawPanel, dispatcherService, stateWrapper);
-			//				dispatcherService.OnTaskUpdate = guiH.UpdateMiningScheme;
-			//				guiH.OnShaftClick = id => dispatcherService.CancelShaft(id);
-
-			//				if (dispatcherService.CurrentTask != null)
-			//					dispatcherService.OnTaskUpdate.Invoke(dispatcherService.CurrentTask); // restore from pstate
-			//			}
-			//			else
-			//				guiH.Handle(rawPanel, guiSeat);
-			//		}
-			//	}
+				if (coreUnit.pc.Pip != Vector3D.Zero)
+					EmitProjection("agent-dest", coreUnit.pc.Pip, "");
+				if (coreUnit.pc.PosShift != Vector3D.Zero)
+					EmitProjection("agent-vel", coreUnit.pc.PosShift, coreUnit.pc.DBG);
 			}
-			else if ((CurrentRole == Role.Agent) || (CurrentRole == Role.Lone))
+
+			if (rawPanel != null)
 			{
-				minerController.Handle(uniMsgs);
-				E.Echo("Min3r state: " + minerController.GetState());
-				E.Echo("Static dock override: " + (stateWrapper.PState.StaticDockOverride.HasValue ? "ON" : "OFF"));
-				E.Echo("Dispatcher: " + minerController.DispatcherId);
-				E.Echo("Echelon: " + minerController.Echelon);
-				E.Echo("HoldingLock: " + minerController.ObtainedLock);
-				E.Echo("WaitedSection: " + minerController.WaitedSection);
-				E.Echo($"Estimated shaft radius: {Variables.Get<float>("circular-pattern-shaft-radius"):f2}");
-				E.Echo("LifetimeAcceptedTasks: " + stateWrapper.PState.LifetimeAcceptedTasks);
-				E.Echo("LifetimeOreAmount: " + FormatNumberToNeatString(stateWrapper.PState.LifetimeOreAmount));
-				E.Echo("LifetimeOperationTime: " + TimeSpan.FromSeconds(stateWrapper.PState.LifetimeOperationTime).ToString());
-				E.Echo("LifetimeWentToMaintenance: " + stateWrapper.PState.LifetimeWentToMaintenance);
-
-				if (coreUnit != null)
-				{
-					if (coreUnit.pc.Pip != Vector3D.Zero)
-						EmitProjection("agent-dest", coreUnit.pc.Pip, "");
-					if (coreUnit.pc.PosShift != Vector3D.Zero)
-						EmitProjection("agent-vel", coreUnit.pc.PosShift, coreUnit.pc.DBG);
-				}
-
-				if (rawPanel != null)
-				{
-					SendFeedback($"Version: {Ver}");
-					SendFeedback($"LifetimeAcceptedTasks: {stateWrapper.PState.LifetimeAcceptedTasks}");
-					SendFeedback($"LifetimeOreAmount: {FormatNumberToNeatString(stateWrapper.PState.LifetimeOreAmount)}");
-					SendFeedback($"LifetimeOperationTime: {TimeSpan.FromSeconds(stateWrapper.PState.LifetimeOperationTime)}");
-					SendFeedback($"LifetimeWentToMaintenance: {stateWrapper.PState.LifetimeWentToMaintenance}");
-					SendFeedback("\n");
-					SendFeedback($"CurrentJobMaxShaftYield: {FormatNumberToNeatString(stateWrapper.PState.CurrentJobMaxShaftYield)}");
-					SendFeedback($"CurrentShaftYield: " + minerController?.CurrentJob?.GetShaftYield());
-					SendFeedback(minerController?.CurrentJob?.ToString());
-					FlushFeedbackBuffer();
-				}
+				SendFeedback($"Version: {Ver}");
+				SendFeedback($"LifetimeAcceptedTasks: {stateWrapper.PState.LifetimeAcceptedTasks}");
+				SendFeedback($"LifetimeOreAmount: {FormatNumberToNeatString(stateWrapper.PState.LifetimeOreAmount)}");
+				SendFeedback($"LifetimeOperationTime: {TimeSpan.FromSeconds(stateWrapper.PState.LifetimeOperationTime)}");
+				SendFeedback($"LifetimeWentToMaintenance: {stateWrapper.PState.LifetimeWentToMaintenance}");
+				SendFeedback("\n");
+				SendFeedback($"CurrentJobMaxShaftYield: {FormatNumberToNeatString(stateWrapper.PState.CurrentJobMaxShaftYield)}");
+				SendFeedback($"CurrentShaftYield: " + minerController?.CurrentJob?.GetShaftYield());
+				SendFeedback(minerController?.CurrentJob?.ToString());
+				FlushFeedbackBuffer();
 			}
+			
 			if (Toggle.C.Check("show-pstate"))
 				E.Echo(stateWrapper.PState.ToString());
 
@@ -1082,8 +1003,6 @@ namespace IngameScript
 		//	public List<Subordinate> subordinates = new List<Subordinate>();
 			Dictionary<string, Queue<long>> sectionsLockRequests = new Dictionary<string, Queue<long>>();
 
-			public Action<MiningTask> OnTaskUpdate;
-
 		//	public class Subordinate
 		//	{
 		//		public long Id;
@@ -1252,25 +1171,6 @@ namespace IngameScript
 				//}
 			}
 
-			//public void BroadcastResume()
-			//{
-			//	var g = stateWrapper.PState.CurrentTaskGroup;
-			//	if (!string.IsNullOrEmpty(g))
-			//	{
-			//		Log($"Broadcasting task resume for mining group '{g}'");
-			//		foreach (var s in subordinates.Where(x => x.Group == g))
-			//		{
-			//			IGC.SendUnicastMessage(s.Id, "miners.resume", stateWrapper.PState.miningPlaneNormal.Value);
-			//		}
-			//	}
-			//}
-
-			//public void BroadCastHalt()
-			//{
-			//	Log($"Broadcasting global Halt & Clear state");
-			//	IGC.SendBroadcastMessage("miners.command", "command:halt");
-			//}
-
 			//public void BroadcastStart(string group)
 			//{
 			//	Log($"Preparing start for mining group '{group}'");
@@ -1293,21 +1193,6 @@ namespace IngameScript
 			//		}
 			//	});
 			//}
-
-			//public void Recall()
-			//{
-			//	IGC.SendBroadcastMessage("miners.command", "command:force-finish");
-			//	Log($"Broadcasting Recall");
-			//}
-
-			//public void PurgeLocks()
-			//{
-			//	IGC.SendBroadcastMessage("miners.command", "command:dispatch");
-			//	sectionsLockRequests.Clear();
-			//	subordinates.ForEach(x => x.ObtainedLock = "");
-			//	Log($"WARNING! Purging Locks, green light for everybody...");
-			//}
-
 
 			public MiningTask CurrentTask;
 			public class MiningTask
@@ -1399,7 +1284,6 @@ namespace IngameScript
 			public void CreateTask(float r, Vector3D corePoint, Vector3D miningPlaneNormal, int maxGenerations, string groupConstraint)
 			{
 				CurrentTask = new MiningTask(maxGenerations, r, corePoint, miningPlaneNormal, groupConstraint);
-				OnTaskUpdate?.Invoke(CurrentTask);
 
 				stateWrapper.ClearPersistentState();
 				stateWrapper.PState.corePoint = corePoint;
@@ -1419,26 +1303,16 @@ namespace IngameScript
 				Log($"Task created");
 			}
 
-			public void CancelShaft(int id)
-			{
-				var s = ShaftState.Cancelled;
-				CurrentTask?.SetShaftState(id, s);
-				stateWrapper.PState.ShaftStates[id] = (byte)s;
-				OnTaskUpdate?.Invoke(CurrentTask);
-			}
-
 			public void CompleteShaft(int id)
 			{
 				var s = ShaftState.Complete;
 				CurrentTask?.SetShaftState(id, ShaftState.Complete);
 				stateWrapper.PState.ShaftStates[id] = (byte)s;
-				OnTaskUpdate?.Invoke(CurrentTask);
 			}
 
 			public void BanDirectionByPoint(int id)
 			{
 				CurrentTask?.BanDirection(id);
-				OnTaskUpdate?.Invoke(CurrentTask);
 			}
 
 			public bool AssignNewShaft(ref Vector3D? entry, ref Vector3D? getAbove, ref int id)
@@ -1446,7 +1320,6 @@ namespace IngameScript
 				Log($"CurrentTask.RequestShaft");
 				bool res = CurrentTask.RequestShaft(ref entry, ref getAbove, ref id);
 				stateWrapper.PState.ShaftStates[id] = (byte)ShaftState.InProgress;
-				OnTaskUpdate?.Invoke(CurrentTask);
 				return res;
 			}
 
@@ -3174,7 +3047,6 @@ namespace IngameScript
 		}
 
 		IMyTextPanel rawPanel;
-		//IMyShipController guiSeat;
 
 		public void FlushFeedbackBuffer()
 		{
@@ -3242,11 +3114,6 @@ namespace IngameScript
 				{
 					linesToLog.Add(s);
 				}
-			}
-			public static void ClearLog()
-			{
-				l?.WriteText("");
-				linesToLog.Clear();
 			}
 			public static void AddLogger(IMyTextSurface s)
 			{
@@ -4290,12 +4157,10 @@ namespace IngameScript
 				NamedTeleData.Add(key, tt);
 			else
 				NamedTeleData[key] = tt;
-			metrics.ParseVectorsCount++;
 		}
 		void UpdateNTV(string key, MyTuple<MyTuple<string, long, long, byte, byte>, Vector3D, Vector3D, MatrixD, BoundingBoxD> dto)
 		{
 			NamedTeleData[key].ParseIgc(dto, TickCount);
-			metrics.ParseVectorsCount++;
 		}
 		void CheckExpireNTV()
 		{
@@ -4353,7 +4218,6 @@ namespace IngameScript
 				if ((Velocity.HasValue) && (Velocity.Value.Length() > double.Epsilon) && (tick - TickStamp) > 0)
 				{
 					Position += Velocity * (tick - TickStamp) * clock / 60;
-					metrics.TVextrapolationsCount++;
 				}
 			}
 			/////////
@@ -4389,7 +4253,6 @@ namespace IngameScript
 					OrientationUnit = igcDto.Item4;
 				if (HasFlag(tm, TeleMetaFlags.HasBB))
 					BoundingBox = igcDto.Item5;
-				metrics.ParseVectorsCount++;
 			}
 
 			public static TargetTelemetry FromIgc(MyTuple<MyTuple<string, long, long, byte, byte>, Vector3D, Vector3D, MatrixD, BoundingBoxD> igcDto,
@@ -4423,7 +4286,6 @@ namespace IngameScript
 				var tmp = OnInvalidated;
 				if (tmp != null)
 					OnInvalidated();
-				metrics.TVInvalidationsCount++;
 			}
 		}
 
@@ -4863,558 +4725,6 @@ namespace IngameScript
 			}
 		}
 
-		//DockHost dockHost;
-		//public class DockHost
-		//{
-		//	List<IMyShipConnector> ports;
-		//	Dictionary<IMyShipConnector, Vector3D> pPositions = new Dictionary<IMyShipConnector, Vector3D>();
-
-		//	public DockHost(List<IMyShipConnector> docks, PersistentState ps, IMyGridTerminalSystem gts)
-		//	{
-		//		ports = docks;
-		//		ports.ForEach(x => pPositions.Add(x, x.GetPosition()));
-				/*
-				foreach (var n in ps.NavTreeNodes)
-				{
-					nodes.Add(new NavMeshNode() { tags = n.Item2.ToCharArray(), loc = n.Item1 });
-				}
-				if (nodes.Count == 0)
-				{
-					var subs = new List<IMyTerminalBlock>();
-					gts.GetBlocks(subs);
-					subs = subs.Where(b => b.CustomName.Contains("nmesh")).ToList();
-					Build(subs);
-					ps.NavTreeNodes = new HashSet<MyTuple<Vector3I, string>>(nodes.Select(x => new MyTuple<Vector3I, string>(x.loc, string.Concat(x.tags))));
-				}
-				if (nodes.Count > 0)
-				{
-					// requires single 1st gen
-					root = nodes.First(x => string.Concat(x.tags) == "a");
-					NodeRecu(root);
-				}
-				foreach (var nd in nodes)
-				{
-					E.DebugLog($"{string.Concat(nd.tags)}, Pa {nd.Pa != null} Ch {nd.Ch.Count}");
-				}*/
-		//	}
-		//	public void Build(List<IMyTerminalBlock> b)
-		//	{
-		//		foreach (var x in b)
-		//		{
-		//			var nm = x.CustomName.Split('/')[1];
-		//			var tags = nm.ToCharArray();
-
-		//			var node = new NavMeshNode();
-		//			node.tags = tags;
-		//			node.loc = x.Position;
-		//			nodes.Add(node);
-		//		}
-		//	}
-		//	void NodeRecu(NavMeshNode n)
-		//	{
-		//		var c = string.Concat(n.tags);
-		//		E.DebugLog("checkin " + c);
-		//		foreach (var ch in nodes.Where(x => x.Pa == null && x.Ch.Count == 0 && (x != n) && x.tags.Any(t => c.Contains(t))))
-		//		{
-		//			n.Ch.Add(ch);
-		//			ch.Pa = n;
-		//			NodeRecu(ch);
-		//		}
-		//	}
-
-		//	public void Handle(IMyIntergridCommunicationSystem i, int t)
-		//	{
-		//		E.Echo("Navmesh: " + nodes.Count);
-		//		var z = new List<MyTuple<Vector3D, Vector3D, Vector4>>();
-		//		foreach (var n in nodes.Where(x => x.Pa != null))
-		//		{
-		//			var gr = ports.First().CubeGrid;
-		//			z.Add(new MyTuple<Vector3D, Vector3D, Vector4>(gr.GridIntegerToWorld(n.loc), gr.GridIntegerToWorld(n.Pa.loc), Color.SeaGreen.ToVector4()));
-		//		}
-
-		//		i.SendUnicastMessage(DbgIgc, "draw-lines", z.ToImmutableArray());
-
-		//		foreach (var s in dockRequests)
-		//			E.Echo(s + " awaits docking");
-		//		foreach (var s in depRequests)
-		//			E.Echo(s + " awaits dep");
-
-		//		if (dockRequests.Any())
-		//		{
-		//			var fd = ports.FirstOrDefault(d =>
-		//				(string.IsNullOrEmpty(d.CustomData) || (d.CustomData == dockRequests.Peek().ToString())) && (d.Status == MyShipConnectorStatus.Unconnected));
-		//			if (fd != null)
-		//			{
-		//				var id = dockRequests.Dequeue();
-		//				fd.CustomData = id.ToString();
-		//				var inv = MatrixD.Transpose(fd.WorldMatrix);
-		//				var a = GetPath(dests[id]).Reverse().Select(x => Vector3D.TransformNormal(x - fd.GetPosition(), inv)).ToImmutableArray();
-		//				E.DebugLog($"Sent {a.Length}-node approach path");
-		//				i.SendUnicastMessage(id, "apck.docking.approach", a);
-		//			}
-		//		}
-		//		if (depRequests.Any())
-		//		{
-		//			foreach (var s in depRequests)
-		//			{
-		//				E.Echo(s + " awaits departure");
-		//			}
-		//			var r = depRequests.Peek();
-		//			var bd = ports.FirstOrDefault(d => d.CustomData == r.ToString());
-		//			if (bd != null)
-		//			{
-		//				depRequests.Dequeue();
-		//				var inv = MatrixD.Transpose(bd.WorldMatrix);
-		//				var a = GetPath(dests[r]).Select(x => Vector3D.TransformNormal(x - bd.GetPosition(), inv)).ToImmutableArray();
-		//				E.DebugLog($"Sent {a.Length}-node departure path");
-		//				i.SendUnicastMessage(r, "apck.depart.approach", a);
-		//			}
-		//		}
-		//		foreach (var d in ports.Where(d => !string.IsNullOrEmpty(d.CustomData)))
-		//		{
-		//			long id;
-		//			if (long.TryParse(d.CustomData, out id))
-		//			{
-		//				E.Echo($"Channeling DV to {id}");
-		//				var x = new TargetTelemetry(1, "docking");
-		//				var m = d.WorldMatrix;
-		//				x.SetPosition(m.Translation + m.Forward * (d.CubeGrid.GridSizeEnum == MyCubeSize.Large ? 1.25 : 0.5), t);
-
-		//				if (pPositions[d] != Vector3D.Zero)
-		//					x.Velocity = (d.GetPosition() - pPositions[d]) / Dt;
-		//				pPositions[d] = d.GetPosition();
-
-		//				x.OrientationUnit = m;
-		//				var k = x.GetIgcDto();
-		//				i.SendUnicastMessage(id, "apck.ntv.update", k);
-		//			}
-		//		}
-
-		//	}
-
-		//	public void DepartComplete(string id)
-		//	{
-		//		ports.First(x => x.CustomData == id).CustomData = "";
-		//	}
-
-		//	public void RequestDocking(long id, Vector3D d, bool depart = false)
-		//	{
-		//		if (depart)
-		//		{
-		//			if (!depRequests.Contains(id))
-		//				depRequests.Enqueue(id);
-		//		}
-		//		else
-		//		{
-		//			if (!dockRequests.Contains(id))
-		//				dockRequests.Enqueue(id);
-		//		}
-		//		dests[id] = d;
-		//	}
-
-		//	Dictionary<long, Vector3D> dests = new Dictionary<long, Vector3D>();
-		//	Queue<long> dockRequests = new Queue<long>();
-		//	Queue<long> depRequests = new Queue<long>();
-
-		//	public IEnumerable<Vector3D> GetPath(Vector3D o)
-		//	{
-		//		var gr = ports.First().CubeGrid;
-		//		var n = nodes.Where(x => x.Ch.Count == 0).OrderBy(x => (gr.GridIntegerToWorld(x.loc) - o).LengthSquared()).FirstOrDefault();
-		//		if (n != null)
-		//		{
-		//			var c = n;
-		//			do
-		//			{
-		//				yield return gr.GridIntegerToWorld(c.loc);
-		//				c = c.Pa;
-		//			} while (c != null);
-		//		}
-		//	}
-
-		//	public Vector3D GetFirstNormal()
-		//	{
-		//		return ports.First().WorldMatrix.Forward;
-		//	}
-
-		//	public List<IMyShipConnector> GetPorts()
-		//	{
-		//		return ports;
-		//	}
-
-			//NavMeshNode root;
-		//	public List<NavMeshNode> nodes = new List<NavMeshNode>();
-		//	public class NavMeshNode
-		//	{
-		//		public NavMeshNode Pa;
-		//		public List<NavMeshNode> Ch = new List<NavMeshNode>();
-		//		public char[] tags;
-		//		public Vector3I loc;
-		//	}
-		//}
-
-		//GuiHandler guiH;
-		//public class GuiHandler
-		//{
-		//	Vector2 mOffset;
-		//	List<ActiveElement> controls = new List<ActiveElement>();
-		//	Dispatcher _dispatcher;
-		//	StateWrapper _stateWrapper;
-		//	Vector2 viewPortSize;
-
-		//	public GuiHandler(IMyTextSurface p, Dispatcher dispatcher, StateWrapper stateWrapper)
-		//	{
-		//		_dispatcher = dispatcher;
-		//		_stateWrapper = stateWrapper;
-		//		viewPortSize = p.TextureSize;
-
-		//		float interval = 0.18f;
-		//		Vector2 btnSize = new Vector2(85, 40);
-		//		float b_X = -0.967f;
-
-		//		var bRecall = CreateButton(p, btnSize, new Vector2(b_X + interval, 0.85f), "Recall", Color.Black);
-		//		bRecall.OnClick = xy => {
-		//			dispatcher.Recall();
-		//		};
-		//		AddTipToAe(bRecall, "Finish work (broadcast command:force-finish)");
-		//		controls.Add(bRecall);
-
-		//		var bResume = CreateButton(p, btnSize, new Vector2(b_X + interval * 2, 0.85f), "Resume", Color.Black);
-		//		bResume.OnClick = xy => {
-		//			dispatcher.BroadcastResume();
-		//		};
-		//		AddTipToAe(bResume, "Resume work (broadcast 'miners.resume' message)");
-		//		controls.Add(bResume);
-
-		//		var bClearState = CreateButton(p, btnSize, new Vector2(b_X + interval * 3, 0.85f), "Clear state", Color.Black);
-		//		bClearState.OnClick = xy => {
-		//			stateWrapper?.ClearPersistentState();
-		//		};
-		//		AddTipToAe(bClearState, "Clear Dispatcher state");
-		//		controls.Add(bClearState);
-
-		//		var bClearLog = CreateButton(p, btnSize, new Vector2(b_X + interval * 4, 0.85f), "Clear log", Color.Black);
-		//		bClearLog.OnClick = xy => {
-		//			E.ClearLog();
-		//		};
-		//		controls.Add(bClearLog);
-
-		//		var bPurgeLocks = CreateButton(p, btnSize, new Vector2(b_X + interval * 5, 0.85f), "Purge locks", Color.Black);
-		//		bPurgeLocks.OnClick = xy => {
-		//			dispatcher.PurgeLocks();
-		//		};
-		//		AddTipToAe(bPurgeLocks, "Clear lock ownership. Last resort in case of deadlock");
-		//		controls.Add(bPurgeLocks);
-
-		//		var bHalt = CreateButton(p, btnSize, new Vector2(b_X + interval * 6, 0.85f), "EMRG HALT", Color.Black);
-		//		bHalt.OnClick = xy => {
-		//			dispatcher.BroadCastHalt();
-		//		};
-		//		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
-		//		controls.Add(bHalt);
-
-		//		shaftTip = new MySprite(SpriteType.TEXT, "", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y * 0.9f),
-		//			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
-		//		buttonTip = new MySprite(SpriteType.TEXT, "", bRecall.Min - Vector2.UnitY * 17,
-		//			null, Color.White, "Debug", TextAlignment.LEFT, 0.5f);
-		//		taskSummary = new MySprite(SpriteType.TEXT, "No active task", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y / 20f),
-		//			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
-		//	}
-
-		//	ActiveElement CreateButton(IMyTextSurface p, Vector2 btnSize, Vector2 posN, string label, Color? hoverColor = null)
-		//	{
-		//		var textureSize = p.TextureSize;
-		//		var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0),
-		//						btnSize, Color.CornflowerBlue);
-		//		var lblHeight = Vector2.Zero;
-		//		// norm relative to parent widget...
-		//		if (btnSize.Y > 1)
-		//			lblHeight.Y = -p.MeasureStringInPixels(new StringBuilder(label), "Debug", 0.5f).Y / btnSize.Y;
-
-		//		var lbl = new MySprite(SpriteType.TEXT, label, lblHeight, Vector2.One, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
-		//		var sprites = new List<MySprite>() { btnSpr, lbl };
-		//		var btn = new ActiveElement(sprites, btnSize, posN, textureSize);
-
-		//		if (hoverColor != null)
-		//		{
-		//			btn.OnMouseIn = () =>
-		//			{
-		//				btn.TransformSprites(spr => { var s1 = spr; s1.Color = hoverColor; s1.Size = btnSize * 1.05f; return spr.Type == SpriteType.TEXTURE ? s1 : spr; });
-		//			};
-		//			btn.OnMouseOut = () =>
-		//			{
-		//				btn.TransformSprites(spr => spr.Type == SpriteType.TEXTURE ? btnSpr : spr);
-		//			};
-		//		}
-		//		return btn;
-		//	}
-
-		//	void AddTipToAe(ActiveElement ae, string tip)
-		//	{
-		//		ae.OnMouseIn += () => buttonTip.Data = tip;
-		//		ae.OnMouseOut += () => buttonTip.Data = "";
-		//	}
-
-		//	bool eDown;
-		//	public void Handle(IMyTextPanel panel, IMyShipController seat)
-		//	{
-		//		bool needsUpdate = true;
-		//		Vector2 r = Vector2.Zero;
-		//		bool clickE = false;
-		//		if (seat.IsUnderControl && Toggle.C.Check("cc"))
-		//		{
-		//			r = seat.RotationIndicator;
-		//			var roll = seat.RollIndicator;
-
-		//			var eDownUpdate = (roll > 0);
-		//			if (!eDownUpdate && eDown)
-		//				clickE = true;
-		//			eDown = eDownUpdate;
-		//		}
-		//		if (r.LengthSquared() > 0 || clickE)
-		//		{
-		//			needsUpdate = true;
-		//			mOffset.X += r.Y;
-		//			mOffset.Y += r.X;
-		//			mOffset = Vector2.Clamp(mOffset, -panel.TextureSize / 2, panel.TextureSize / 2);
-		//		}
-		//		var cursP = mOffset + panel.TextureSize / 2;
-
-		//		if (needsUpdate)
-		//		{
-		//			using (var frame = panel.DrawFrame())
-		//			{
-		//				DrawReportRepeater(frame);
-
-		//				foreach (var ae in controls.Where(x => x.Visible).Union(shaftControls))
-		//				{
-		//					if (ae.CheckHover(cursP))
-		//					{
-		//						if (clickE)
-		//							ae.OnClick?.Invoke(cursP);
-		//					}
-		//				}
-
-		//				foreach (var ae in controls.Where(x => x.Visible).Union(shaftControls))
-		//				{
-		//					frame.AddRange(ae.GetSprites());
-		//				}
-
-		//				frame.Add(shaftTip);
-		//				frame.Add(buttonTip);
-		//				frame.Add(taskSummary);
-
-		//				DrawAgents(frame);
-
-		//				var cur = new MySprite(SpriteType.TEXTURE, "Triangle", cursP, new Vector2(7f, 10f), Color.White);
-		//				cur.RotationOrScale = 6f;
-		//				frame.Add(cur);
-		//			}
-
-		//			if (r.LengthSquared() > 0)
-		//			{
-		//				panel.ContentType = ContentType.TEXT_AND_IMAGE;
-		//				panel.ContentType = ContentType.SCRIPT;
-		//			}
-		//		}
-		//	}
-
-		//	void DrawAgents(MySpriteDrawFrame frame)
-		//	{
-		//		var z = new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y / 2f);
-		//		foreach (var ag in _dispatcher.subordinates)
-		//		{
-		//			var pos = ag.Report.WM.Translation;
-		//			var task = _dispatcher.CurrentTask;
-		//			if (task != null)
-		//			{
-		//				var posLoc = Vector3D.Transform(pos, worldToScheme);
-		//				float scale = 3.5f;
-		//				var posViewport = z + new Vector2((float)posLoc.Y, (float)posLoc.X) * scale;
-		//				var btnSize = Vector2.One * scale * task.R * 2;
-
-		//				var btnSpr = new MySprite(SpriteType.TEXTURE, "AH_BoreSight", posViewport + new Vector2(0, 5), btnSize * 0.8f, ag.Report.ColorTag);
-		//				btnSpr.RotationOrScale = (float)Math.PI / 2f;
-		//				var btnSprBack = new MySprite(SpriteType.TEXTURE, "Textures\\FactionLogo\\Miners\\MinerIcon_3.dds", posViewport, btnSize * 1.2f, Color.Black);
-
-		//				frame.Add(btnSprBack);
-		//				frame.Add(btnSpr);
-		//			}
-		//		}
-		//	}
-
-		//	void DrawReportRepeater(MySpriteDrawFrame frame)
-		//	{
-		//		bool madeHeader = false;
-		//		int offY = 0, startY = 30;
-		//		foreach (var su in _dispatcher.subordinates)
-		//		{
-		//			if (!su.Report.KeyValuePairs.IsDefault)
-		//			{
-		//				int offX = 0, startX = 100, interval = 75;
-		//				if (!madeHeader)
-		//				{
-		//					foreach (var kvp in su.Report.KeyValuePairs)
-		//					{
-		//						frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(interval - 5, 40), Color.Black));
-		//						frame.Add(new MySprite(SpriteType.TEXT, kvp.Item1, new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
-		//						offX += interval;
-		//					}
-		//					madeHeader = true;
-		//					offY += 40;
-		//				}
-
-		//				offX = 0;
-		//				foreach (var kvp in su.Report.KeyValuePairs)
-		//				{
-		//					frame.Add(new MySprite(SpriteType.TEXT, kvp.Item2, new Vector2(startX + offX, startY + offY), null,
-		//						su.Report.ColorTag, "Debug", TextAlignment.CENTER, 0.5f));
-		//					offX += interval;
-		//				}
-		//				offY += 40;
-		//			}
-		//		}
-		//	}
-
-		//	List<ActiveElement> shaftControls = new List<ActiveElement>();
-		//	public Action<int> OnShaftClick;
-		//	MySprite shaftTip;
-		//	MySprite buttonTip;
-		//	MySprite taskSummary;
-
-		//	MatrixD worldToScheme;
-
-		//	internal void UpdateMiningScheme(Dispatcher.MiningTask obj)
-		//	{
-		//		worldToScheme = MatrixD.Invert(MatrixD.CreateWorld(obj.corePoint, obj.miningPlaneNormal, obj.planeXunit));
-
-		//		shaftControls = new List<ActiveElement>();
-
-		//		Vector2 bPos = new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y / 2f);
-		//		float scale = 3.5f;
-		//		Vector2 btnSize = Vector2.One * scale * obj.R * 1.6f;
-
-		//		foreach (var t in obj.Shafts)
-		//		{
-		//			var pos = bPos + t.Point * scale;
-
-		//			Color mainCol = Color.White;
-		//			if (t.State == ShaftState.Planned)
-		//				mainCol = Color.CornflowerBlue;
-		//			else if (t.State == ShaftState.Complete)
-		//				mainCol = Color.Darken(Color.CornflowerBlue, 0.4f);
-		//			else if (t.State == ShaftState.InProgress)
-		//				mainCol = Color.Lighten(Color.CornflowerBlue, 0.2f);
-		//			else if (t.State == ShaftState.Cancelled)
-		//				mainCol = Color.DarkSlateGray;
-
-		//			var btnSpr = new MySprite(SpriteType.TEXTURE, "Circle", new Vector2(0, 0), btnSize, mainCol);
-		//			var sprites = new List<MySprite>() { btnSpr };
-		//			var btn = new ActiveElement(sprites, btnSize, pos, viewPortSize);
-
-		//			var hoverColor = Color.Red;
-
-		//			btn.OnHover = p => shaftTip.Data = $"id: {t.Id}, {t.State}";
-
-		//			btn.OnMouseIn = () =>
-		//			{
-		//				btn.TransformSprites(spr => { var s1 = spr; s1.Color = hoverColor; s1.Size = btnSize * 1.05f; return spr.Type == SpriteType.TEXTURE ? s1 : spr; });
-		//			};
-		//			btn.OnMouseOut = () =>
-		//			{
-		//				btn.TransformSprites(spr => spr.Type == SpriteType.TEXTURE ? btnSpr : spr);
-		//				shaftTip.Data = "Hover over shaft for more info,\n tap E to cancel it";
-		//			};
-
-		//			btn.OnClick = x => OnShaftClick?.Invoke(t.Id);
-
-		//			shaftControls.Add(btn);
-		//		}
-		//	}
-
-		//	public void UpdateTaskSummary(Dispatcher d)
-		//	{
-		//		if (d?.CurrentTask != null)
-		//			taskSummary.Data = $"Kind: SpiralLayout\nShafts: {d.CurrentTask.Shafts.Count}\nRadius: {d.CurrentTask.R:f2}\n" +
-		//					$"Group: {d.CurrentTask.GroupConstraint}";
-		//	}
-
-		//	class ActiveElement
-		//	{
-		//		public Vector2 Min, Max, Center;
-		//		public List<MySprite> Sprites;
-		//		public Vector2 SizePx;
-		//		public Action OnMouseIn { get; set; }
-		//		public Action OnMouseOut { get; set; }
-		//		public Action<Vector2> OnHover { get; set; }
-		//		public Action<Vector2> OnClick { get; set; }
-		//		public bool Hover { get; set; }
-		//		public bool Visible = true;
-		//		Vector2 ContainerSize;
-
-		//		public ActiveElement(List<MySprite> sprites, Vector2 sizeN, Vector2 posN, Vector2 deviceSize)
-		//		{
-		//			Sprites = sprites;
-		//			if (Math.Abs(posN.X) > 1)
-		//				posN.X = posN.X / (deviceSize.X * 0.5f) - 1;
-		//			if (Math.Abs(posN.Y) > 1)
-		//				posN.Y = 1 - posN.Y / (deviceSize.Y * 0.5f);
-		//			ContainerSize = deviceSize;
-		//			SizePx = new Vector2(sizeN.X > 1 ? sizeN.X : sizeN.X * ContainerSize.X, sizeN.Y > 1 ? sizeN.Y : sizeN.Y * ContainerSize.Y);
-		//			Center = deviceSize / 2f * (Vector2.One + posN);
-		//			Min = Center - SizePx / 2f;
-		//			Max = Center + SizePx / 2f;
-		//		}
-
-		//		public bool CheckHover(Vector2 cursorPosition)
-		//		{
-		//			bool res = (cursorPosition.X > Min.X) && (cursorPosition.X < Max.X)
-		//						&& (cursorPosition.Y > Min.Y) && (cursorPosition.Y < Max.Y);
-		//			if (res)
-		//			{
-		//				if (!Hover)
-		//				{
-		//					OnMouseIn?.Invoke();
-		//				}
-		//				Hover = true;
-		//				OnHover?.Invoke(cursorPosition);
-		//			}
-		//			else
-		//			{
-		//				if (Hover)
-		//				{
-		//					OnMouseOut?.Invoke();
-		//				}
-		//				Hover = false;
-		//			}
-
-		//			return res;
-		//		}
-
-		//		public void TransformSprites(Func<MySprite, MySprite> f)
-		//		{
-		//			for (int n = 0; n < Sprites.Count; n++)
-		//			{
-		//				Sprites[n] = f(Sprites[n]);
-		//			}
-		//		}
-
-		//		public IEnumerable<MySprite> GetSprites()
-		//		{
-		//			foreach (var x in Sprites)
-		//			{
-		//				var rect = SizePx;
-
-		//				var x1 = x;
-		//				x1.Position = Center + SizePx / 2f * x.Position;
-		//				var sz = x.Size.Value;
-		//				x1.Size = new Vector2(sz.X > 1 ? sz.X : sz.X * rect.X, sz.Y > 1 ? sz.Y : sz.Y * rect.Y);
-
-		//				yield return x1;
-		//			}
-		//		}
-		//	}
-		//}
-
 		/**
 		 * \brief Transponder message, to be broadcasted by an agent.
 		 * \details This message informs ATC about the status of the agent, used for
@@ -5466,15 +4776,6 @@ namespace IngameScript
 		{
 			IGC.SendUnicastMessage(addr, "hud.apck.proj", prjs.ToImmutableArray());
 			prjs.Clear();
-		}
-		static Metrics metrics;
-		struct Metrics
-		{
-			public int ParseVectorsCount;
-			public int TVextrapolationsCount;
-			//public int RcvMsg;
-			public int TVInvalidationsCount;
-			//public int SentMsgCount;
 		}
 
 	}
