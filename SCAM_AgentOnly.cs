@@ -360,62 +360,55 @@ void CreateRole(string role)
 		CurrentRole = newRole;
 		E.DebugLog("Assigned role: " + newRole);
 
-		if (newRole == Role.Dispatcher)
+		if (newRole != Role.Agent)
+			throw new Exception("This script is for agents only (command:set-role:agent).");
+		
+		var b = new List<IMyProgrammableBlock>();
+		GridTerminalSystem.GetBlocksOfType(b, pb => pb.CustomName.Contains("core") && pb.IsSameConstructAs(Me) && pb.Enabled);
+		pillockCore = b.FirstOrDefault();
+		minerController = new MinerController(newRole, GridTerminalSystem, IGC, stateWrapper, GetNTV);
+		if (pillockCore != null)
 		{
-			throw new Exception("This script is for agents only (command:set-role:agent or command:set-role:lone).");
+			minerController.SetControlledUnit(pillockCore);
 		}
 		else
 		{
-			var b = new List<IMyProgrammableBlock>();
-			GridTerminalSystem.GetBlocksOfType(b, pb => pb.CustomName.Contains("core") && pb.IsSameConstructAs(Me) && pb.Enabled);
-			pillockCore = b.FirstOrDefault();
-			minerController = new MinerController(newRole, GridTerminalSystem, IGC, stateWrapper, GetNTV);
-			if (pillockCore != null)
-			{
-				minerController.SetControlledUnit(pillockCore);
-			}
-			else
-			{
-				coreUnit = new APckUnit(stateWrapper.PState, GridTerminalSystem, IGC, GetNTV);
-				minerController.SetControlledUnit(coreUnit);
-				minerController.ApckRegistry = new CommandRegistry(
-					new Dictionary<string, Action<string[]>>
+			coreUnit = new APckUnit(stateWrapper.PState, GridTerminalSystem, IGC, GetNTV);
+			minerController.SetControlledUnit(coreUnit);
+			minerController.ApckRegistry = new CommandRegistry(
+				new Dictionary<string, Action<string[]>>
+					{
 						{
-							{
-								"create-wp", (parts) => CreateWP(parts)
-							},
-							{
-								"pillock-mode", (parts) => coreUnit?.TrySetState(parts[2])
-							},
-							{
-								"request-docking", (parts) => {
-									E.DebugLog("Embedded lone mode is not supported");
-								}
-							},
-							{
-								"request-depart", (parts) => {
-									E.DebugLog("Embedded lone mode is not supported");
-								}
+							"create-wp", (parts) => CreateWP(parts)
+						},
+						{
+							"pillock-mode", (parts) => coreUnit?.TrySetState(parts[2])
+						},
+						{
+							"request-docking", (parts) => {
+								E.DebugLog("Embedded lone mode is not supported");
+							}
+						},
+						{
+							"request-depart", (parts) => {
+								E.DebugLog("Embedded lone mode is not supported");
 							}
 						}
-					);
-			}
+					}
+				);
+		}
 
-			if (!string.IsNullOrEmpty(stateWrapper.PState.lastAPckCommand))
-			{
-				Scheduler.C.After(5000).RunCmd(() => minerController.CommandAutoPillock(stateWrapper.PState.lastAPckCommand));
-			}
+		if (!string.IsNullOrEmpty(stateWrapper.PState.lastAPckCommand))
+		{
+			Scheduler.C.After(5000).RunCmd(() => minerController.CommandAutoPillock(stateWrapper.PState.lastAPckCommand));
+		}
 
-			if (newRole == Role.Agent)
-			{
-				Scheduler.C.RepeatWhile(() => !minerController.DispatcherId.HasValue).After(1000)
-					.RunCmd(() => BroadcastToChannel("miners.handshake", Variables.Get<string>("group-constraint")));
-			}
+		Scheduler.C.RepeatWhile(() => !minerController.DispatcherId.HasValue).After(1000)
+			.RunCmd(() => BroadcastToChannel("miners.handshake", Variables.Get<string>("group-constraint")));
 
-			if (stateWrapper.PState.miningEntryPoint.HasValue)
-			{
-				minerController.ResumeJobOnWorldLoad();
-			}
+		if (stateWrapper.PState.miningEntryPoint.HasValue)
+		{
+			minerController.ResumeJobOnWorldLoad();
 		}
 	}
 }
@@ -1073,14 +1066,11 @@ public class MinerController
 		else
 			pState.miningEntryPoint = fwReferenceBlock.WorldMatrix.Translation;
 
-		if (CurrentRole == Role.Agent)
+		if (DispatcherId.HasValue)
 		{
-			if (DispatcherId.HasValue)
-			{
-				IGC.SendUnicastMessage(DispatcherId.Value, "create-task",
-					new MyTuple<float, Vector3D, Vector3D>(Variables.Get<float>("circular-pattern-shaft-radius"), pState.miningEntryPoint.Value,
-					pState.miningPlaneNormal.Value));
-			}
+			IGC.SendUnicastMessage(DispatcherId.Value, "create-task",
+				new MyTuple<float, Vector3D, Vector3D>(Variables.Get<float>("circular-pattern-shaft-radius"), pState.miningEntryPoint.Value,
+				pState.miningPlaneNormal.Value));
 		}
 	}
 
@@ -1091,7 +1081,7 @@ public class MinerController
 
 		if ((CurrentJob != null) && (!WaitingForLock))
 		{
-			if ((CurrentRole != Role.Agent) || (DispatcherId.HasValue))
+			if (DispatcherId.HasValue)
 				CurrentJob.HandleState(pState.MinerState);
 		}
 
@@ -1104,7 +1094,7 @@ public class MinerController
 			if (!msg.Tag.Contains("set-vectors"))
 				LogMsg(msg, false);
 
-			if ((msg.Tag == "miners.assign-shaft") && (msg.Data is MyTuple<int, Vector3D, Vector3D>) && (CurrentRole == Role.Agent))
+			if ((msg.Tag == "miners.assign-shaft") && (msg.Data is MyTuple<int, Vector3D, Vector3D>))
 			{
 				/* We have been assigned a new job (=shaft) to work on. */
 				var data = (MyTuple<int, Vector3D, Vector3D>)msg.Data;
@@ -1206,20 +1196,14 @@ public class MinerController
 				if (msg.Data.ToString().Contains("common-airspace-lock-released"))
 				{
 					var sectionName = msg.Data.ToString().Split(':')[1];
-					if (CurrentRole == Role.Agent)
-					{
-						Log("(Agent) received lock-released notification " + sectionName + " from " + msg.Source);
-					}
+					Log("(Agent) received lock-released notification " + sectionName + " from " + msg.Source);
 				}
 
-				if (CurrentRole == Role.Agent)
+				if (msg.Data.ToString() == "dispatcher-change")
 				{
-					if (msg.Data.ToString() == "dispatcher-change")
-					{
-						DispatcherId = null;
-						Scheduler.C.RepeatWhile(() => !DispatcherId.HasValue).After(1000).RunCmd(() =>
-								BroadcastToChannel("miners.handshake", Variables.Get<string>("group-constraint")));
-					}
+					DispatcherId = null;
+					Scheduler.C.RepeatWhile(() => !DispatcherId.HasValue).After(1000).RunCmd(() =>
+							BroadcastToChannel("miners.handshake", Variables.Get<string>("group-constraint")));
 				}
 			}
 		}
@@ -1487,30 +1471,18 @@ public class MinerController
 			return true;
 		}
 				
-		if (CurrentRole == Role.Agent)
-		{
-			/* We are docked and unemployed. */
-			UnicastToDispatcher("request-new", "");
-			WaitForDispatch("", mc => {
-				mc.SetState(MinerState.Docked);
-			});
-			return true;
-		}
-				
-		return false; //TODO: Never happens.
+		/* We are docked and unemployed. */
+		UnicastToDispatcher("request-new", "");
+		WaitForDispatch("", mc => {
+			mc.SetState(MinerState.Docked);
+		});
+		return true;
 	}
 
 	public void EnterSharedSpace(string sectionName, Action<MinerController> task)
 	{
-		if (CurrentRole == Role.Agent)
-		{
-			BroadcastToChannel("miners", "common-airspace-ask-for-lock:" + sectionName);
-			WaitForDispatch(sectionName, task);
-		}
-		else
-		{
-			task(this);
-		}
+		BroadcastToChannel("miners", "common-airspace-ask-for-lock:" + sectionName);
+		WaitForDispatch(sectionName, task);
 	}
 
 	public void ReleaseLock(string sectionName)
@@ -1518,11 +1490,8 @@ public class MinerController
 		if (ObtainedLock == sectionName)
 		{
 			ObtainedLock = null;
-			if (CurrentRole == Role.Agent)
-			{
-				BroadcastToChannel("miners", "common-airspace-lock-released:" + sectionName);
-				Log($"Released lock: {sectionName}");
-			}
+			BroadcastToChannel("miners", "common-airspace-lock-released:" + sectionName);
+			Log($"Released lock: {sectionName}");
 		}
 		else
 		{
@@ -1704,25 +1673,22 @@ public class MinerController
 		 */
 		public void Start()
 		{
-			if (c.CurrentRole == Role.Agent)
-			{
-				c.UnicastToDispatcher("request-new", "");
-				c.WaitForDispatch("", mc => {
-					c.EnterSharedSpace(LOCK_NAME_MiningSection, x =>
-					{
-						x.SetState(MinerState.ChangingShaft);
-						x.drills.ForEach(d => d.Enabled = false);
-						var depth = -15;
-						var pt = x.AddEchelonOffset(c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth);
-						//x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-						var entryBeh = $"command:create-wp:Name=ChangingShaft,Ng=Forward,UpNormal=1;0;0," +
-							$"AimNormal={VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}" +
-							$":{VectorOpsHelper.V3DtoBroadcastString(pt)}";
-						c.CommandAutoPillock(entryBeh);
-						c.pState.currentWp = pt;
-					});
+			c.UnicastToDispatcher("request-new", "");
+			c.WaitForDispatch("", mc => {
+				c.EnterSharedSpace(LOCK_NAME_MiningSection, x =>
+				{
+					x.SetState(MinerState.ChangingShaft);
+					x.drills.ForEach(d => d.Enabled = false);
+					var depth = -15;
+					var pt = x.AddEchelonOffset(c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth);
+					//x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
+					var entryBeh = $"command:create-wp:Name=ChangingShaft,Ng=Forward,UpNormal=1;0;0," +
+						$"AimNormal={VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}" +
+						$":{VectorOpsHelper.V3DtoBroadcastString(pt)}";
+					c.CommandAutoPillock(entryBeh);
+					c.pState.currentWp = pt;
 				});
-			}
+			});
 		}
 
 		public void SkipShaft()
@@ -1736,10 +1702,7 @@ public class MinerController
 				// does not work as the prevTickValCount reflects the whole ore amount, not only from the current shaft
 				if (!lastFoundOreDepth.HasValue || ((prevTickValCount + currentShaftValTotal - preShaftValTotal) / c.pState.CurrentJobMaxShaftYield < 0.5f))
 				{
-					if (c.CurrentRole == Role.Agent)
-					{
-						c.UnicastToDispatcher("ban-direction", c.pState.CurrentShaftId.Value);
-					}
+					c.UnicastToDispatcher("ban-direction", c.pState.CurrentShaftId.Value);
 				}
 			}
 
@@ -1749,24 +1712,21 @@ public class MinerController
 			var depth = -15;
 			var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
 
-			if (c.CurrentRole == Role.Agent)
-			{
-				// WaitingForLockInShaft -> ChangingShaft
+			// WaitingForLockInShaft -> ChangingShaft
 
-				//c.SetState(State.WaitingForDispatch);
+			//c.SetState(State.WaitingForDispatch);
 
-				c.UnicastToDispatcher("shaft-complete-request-new", c.pState.CurrentShaftId.Value);
+			c.UnicastToDispatcher("shaft-complete-request-new", c.pState.CurrentShaftId.Value);
 
-				c.WaitForDispatch("", mc => {
-					c.EnterSharedSpace(LOCK_NAME_MiningSection, x =>
-					{
-						x.SetState(MinerState.ChangingShaft);
-						x.drills.ForEach(d => d.Enabled = false);
-						x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-						c.pState.currentWp = pt;
-					});
+			c.WaitForDispatch("", mc => {
+				c.EnterSharedSpace(LOCK_NAME_MiningSection, x =>
+				{
+					x.SetState(MinerState.ChangingShaft);
+					x.drills.ForEach(d => d.Enabled = false);
+					x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
+					c.pState.currentWp = pt;
 				});
-			}
+			});
 		}
 
 		public void SetShaftVectors(int id, Vector3D miningEntryPoint, Vector3D getAbovePt)
@@ -2222,18 +2182,15 @@ public class MinerController
 		void GetOutTheShaft()
 		{
 			currentDepth = 0;
-			if (c.CurrentRole == Role.Agent)
-			{
-				c.SetState(MinerState.WaitingForLockInShaft);
+			c.SetState(MinerState.WaitingForLockInShaft);
 
-				var depth = Math.Min(8, (c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length());
-				var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
-				c.CommandAutoPillock("command:create-wp:Name=WaitingForLockInShaft,Ng=Forward" +
-					",AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') +
-					",UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-clear") +
-						":" + VectorOpsHelper.V3DtoBroadcastString(pt));
-				c.pState.currentWp = pt;
-			}
+			var depth = Math.Min(8, (c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length());
+			var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
+			c.CommandAutoPillock("command:create-wp:Name=WaitingForLockInShaft,Ng=Forward" +
+				",AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') +
+				",UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-clear") +
+					":" + VectorOpsHelper.V3DtoBroadcastString(pt));
+			c.pState.currentWp = pt;
 		}
 
 
