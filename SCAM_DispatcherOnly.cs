@@ -151,6 +151,95 @@ public class CommandRegistry
 	}
 }
 
+
+/**
+ * \brief Logging facility.
+ */
+public static class E
+{
+	public enum LogLevel {
+		Critical = 0, ///< Something went wrong.
+		Warning  = 1, ///< Something is odd.
+		Notice   = 2, ///< Something the operator should be aware of.
+		Debug    = 3  ///< Maximum verbosity.
+	}
+
+	static string debugTag = "";
+	static Action<string> echoClbk;
+	static IMyTextSurface p;
+	static IMyTextSurface lcd;                             ///< The LCD screen used for displaying the log messages.
+	public static double  simT;                            ///< [s] Simulation elapsed time.
+	static List<string>   linesToLog = new List<string>(); ///< List of all log messages, which have not yet been written to the LCD screen.
+	static LogLevel       filterLevel = LogLevel.Notice;   ///< All message with a higher log level are filtered out.
+
+	/**
+	 * \brief Initializes the logging modle.
+	 * \note To be called in the script's constructor, as early as possible.
+	 * \param[out] echo A callback function, which will receive messages sent to the "Echo"
+	 * method. (Used for debugging output only.) 
+	 */
+	public static void Init(Action<string> echo, IMyGridTerminalSystem g, IMyProgrammableBlock me)
+	{
+		echoClbk = echo;
+		p = me.GetSurface(0);
+		p.ContentType = ContentType.TEXT_AND_IMAGE;
+		p.WriteText("");
+	}
+
+	public static void Echo(string s) {
+		if ((debugTag == "") || (s.Contains(debugTag)))
+			echoClbk(s);
+	}
+	
+	/** 
+	 * \brief Writes a message to the log.
+	 * \details The message is automatically timestamped.
+	 * \param[in] msg The message to be logged.
+	 * \param[in] lvl The severity of the message.
+	 */
+	public static void Log(string msg, LogLevel lvl = LogLevel.Notice)
+	{
+		if (lvl > filterLevel)
+			return; // Ignore message.
+		p.WriteText($"{simT:f1}: {msg}\n", true);
+		if (lcd != null)
+			linesToLog.Add($"{simT:f1}: {msg}");
+	}
+
+	/** \brief Clears the log, including the LCD screen. */
+	public static void ClearLog() {
+		lcd?.WriteText("");
+		linesToLog.Clear();
+	}
+
+	/** \brief Sets the LCD display for logging mesages. */
+	public static void SetLCD(IMyTextSurface s) { lcd = s; }
+
+	public static void EndOfTick() {
+		if (linesToLog.Any())
+		{
+			if (lcd != null)
+			{
+				linesToLog.Reverse();
+				var t = string.Join("\n", linesToLog) + "\n" + lcd.GetText();
+				var u = Variables.Get<int>("logger-char-limit");
+				if (t.Length > u)
+					t = t.Substring(0, u - 1);
+				lcd.WriteText(t);
+			}
+			linesToLog.Clear();
+		}
+	}
+}
+
+
+/** \brief Abbreviation for E.Log(). */
+public static void Log(string msg, E.LogLevel lvl = E.LogLevel.Notice)
+{
+	E.Log(msg, lvl);
+}
+
+
 static int TickCount;
 
 /**
@@ -263,7 +352,7 @@ void Ctor()
 						var p = b.FirstOrDefault();
 						if (p != null)
 						{
-							E.DebugLog($"Added {p.CustomName} as GUI panel");
+							E.Log($"Added {p.CustomName} as GUI panel");
 							outputPanelInitializer(p);
 							rawPanel = p;
 						}
@@ -275,7 +364,7 @@ void Ctor()
 						GridTerminalSystem.GetBlocksOfType(b, x => x.IsSameConstructAs(Me) && x.CustomName.Contains(parts[2]));
 						guiSeat = b.FirstOrDefault();
 						if (guiSeat != null)
-							E.DebugLog($"Added {guiSeat.CustomName} as GUI controller");
+							E.Log($"Added {guiSeat.CustomName} as GUI controller");
 					}
 				},
 				{
@@ -293,7 +382,7 @@ void Ctor()
 						p.FontSize = 0.65f;
 
 						E.SetLCD(p);
-						E.DebugLog("Set logging LCD screen to: " + p.CustomName);
+						E.Log("Set logging LCD screen to: " + p.CustomName);
 					}
 				},
 				{
@@ -343,7 +432,7 @@ void CreateRole(string role)
 		throw new Exception("Failed to parse role in command:set-role.");
 
 	CurrentRole = newRole;
-	E.DebugLog("Assigned role: " + newRole);
+	E.Log("Assigned role: " + newRole);
 
 	if (newRole == Role.Dispatcher)
 	{
@@ -368,7 +457,7 @@ void CreateRole(string role)
 				dispatcherService.CurrentTask.Shafts[n].State = (ShaftState)cap[n];
 			}
 			stateWrapper.PState.ShaftStates = dispatcherService.CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
-			E.DebugLog($"Restored task from pstate, shaft count: {cap.Count}");
+			E.Log($"Restored task from pstate, shaft count: {cap.Count}");
 		}
 
 		BroadcastToChannel("miners", "dispatcher-change");
@@ -391,10 +480,7 @@ public void BroadcastToChannel<T>(string tag, T data)
 	IGC.SendBroadcastMessage(channel.Tag, data, TransmissionDistance.TransmissionDistanceMax);
 }
 
-public void Log(string msg)
-{
-	E.DebugLog(msg);
-}
+
 
 		//////////////////// ignore section for MDK minifier
 #region mdk preserve
@@ -457,8 +543,8 @@ public class StateWrapper
 		}
 		catch (Exception ex)
 		{
-			E.DebugLog("State save failed.");
-			E.DebugLog(ex.ToString());
+			E.Log("State save failed.");
+			E.Log(ex.ToString());
 		}
 	}
 
@@ -472,8 +558,8 @@ public class StateWrapper
 		}
 		catch (Exception ex)
 		{
-			E.DebugLog("State load failed.");
-			E.DebugLog(ex.ToString());
+			E.Log("State load failed.");
+			E.Log(ex.ToString());
 		}
 		return false;
 	}
@@ -723,7 +809,7 @@ void Main(string param, UpdateType updateType)
 	if (DbgIgc != 0)
 		EmitFlush(DbgIgc);
 	Dt = Math.Max(0.001, Runtime.TimeSinceLastRun.TotalSeconds);
-	E.T += Dt;
+	E.simT += Dt;
 	iCount = Math.Max(iCount, Runtime.CurrentInstructionCount);
 	E.Echo($"InstructionCount (Max): {Runtime.CurrentInstructionCount} ({iCount})");
 	E.Echo($"Processed in {Runtime.LastRunTimeMs:f3} ms");
@@ -747,9 +833,9 @@ public void GPStaskHandler(string[] cmdString)
 		{
 			if (guiSeat == null)
 			{
-				E.DebugLog("WARNING: the normal was not supplied and there is no Control Station available to check if we are in gravity");
+				E.Log("WARNING: the normal was not supplied and there is no Control Station available to check if we are in gravity");
 				n = -dockHost.GetFirstNormal();
-				E.DebugLog("Using 'first dock connector Backward' as a normal");
+				E.Log("Using 'first dock connector Backward' as a normal");
 			}
 			else
 			{
@@ -757,12 +843,12 @@ public void GPStaskHandler(string[] cmdString)
 				if (guiSeat.TryGetPlanetPosition(out pCent))
 				{
 					n = Vector3D.Normalize(pCent - pos);
-					E.DebugLog("Using mining-center-to-planet-center direction as a normal because we are in gravity");
+					E.Log("Using mining-center-to-planet-center direction as a normal because we are in gravity");
 				}
 				else
 				{
 					n = -dockHost.GetFirstNormal();
-					E.DebugLog("Using 'first dock connector Backward' as a normal");
+					E.Log("Using 'first dock connector Backward' as a normal");
 				}
 			}
 		}
@@ -774,10 +860,10 @@ public void GPStaskHandler(string[] cmdString)
 		}
 
 		else
-			E.DebugLog("To use this mode specify group-constraint value and make sure you have intended circular-pattern-shaft-radius");
+			E.Log("To use this mode specify group-constraint value and make sure you have intended circular-pattern-shaft-radius");
 	}
 	else
-		E.DebugLog("GPStaskHandler is intended for Dispatcher role");
+		E.Log("GPStaskHandler is intended for Dispatcher role");
 }
 
 List<IMyCameraBlock> cameras = new List<IMyCameraBlock>();
@@ -807,7 +893,7 @@ public void RaycastTaskHandler(string[] cmdString)
 				if ((gravGetter != null) && gravGetter.TryGetPlanetPosition(out pCent))
 				{
 					castedNormal = Vector3D.Normalize(pCent - castedSurfacePoint.Value);
-					E.DebugLog("Using mining-center-to-planet-center direction as a normal because we are in gravity");
+					E.Log("Using mining-center-to-planet-center direction as a normal because we are in gravity");
 				}
 				else
 				{
@@ -845,7 +931,7 @@ public void RaycastTaskHandler(string[] cmdString)
 
 				if (castedNormal.HasValue && castedSurfacePoint.HasValue)
 				{
-					E.DebugLog("Successfully got mining center and mining normal");
+					E.Log("Successfully got mining center and mining normal");
 					if (dispatcherService != null)
 					{
 						var c = Variables.Get<string>("group-constraint");
@@ -861,13 +947,13 @@ public void RaycastTaskHandler(string[] cmdString)
 				}
 				else
 				{
-					E.DebugLog($"RaycastTaskHandler failed to get castedNormal or castedSurfacePoint");
+					E.Log($"RaycastTaskHandler failed to get castedNormal or castedSurfacePoint");
 				}
 			}
 		}
 		else
 		{
-			E.DebugLog($"RaycastTaskHandler couldn't raycast initial position. Camera '{cam.CustomName}' had {cam.AvailableScanRange} AvailableScanRange");
+			E.Log($"RaycastTaskHandler couldn't raycast initial position. Camera '{cam.CustomName}' had {cam.AvailableScanRange} AvailableScanRange");
 		}
 	}
 	else
@@ -926,11 +1012,6 @@ public class Dispatcher
 		this.stateWrapper = stateWrapper;
 	}
 
-	void Log(string msg)
-	{
-		E.DebugLog(msg);
-	}
-
 	/**
 	 * \brief Enqueues a request from an agent for an airspace lock.
 	 * \details The lock must be currently in use by another agent. When the other
@@ -944,7 +1025,7 @@ public class Dispatcher
 			sectionsLockRequests.Enqueue(new LockRequest(src, lockName));
 		//else
 			; //TODO: Update existing lock request with new lockName
-		Log("Airspace permission request added to requests queue: " + GetSubordinateName(src) + " / " + lockName);
+		Log("Airspace permission request added to requests queue: " + GetSubordinateName(src) + " / " + lockName, E.LogLevel.Debug);
 	}
 
 	/**
@@ -1056,7 +1137,7 @@ public class Dispatcher
 			sectionsLockRequests.Dequeue();
 			subordinates.First(s => s.Id == cand.id).ObtainedLock = cand.lockName;
 			IGC.SendUnicastMessage(cand.id, "miners", "common-airspace-lock-granted:" + cand.lockName);
-			Log(cand.lockName + " granted to " + GetSubordinateName(cand.id));
+			Log(cand.lockName + " granted to " + GetSubordinateName(cand.id), E.LogLevel.Debug);
 		}
 	}
 
@@ -1079,7 +1160,7 @@ public class Dispatcher
 			if (msg.Data.ToString().Contains("common-airspace-lock-released"))
 			{
 				var sectionName = msg.Data.ToString().Split(':')[1];
-				Log("(Dispatcher) received lock-released notification " + sectionName + " from " + GetSubordinateName(msg.Source));
+				Log("(Dispatcher) received lock-released notification " + sectionName + " from " + GetSubordinateName(msg.Source), E.LogLevel.Debug);
 				subordinates.Single(s => s.Id == msg.Source).ObtainedLock = "";
 			}
 		}
@@ -1161,7 +1242,7 @@ public class Dispatcher
 				if (msg.Tag == "shaft-complete-request-new")
 				{
 					CompleteShaft((int)msg.Data);
-					E.DebugLog($"Shaft {msg.Data} complete");
+					E.Log($"Shaft {msg.Data} complete");
 				}
 
 				// assign and send new shaft points
@@ -1171,7 +1252,7 @@ public class Dispatcher
 				if ((CurrentTask != null) && AssignNewShaft(ref entry, ref getabove, ref shId))
 				{
 					IGC.SendUnicastMessage(msg.Source, "miners.assign-shaft", new MyTuple<int, Vector3D, Vector3D>(shId, entry.Value, getabove.Value));
-					E.DebugLog($"AssignNewShaft with id {shId} sent");
+					E.Log($"AssignNewShaft with id {shId} sent");
 				}
 				else
 				{
@@ -1378,7 +1459,7 @@ public class Dispatcher
 
 	public bool AssignNewShaft(ref Vector3D? entry, ref Vector3D? getAbove, ref int id)
 	{
-		Log($"CurrentTask.RequestShaft");
+		Log("CurrentTask.RequestShaft");
 		bool res = CurrentTask.RequestShaft(ref entry, ref getAbove, ref id);
 		stateWrapper.PState.ShaftStates[id] = (byte)ShaftState.InProgress;
 		OnTaskUpdate?.Invoke(CurrentTask);
@@ -1415,87 +1496,6 @@ static class VectorOpsHelper
 
 IMyTextPanel rawPanel;
 IMyShipController guiSeat;
-
-
-/**
- * \brief Logging facility.
- */
-public static class E
-{
-	public enum LogLevel {
-		Critical = 0, ///< Something went wrong.
-		Warning  = 1, ///< Something is odd.
-		Notice   = 2, ///< Something the operator should be aware of.
-		Debug    = 3  ///< Maximum verbosity.
-	}
-
-	static string debugTag = "";
-	static Action<string> echoClbk;
-	static IMyTextSurface p;
-	static IMyTextSurface lcd;                             ///< The LCD screen used for displaying the log messages.
-	public static double  T;
-	static List<string>   linesToLog = new List<string>(); ///< List of all current log messages.
-	static LogLevel       filterLevel = LogLevel.Notice;   ///< All message with a higher log level are filtered out.
-
-	/**
-	 * \brief Initializes the logging modle.
-	 * \note To be called in the script's constructor, as early as possible.
-	 * \param[out] echo A callback function, which will receive messages sent to the "Echo"
-	 * method. (Used for debugging output only.) 
-	 */
-	public static void Init(Action<string> echo, IMyGridTerminalSystem g, IMyProgrammableBlock me)
-	{
-		echoClbk = echo;
-		p = me.GetSurface(0);
-		p.ContentType = ContentType.TEXT_AND_IMAGE;
-		p.WriteText("");
-	}
-
-	public static void Echo(string s) {
-		if ((debugTag == "") || (s.Contains(debugTag)))
-			echoClbk(s);
-	}
-	
-	/** 
-	 * \brief Writes a message to the log.
-	 * \details The message is automatically timestamped.
-	 * \param[in] msg The message to be logged.
-	 * \param[in] lvl The severity of the message.
-	 */
-	public static void DebugLog(string msg, LogLevel lvl = LogLevel.Notice)
-	{
-		if (lvl > filterLevel)
-			return; // Ignore message.
-		p.WriteText($"{T:f1}: {msg}\n", true);
-		if (lcd != null)
-			linesToLog.Add(msg);
-	}
-
-	/** \brief Clears the log, including the LCD screen. */
-	public static void ClearLog() {
-		lcd?.WriteText("");
-		linesToLog.Clear();
-	}
-
-	/** \brief Sets the LCD display for logging mesages. */
-	public static void SetLCD(IMyTextSurface s) { lcd = s; }
-
-	public static void EndOfTick() {
-		if (linesToLog.Any())
-		{
-			if (lcd != null)
-			{
-				linesToLog.Reverse();
-				var t = string.Join("\n", linesToLog) + "\n" + lcd.GetText();
-				var u = Variables.Get<int>("logger-char-limit");
-				if (t.Length > u)
-					t = t.Substring(0, u - 1);
-				lcd.WriteText($"{T:f2}: {t}");
-			}
-			linesToLog.Clear();
-		}
-	}
-}
 
 
 class Scheduler
@@ -1778,7 +1778,7 @@ public class DockHost
 				/* Calculate the approach path and send it to the agent. */
 				var inv = MatrixD.Transpose(fd.WorldMatrix);
 				var a = GetPath(dests[id]).Reverse().Select(x => Vector3D.TransformNormal(x - fd.GetPosition(), inv)).ToImmutableArray();
-				E.DebugLog($"Sent {a.Length}-node approach path");
+				E.Log($"Sent {a.Length}-node approach path");
 				i.SendUnicastMessage(id, "apck.docking.approach", a);
 			}
 		}
@@ -1799,7 +1799,7 @@ public class DockHost
 				/* Calculate the departure path and send it to the agent. */
 				var inv = MatrixD.Transpose(bd.WorldMatrix);
 				var a = GetPath(dests[r]).Select(x => Vector3D.TransformNormal(x - bd.GetPosition(), inv)).ToImmutableArray();
-				E.DebugLog($"Sent {a.Length}-node departure path");
+				E.Log($"Sent {a.Length}-node departure path");
 				i.SendUnicastMessage(r, "apck.depart.approach", a);
 			}
 		}
