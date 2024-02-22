@@ -43,8 +43,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 		static string LOCK_NAME_GeneralSection = "general";
 		static string LOCK_NAME_MiningSection = "mining-site";///< Airspace above the mining site.
 		static string LOCK_NAME_BaseSection = "base";         ///< Airspace above the base.
-		//static string LOCK_NAME_ForceFinishSection = "general";
-		//static string LOCK_NAME_ForceFinishSection = "force-finish";
 
 		Action<IMyTextPanel> outputPanelInitializer = x =>
 		{
@@ -208,8 +206,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			E.EndOfTick();
 		}
 
-		//IMyProgrammableBlock pillockCore;
-		//int Clock = 1;
 		/**
 		 * \brief Initialisation of the PB.
 		 */
@@ -303,15 +299,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 								}
 							}
 						},
-						//{
-						//	"create-task", (parts) => minerController?.CreateTask()
-						//},
-						//{
-						//	"mine", (parts) => minerController?.MineCommandHandler()
-						//},
-						//{
-						//	"skip", (parts) => minerController?.SkipCommandHandler()
-						//},
 						{
 							"set-role", (parts) => CreateRole(parts[2])
 						},
@@ -324,40 +311,15 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 						{
 							"create-task-gps", (parts) => GPStaskHandler(parts)
 						},
-						//{
-						//	"force-finish", (parts) => minerController?.FinishAndDockHandler()
-						//},
 						{
 							"recall", (parts) => dispatcherService?.Recall()
 						},
-						//{
-						//	"static-dock", (parts) => minerController?.SetStaticDockOverrideHandler(parts)
-						//},
-						//{
-						//	"set-state", (parts) => minerController?.TrySetState(parts[2])
-						//},
-						//{
-						//	"halt", (parts) => minerController?.Halt()
-						//},
 						{
 							"clear-storage-state", (parts) => stateWrapper?.ClearPersistentState()
 						},
 						{
 							"save", (parts) => stateWrapper?.Save()
 						},
-						//{
-						//	"static-dock-gps", (parts) => {
-						//			if ((minerController != null) && (minerController.fwReferenceBlock != null))
-						//			{
-						//				minerController.fwReferenceBlock.CustomData = "GPS:static-dock:" +
-						//					(stateWrapper.PState.StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(
-						//						stateWrapper.PState.StaticDockOverride.Value) : "-") + ":";
-						//			}
-						//		}
-						//},
-						//{
-						//	"dispatch", (parts) => minerController?.Dispatch()
-						//},
 						{
 							"global", (parts) => {
 								var cmdParts = parts.Skip(2).ToArray();
@@ -450,27 +412,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 				//				}
 				//			}
 				//		);
-				//}
-
-				//if (!string.IsNullOrEmpty(stateWrapper.PState.lastAPckCommand))
-				//{
-				//	Scheduler.C.After(5000).RunCmd(() => minerController.CommandAutoPillock(stateWrapper.PState.lastAPckCommand));
-				//}
-
-				//if (newRole == Role.Lone)
-				//{
-				//	minerController.LocalDispatcher = new Dispatcher(IGC, stateWrapper);
-				//}
-
-				//if (newRole == Role.Agent)
-				//{
-				//	Scheduler.C.RepeatWhile(() => !minerController.DispatcherId.HasValue).After(1000)
-				//		.RunCmd(() => BroadcastToChannel("miners.handshake", Variables.Get<string>("group-constraint")));
-				//}
-
-				//if (stateWrapper.PState.miningEntryPoint.HasValue)
-				//{
-				//	minerController.ResumeJobOnWorldLoad();
 				//}
 			}
 		}
@@ -592,13 +533,10 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			// cleared by clear-storage-state (task-dependent)
 			public MinerState MinerState = MinerState.Idle;
 			public Vector3D? miningPlaneNormal;
-			public Vector3D? getAbovePt;
-			public Vector3D? miningEntryPoint;
 			public Vector3D? corePoint;
 			public float? shaftRadius;
 
 			public float? maxDepth;
-			public Vector3D? currentWp;
 			public float? skipDepth;
 
 			public float? lastFoundOreDepth;
@@ -613,7 +551,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			public int MaxGenerations;
 			public string CurrentTaskGroup;
 
-			public string lastAPckCommand;
 			// banned directions?
 
 			T ParseValue<T>(Dictionary<string, string> values, string key)
@@ -668,13 +605,10 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					StaticDockOverride = ParseValue<Vector3D?>(values, "StaticDockOverride");
 					MinerState = ParseValue<MinerState>(values, "MinerState");
 					miningPlaneNormal = ParseValue<Vector3D?>(values, "miningPlaneNormal");
-					getAbovePt = ParseValue<Vector3D?>(values, "getAbovePt");
-					miningEntryPoint = ParseValue<Vector3D?>(values, "miningEntryPoint");
 					corePoint = ParseValue<Vector3D?>(values, "corePoint");
 					shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
 					maxDepth = ParseValue<float?>(values, "maxDepth");
-					currentWp = ParseValue<Vector3D?>(values, "currentWp");
 					skipDepth = ParseValue<float?>(values, "skipDepth");
 
 					lastFoundOreDepth = ParseValue<float?>(values, "lastFoundOreDepth");
@@ -686,8 +620,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					CurrentShaftId = ParseValue<int?>(values, "CurrentShaftId");
 					MaxGenerations = ParseValue<int>(values, "MaxGenerations");
 					CurrentTaskGroup = ParseValue<string>(values, "CurrentTaskGroup");
-
-					lastAPckCommand = ParseValue<string>(values, "lastAPckCommand");
 
 					ShaftStates = ParseValue<List<byte>>(values, "ShaftStates") ?? new List<byte>();
 				}
@@ -712,12 +644,9 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					"StaticDockOverride=" + (StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(StaticDockOverride.Value) : ""),
 					"MinerState=" + MinerState,
 					"miningPlaneNormal=" + (miningPlaneNormal.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningPlaneNormal.Value) : ""),
-					"getAbovePt=" + (getAbovePt.HasValue ? VectorOpsHelper.V3DtoBroadcastString(getAbovePt.Value) : ""),
-					"miningEntryPoint=" + (miningEntryPoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningEntryPoint.Value) : ""),
 					"corePoint=" + (corePoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(corePoint.Value) : ""),
 					"shaftRadius=" + shaftRadius,
 					"maxDepth=" + maxDepth,
-					"currentWp=" +  (currentWp.HasValue ? VectorOpsHelper.V3DtoBroadcastString(currentWp.Value) : ""),
 					"skipDepth=" + skipDepth,
 					"lastFoundOreDepth=" + lastFoundOreDepth,
 					"CurrentJobMaxShaftYield=" + CurrentJobMaxShaftYield,
@@ -726,8 +655,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					"CurrentShaftId=" + CurrentShaftId ?? "",
 					"MaxGenerations=" + MaxGenerations,
 					"CurrentTaskGroup=" + CurrentTaskGroup,
-					"ShaftStates=" + string.Join(":", ShaftStates),
-					"lastAPckCommand=" + lastAPckCommand
+					"ShaftStates=" + string.Join(":", ShaftStates)
 				};
 				return string.Join("\n", pairs);
 			}
@@ -1644,19 +1572,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			//	public bool DockingHandled;
 
-			//	public Vector3D GetMiningPlaneNormal()
-			//	{
-			//		if (!pState.miningPlaneNormal.HasValue)
-			//		{
-			//			var ng = remCon.GetNaturalGravity();
-			//			if (ng == Vector3D.Zero)
-			//				throw new Exception("Need either natural gravity or miningPlaneNormal");
-			//			else
-			//				return Vector3D.Normalize(ng);
-			//		}
-			//		return pState.miningPlaneNormal.Value;
-			//	}
-
 			//	public MinerState GetState()
 			//	{
 			//		return pState.MinerState;
@@ -1771,28 +1686,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			//		double elevation;
 			//		if (remCon.TryGetPlanetElevation(MyPlanetElevation.Surface, out elevation))
-			//			pState.miningEntryPoint = fwReferenceBlock.WorldMatrix.Translation + pState.miningPlaneNormal.Value * (elevation - 5);
-			//		else
-			//			pState.miningEntryPoint = fwReferenceBlock.WorldMatrix.Translation;
 
-			//		if (CurrentRole == Role.Agent)
-			//		{
-			//			if (DispatcherId.HasValue)
-			//			{
-			//				IGC.SendUnicastMessage(DispatcherId.Value, "create-task", 
-			//					new MyTuple<float, Vector3D, Vector3D>(Variables.Get<float>("circular-pattern-shaft-radius"), pState.miningEntryPoint.Value, 
-			//					pState.miningPlaneNormal.Value));
-			//			}
-			//		}
-			//		else if (CurrentRole == Role.Lone)
-			//		{
-			//			var miningEntryPoint = pState.miningEntryPoint.Value;
-			//			// this clears pstate
-			//			LocalDispatcher.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"), miningEntryPoint, pState.miningPlaneNormal.Value, 
-			//				Variables.Get<int>("max-generations"), "LocalDispatcher");
-			//			// this field refers to blank new pstate now...
-			//			pState.getAbovePt = miningEntryPoint - pState.miningPlaneNormal.Value * Variables.Get<float>("getAbove-altitude");
-			//			pState.miningEntryPoint = miningEntryPoint;
 			//		}
 			//	}
 
@@ -2042,15 +1936,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//			pState.StaticDockOverride = fwReferenceBlock.WorldMatrix.Translation;
 			//	}
 
-			//	public Vector3D AddEchelonOffset(Vector3D pt)
-			//	{
-			//		if (Echelon.HasValue)
-			//		{
-			//			return pt - GetMiningPlaneNormal() * Echelon.Value;
-			//		}
-			//		return pt;
-			//	}
-
 			//	public Vector3D AddEchelonOffset(Vector3D pt, Vector3D normal)
 			//	{
 			//		if (Echelon.HasValue)
@@ -2077,10 +1962,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			//			if (generateApproachWp)
 			//			{
-			//				if (pState.getAbovePt.HasValue)
-			//					CommandAutoPillock("command:create-wp:Name=StaticDock.getAbovePt,Ng=Forward,SpeedLimit=" + Variables.Get<float>("speed-clear") 
-			//						+ ":" + VectorOpsHelper.V3DtoBroadcastString(
-			//						AddEchelonOffset(pState.getAbovePt.Value)) + ":" + dFinal);
 			//				else
 			//				{
 			/*
@@ -2143,14 +2024,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//					SetState(MinerState.Docking);
 			//					CommandAutoPillock("command:request-docking");
 			//				}
-			//				else
-			//				{
-			// to not end up hitting the shaft wall
-			//					CommandAutoPillock("[command:create-wp:Name=AutoDock.getAbovePt,Ng=Forward,SpeedLimit=" + Variables.Get<float>("speed-clear") + ":" +
-			//						VectorOpsHelper.V3DtoBroadcastString(AddEchelonOffset(pState.getAbovePt.HasValue ? pState.getAbovePt.Value : 
-			//								(fwReferenceBlock.GetPosition() + fwReferenceBlock.WorldMatrix.Up * 50)))
-			//										+ ":command:request-docking]");
-			//				}
+			//			
 			//			}
 			//		}
 			//	}
@@ -2161,7 +2035,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//		{
 			//			batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
 			//			tanks.ForEach(b => b.Stockpile = true);
-			//			pState.lastAPckCommand = "";
 			//			SetState(MinerState.Disabled);
 			//		}
 			//		else
@@ -2192,7 +2065,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//	{
 			//		if (docker.Status == MyShipConnectorStatus.Connected)
 			//		{
-			//			if (pState.getAbovePt.HasValue)
+			//			
 			//			{
 			//				SetState(MinerState.Docking);
 			//				return true;
@@ -2245,7 +2118,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//	public CommandRegistry ApckRegistry;
 			//	public void CommandAutoPillock(string cmd, Action<APckUnit> embeddedAction = null)
 			//	{
-			//		pState.lastAPckCommand = cmd;
 			//		E.DebugLog("CommandAutoPillock: " + cmd);
 			//		if (embeddedUnit != null)
 			//		{
@@ -2399,11 +2271,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//	{
 			//		protected MinerController c;
 
-			//		bool CurrentWpReached(double tolerance)
-			//		{
-			//			return (!c.pState.currentWp.HasValue || (c.pState.currentWp.Value - c.fwReferenceBlock.WorldMatrix.Translation).Length() <= tolerance);
-			//		}
-
 			//		public MiningJob(MinerController minerController)
 			//		{
 			//			c = minerController;
@@ -2420,13 +2287,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//						x.SetState(MinerState.ChangingShaft);
 			//						x.drills.ForEach(d => d.Enabled = false);
 			//						var depth = -15;
-			//						var pt = x.AddEchelonOffset(c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth);
-			//x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-			//						var entryBeh = $"command:create-wp:Name=ChangingShaft,Ng=Forward,UpNormal=1;0;0," +
-			//							$"AimNormal={VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}" +
-			//							$":{VectorOpsHelper.V3DtoBroadcastString(pt)}";
+			//						
 			//						c.CommandAutoPillock(entryBeh);
-			//						c.pState.currentWp = pt;
 			//					});
 			//				});
 			//			}
@@ -2435,12 +2297,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//				c.pState.maxDepth = Variables.Get<float>("depth-limit");
 			//				c.pState.skipDepth = Variables.Get<float>("skip-depth");
 			//				c.SetState(MinerState.GoingToEntry);
-			//				c.pState.currentWp = c.pState.miningEntryPoint;
-
-			//var entryBeh = $"command:create-wp:Name=drill entry,Ng=Forward:{VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value)}";
-			//				var entryBeh = $"command:create-wp:Name=drill entry,Ng=Forward," +
-			//					$"AimNormal={VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}" +
-			//					$":{VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value)}";
 
 			//				c.CommandAutoPillock(entryBeh);
 			//			}
@@ -2472,7 +2328,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//			lastFoundOreDepth = null;
 
 			//			var depth = -15;
-			//			var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
 
 			//			if (c.CurrentRole == Role.Agent)
 			//			{
@@ -2488,31 +2343,27 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//						x.SetState(MinerState.ChangingShaft);
 			//						x.drills.ForEach(d => d.Enabled = false);
 			//						x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-			//						c.pState.currentWp = pt;
 			//					});
 			//				});
 			//			}
 			//			else if (c.CurrentRole == Role.Lone)
 			//			{
 			//				int newShaftId = 0;
-			//				if (c.LocalDispatcher.AssignNewShaft(ref c.pState.miningEntryPoint, ref c.pState.getAbovePt, ref newShaftId))
 			//				{
 			//					c.SetState(MinerState.ChangingShaft);
 			//					c.drills.ForEach(d => d.Enabled = false);
 			//					c.pState.CurrentShaftId = newShaftId;
 
 			//					c.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-			//					c.pState.currentWp = pt;
 			//				}
 
 			//			}
 
 			//		}
 
-			//		public void SetShaftVectors(int id, Vector3D miningEntryPoint, Vector3D getAbovePt)
+			//		public void SetShaftVectors(int id)
 			//		{
-			//			c.pState.miningEntryPoint = miningEntryPoint;
-			//			c.pState.getAbovePt = getAbovePt;
+	
 			//			c.pState.CurrentShaftId = id;
 			//		}
 
@@ -2525,16 +2376,11 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//					c.ReleaseLock(LOCK_NAME_GeneralSection);
 			//					c.drills.ForEach(d => d.Enabled = true);
 			//					c.SetState(MinerState.Drilling);
-			//c.CommandAutoPillock("command:create-wp:Name=drill,Ng=Forward,PosDirectionOverride=Forward,SpeedLimit=0.6:0:0:0");
-			//					c.CommandAutoPillock("command:create-wp:Name=drill,Ng=Forward,PosDirectionOverride=Forward" +
-			//						",AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') + 
-			//						",UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-drill") + ":0:0:0");
 			//				}
 			//			}
 
 			//			if (state == MinerState.Drilling)
 			//			{
-			//				currentDepth = (float)(c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length();
 			//				E.Echo($"Depth: current: {currentDepth:f1} skip: {c.pState.skipDepth:f1}");
 			//				if (c.pState.maxDepth.HasValue && (currentDepth > c.pState.maxDepth.Value) 
 			//					|| !c.CheckBatteriesAndIntegrityThrottled(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
@@ -2595,9 +2441,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//						{
 			//							mc.SetState(MinerState.GoingToUnload);
 			//							mc.drills.ForEach(d => d.Enabled = false);
-			//							var pt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
 			//							mc.CommandAutoPillock("command:create-wp:Name=GoingToUnload,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-			//							c.pState.currentWp = pt;
 			//						});
 			//					}
 			//					else
@@ -2614,10 +2458,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//				if (CurrentWpReached(0.5f))
 			//				{
 			//					var depth = -15;
-			//					var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
 			//					c.AddEchelonOffset(pt);
 			//					c.CommandAutoPillock("command:create-wp:Name=GoingToEntry (ChangingShaft),Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-			//					c.pState.currentWp = pt;
 			//c.SetState(State.GoingToEntry);
 			//					c.SetState(MinerState.ReturningToShaft);
 			//				}
@@ -2632,25 +2474,18 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//						mc.SetState(MinerState.GoingToEntry);
 			//						c.drills.ForEach(d => d.Enabled = true);
 
-			//						var entry = $"command:create-wp:Name=drill entry,Ng=Forward,UpNormal=1;0;0,AimNormal=" +
-			//								$"{VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}:";
-
 			//						double elevation;
 			//						if (Toggle.C.Check("adjust-entry-by-elevation") && c.remCon.TryGetPlanetElevation(MyPlanetElevation.Surface, out elevation))
 			//						{
 			//							Vector3D plCenter;
 			//							c.remCon.TryGetPlanetPosition(out plCenter);
-			//							var plNorm = Vector3D.Normalize(c.pState.miningEntryPoint.Value - plCenter);
 			//							var h = (c.fwReferenceBlock.WorldMatrix.Translation - plCenter).Length() - elevation + 5f;
 			//
 			//							var elevationAdjustedEntryPoint = plCenter + plNorm * h;
 			//							mc.CommandAutoPillock(entry + VectorOpsHelper.V3DtoBroadcastString(elevationAdjustedEntryPoint));
-			//							c.pState.currentWp = elevationAdjustedEntryPoint;
 			//						}
 			//						else
 			//						{
-			//							mc.CommandAutoPillock(entry + VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value));
-			//							c.pState.currentWp = c.pState.miningEntryPoint;
 			//						}
 			//					});
 			//				}
@@ -2672,9 +2507,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//					if (c.PrevState == MinerState.ForceFinish)
 			//					{
 			//						Vector3D dockingTransEntryPt;
-			//						if (c.pState.getAbovePt.HasValue)
 			//						{
-			//							dockingTransEntryPt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
+			//							dockingTransEntryPt = c.AddEchelonOffset();
 			//						}
 			//						else // assuming we didn't mine and just want to RTB
 			//						{
@@ -2687,10 +2521,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			// releasing that when we leave mining area zone
 			//c.EnterSharedSpace("general", mc =>
 			//{
-			// getAboveShaft, then follow up with:
-			// ForceFinish.dock-echelon - vertical offset in assigned docks' local coordinates, then follow up with:
-			// DockingFinal behavior
-			//							c.CommandAutoPillock("command:create-wp:Name=ForceFinish.getAbovePt,SpeedLimit=" + Variables.Get<float>("speed-clear") + ",Ng=Forward:" +
+	
 			//									VectorOpsHelper.V3DtoBroadcastString(dockingTransEntryPt)
 			//							+ ":command:create-wp:Name=ForceFinish.dock-echelon,Ng=Forward,TransformChannel=docking:"
 			//							+ VectorOpsHelper.V3DtoBroadcastString(Vector3D.Transform(
@@ -2707,7 +2538,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//c.EnterSharedSpace("general", mc =>
 			//{
 			//							c.CommandAutoPillock("command:create-wp:Name=DynamicDock.echelon,Ng=Forward,AimNormal="
-			//							+ VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')
 			//							+ ",TransformChannel=docking:"
 			//							+ VectorOpsHelper.V3DtoBroadcastString(Vector3D.Transform(
 			//								c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward) -
@@ -2903,20 +2733,10 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//			{
 			//				c.SetState(MinerState.WaitingForLockInShaft);
 
-			//				var depth = Math.Min(8, (c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length());
-			//				var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
-			//				c.CommandAutoPillock("command:create-wp:Name=WaitingForLockInShaft,Ng=Forward" +
-			//					",AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') +
-			//					",UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-clear") + 
-			//						":" + VectorOpsHelper.V3DtoBroadcastString(pt));
-			//				c.pState.currentWp = pt;
 			//			}
 			//			else if (c.CurrentRole == Role.Lone)
 			//			{
 			//				c.SetState(MinerState.GettingOutTheShaft);
-			//				c.CommandAutoPillock("command:create-wp:Name=GettingOutTheShaft,Ng=Forward,UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-clear") + 
-			//						":" + VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value));
-			//				c.pState.currentWp = c.pState.miningEntryPoint;
 			//			}
 			//		}
 
@@ -3051,19 +2871,12 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			//		void HandleUnload(IMyShipConnector otherConnector)
 			//		{
-			//			string pathFromDockToAbovePt = "command:create-wp:Name=drill getAbovePt,Ng=Forward,AimNormal="
-			//						+ VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') + ":"
-			//						+ VectorOpsHelper.V3DtoBroadcastString(c.AddEchelonOffset(c.pState.getAbovePt.Value));
 
 			//			var aboveDock = c.AddEchelonOffset(otherConnector.WorldMatrix.Translation, otherConnector.WorldMatrix.Backward) -
 			//										otherConnector.WorldMatrix.Backward * Variables.Get<float>("getAbove-altitude");
 
-			//var aboveDock = c.AddEchelonOffset(c.fwReferenceBlock.GetPosition()) - c.GetMiningPlaneNormal() * Variables.Get<float>("getAbove-altitude");
-			//			var seq = "[command:pillock-mode:Disabled],[command:create-wp:Name=Dock.Echelon,Ng=Forward:"
-			//						+ VectorOpsHelper.V3DtoBroadcastString(aboveDock) + ":" + pathFromDockToAbovePt + "]";
 
 			//			c.CommandAutoPillock(seq);
-			//			c.pState.currentWp = c.AddEchelonOffset(c.pState.getAbovePt.Value);
 			//		}
 			//	}
 		}
