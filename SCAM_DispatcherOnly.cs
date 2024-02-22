@@ -48,12 +48,6 @@ Action<IMyTextPanel> outputPanelInitializer = x =>
 	x.ContentType = ContentType.TEXT_AND_IMAGE;
 };
 
-Action<IMyTextPanel> logPanelInitializer = x =>
-{
-	x.ContentType = ContentType.TEXT_AND_IMAGE;
-	x.FontColor = new Color(r: 0, g: 255, b: 116);
-	x.FontSize = 0.65f;
-};
 
 /** \brief The configuration state of the PB. */
 static class Variables
@@ -289,12 +283,17 @@ void Ctor()
 						List<IMyTextPanel> b = new List<IMyTextPanel>();
 						GridTerminalSystem.GetBlocksOfType(b, x => x.IsSameConstructAs(Me) && x.CustomName.Contains(parts[2]));
 						var p = b.FirstOrDefault();
-						if (p != null)
-						{
-							logPanelInitializer(p);
-							E.AddLogger(p);
-							E.DebugLog("Added logger: " + p.CustomName);
-						}
+						if (p == null)
+							return; // LCD panel not found.
+						
+						/* Set some parameters of the LCD panel. */
+						p.ContentType = ContentType.TEXT_AND_IMAGE;
+						p.FontColor = new Color(r: 0, g: 255, b: 116);
+						p.Font = "Monospace"; // Time stamps will always have the same length.
+						p.FontSize = 0.65f;
+
+						E.SetLCD(p);
+						E.DebugLog("Set logging LCD screen to: " + p.CustomName);
 					}
 				},
 				{
@@ -996,7 +995,6 @@ public class Dispatcher
 						return false;
 					else
 						continue;
-				case MinerState.GettingOutTheShaft: // (Can never happen, because only used by Lone mode.)
 				case MinerState.WaitingForDocking:  //TODO: How to handle this case?
 				case MinerState.ForceFinish:        // Maybe a MAYDAY or recall. No experiments.
 				default:                            // Something went wrong. No experiments. //TODO: Better log an error message!
@@ -1419,13 +1417,18 @@ IMyTextPanel rawPanel;
 IMyShipController guiSeat;
 
 
+/**
+ * \brief Logging facility.
+ */
 public static class E
 {
 	static string debugTag = "";
 	static Action<string> e;
 	static IMyTextSurface p;
-	static IMyTextSurface l;
+	static IMyTextSurface lcd;                             ///< The LCD screen used for displaying the log messages.
 	public static double T;
+	static List<string>   linesToLog = new List<string>(); ///< List of all current log messages.
+
 	public static void Init(Action<string> echo, IMyGridTerminalSystem g, IMyProgrammableBlock me)
 	{
 		e = echo;
@@ -1440,24 +1443,27 @@ public static class E
 	{
 		buff += s + "\n";
 	}
-	static List<string> linesToLog = new List<string>();
+	
+	/** 
+	 * \brief Writes a message to the log.
+	 * \details The message is automatically timestamped.
+	 */
 	public static void DebugLog(string s)
 	{
-		p.WriteText($"{T:f2}: {s}\n", true);
-		if (l != null)
-		{
+		p.WriteText($"{T:f1}: {s}\n", true);
+		if (lcd != null)
 			linesToLog.Add(s);
-		}
 	}
-	public static void ClearLog()
-	{
-		l?.WriteText("");
+
+	/** \brief Clears the log, including the LCD screen. */
+	public static void ClearLog() {
+		lcd?.WriteText("");
 		linesToLog.Clear();
 	}
-	public static void AddLogger(IMyTextSurface s)
-	{
-		l = s;
-	}
+
+	/** \brief Sets the LCD display for logging mesages. */
+	public static void SetLCD(IMyTextSurface s) { lcd = s; }
+
 	public static void EndOfTick()
 	{
 		if (!string.IsNullOrEmpty(buff))
@@ -1469,14 +1475,14 @@ public static class E
 		}
 		if (linesToLog.Any())
 		{
-			if (l != null)
+			if (lcd != null)
 			{
 				linesToLog.Reverse();
-				var t = string.Join("\n", linesToLog) + "\n" + l.GetText();
+				var t = string.Join("\n", linesToLog) + "\n" + lcd.GetText();
 				var u = Variables.Get<int>("logger-char-limit");
 				if (t.Length > u)
 					t = t.Substring(0, u - 1);
-				l.WriteText($"{T:f2}: {t}");
+				lcd.WriteText($"{T:f2}: {t}");
 			}
 			linesToLog.Clear();
 		}
