@@ -445,7 +445,7 @@ void CreateRole(string role)
 			dockingPoints.ForEach(d => d.CustomData = "");
 
 		/* Create a docking port manager. */
-		dockHost = new DockHost(dockingPoints, stateWrapper.PState, GridTerminalSystem);
+		dockHost = new DockHost(dispatcherService, dockingPoints, stateWrapper.PState, GridTerminalSystem);
 
 		if (stateWrapper.PState.ShaftStates.Count > 0)
 		{
@@ -1736,11 +1736,13 @@ DockHost dockHost;
  */
 public class DockHost
 {
+	Dispatcher             dispatcher;
 	List<IMyShipConnector> ports;
 	Dictionary<IMyShipConnector, Vector3D> pPositions = new Dictionary<IMyShipConnector, Vector3D>(); // Positions of `ports`.
 
-	public DockHost(List<IMyShipConnector> docks, PersistentState ps, IMyGridTerminalSystem gts)
+	public DockHost(Dispatcher disp, List<IMyShipConnector> docks, PersistentState ps, IMyGridTerminalSystem gts)
 	{
+		dispatcher = disp;
 		ports = docks;
 		ports.ForEach(x => pPositions.Add(x, x.GetPosition()));
 	}
@@ -1748,11 +1750,11 @@ public class DockHost
 	public void Handle(IMyIntergridCommunicationSystem i, int t)
 	{
 		var z = new List<MyTuple<Vector3D, Vector3D, Vector4>>();
-		foreach (var n in nodes.Where(x => x.Pa != null))
-		{
-			var gr = ports.First().CubeGrid;
-			z.Add(new MyTuple<Vector3D, Vector3D, Vector4>(gr.GridIntegerToWorld(n.loc), gr.GridIntegerToWorld(n.Pa.loc), Color.SeaGreen.ToVector4()));
-		}
+		//foreach (var n in nodes.Where(x => x.Pa != null))
+		//{
+		//	var gr = ports.First().CubeGrid;
+		//	z.Add(new MyTuple<Vector3D, Vector3D, Vector4>(gr.GridIntegerToWorld(n.loc), gr.GridIntegerToWorld(n.Pa.loc), Color.SeaGreen.ToVector4()));
+		//}
 
 		i.SendUnicastMessage(DbgIgc, "draw-lines", z.ToImmutableArray());
 
@@ -1774,12 +1776,8 @@ public class DockHost
 
 				/* Store the ID of the agent's PB in the docking port's custom data. */
 				fd.CustomData = id.ToString();
-
-				/* Calculate the approach path and send it to the agent. */
-				var inv = MatrixD.Transpose(fd.WorldMatrix);
-				var a = GetPath(dests[id]).Reverse().Select(x => Vector3D.TransformNormal(x - fd.GetPosition(), inv)).ToImmutableArray();
-				E.Log($"Sent {a.Length}-node approach path");
-				i.SendUnicastMessage(id, "apck.docking.approach", a);
+				E.Log("Assigned docking port " + fd.CustomName + " to " + dispatcher.GetSubordinateName(id));
+				i.SendUnicastMessage(id, "apck.docking.approach", ""); //TODO: NEcessary?
 			}
 		}
 
@@ -1797,10 +1795,8 @@ public class DockHost
 				depRequests.Dequeue();
 
 				/* Calculate the departure path and send it to the agent. */
-				var inv = MatrixD.Transpose(bd.WorldMatrix);
-				var a = GetPath(dests[r]).Select(x => Vector3D.TransformNormal(x - bd.GetPosition(), inv)).ToImmutableArray();
-				E.Log($"Sent {a.Length}-node departure path");
-				i.SendUnicastMessage(r, "apck.depart.approach", a);
+				E.Log($"Sent 0-node departure path");
+				i.SendUnicastMessage(r, "apck.depart.approach", "");//TODO: Necessary?
 			}
 		}
 
@@ -1861,31 +1857,6 @@ public class DockHost
 	Queue<long> dockRequests = new Queue<long>(); ///< Requesting agent's PB handles.
 	Queue<long> depRequests = new Queue<long>();  ///< Requesting agent's PB handles.
 
-	/**
-	 * \brief Generates a departure path from a docking port.
-	 * \details For approach, simply reverse the order of points.
-	 * \param[in] o The current location of the agent's docking port.
-	 */
-	public IEnumerable<Vector3D> GetPath(Vector3D o)
-	{
-		var gr = ports.First().CubeGrid; // (For conversion of grid coordinates to world coordinates.)
-
-		/* Find the node that is closest to the agent. (Its docking port, to be precise.) */
-		//TODO: What is the x.Ch.Count == 0 condition?
-		var n = nodes.Where(x => x.Ch.Count == 0).OrderBy(x => (gr.GridIntegerToWorld(x.loc) - o).LengthSquared()).FirstOrDefault();
-
-		if (n != null) {
-				
-			//TODO: This actually looks like a for-loop.
-			var c = n;
-			do
-			{
-				yield return gr.GridIntegerToWorld(c.loc);
-				c = c.Pa;
-			} while (c != null);
-		}
-	}
-
 	public Vector3D GetFirstNormal()
 	{
 		return ports.First().WorldMatrix.Forward;
@@ -1896,14 +1867,6 @@ public class DockHost
 		return ports;
 	}
 
-	public List<NavMeshNode> nodes = new List<NavMeshNode>();
-	public class NavMeshNode
-	{
-		public NavMeshNode Pa;
-		public List<NavMeshNode> Ch = new List<NavMeshNode>();
-		public char[] tags;
-		public Vector3I loc;
-	}
 }
 
 
