@@ -406,7 +406,7 @@ public enum MinerState : byte
 	Idle                  = 1, 
 	GoingToEntry          = 2, ///< Descending to shaft, through shared airspace.
 	Drilling              = 3, ///< Descending into the shaft, until there is a reasong to leave.
-	GettingOutTheShaft    = 4, 
+	//GettingOutTheShaft    = 4, (deprecated, was used for Lone mode) 
 	GoingToUnload         = 5, ///< Ascending from the shaft, through shared airspace, into assigned flight level.
 	WaitingForDocking     = 6, ///< Loitering above the shaft, waiting to be assign a docking port for returning home.
 	Docked                = 7, ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
