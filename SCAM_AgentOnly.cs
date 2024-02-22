@@ -406,12 +406,6 @@ void CreateRole(string role)
 				Scheduler.C.After(5000).RunCmd(() => minerController.CommandAutoPillock(stateWrapper.PState.lastAPckCommand));
 			}
 
-			if (newRole == Role.Lone)
-			{
-				/* Create a simplified, "imaginary" dispatcher. */
-				minerController.LocalDispatcher = new Dispatcher(IGC, stateWrapper);
-			}
-
 			if (newRole == Role.Agent)
 			{
 				Scheduler.C.RepeatWhile(() => !minerController.DispatcherId.HasValue).After(1000)
@@ -452,7 +446,7 @@ public enum MinerState : byte
 	Idle                  = 1, 
 	GoingToEntry          = 2, ///< Descending to shaft, through shared airspace.
 	Drilling              = 3, ///< Descending into the shaft, until there is a reasong to leave.
-	GettingOutTheShaft    = 4, 
+	//GettingOutTheShaft    = 4, (deprecated, was used for Lone mode) 
 	GoingToUnload         = 5, ///< Ascending from the shaft, through shared airspace, into assigned flight level.
 	WaitingForDocking     = 6, ///< Loitering above the shaft, waiting to be assign a docking port for returning home.
 	Docked                = 7, ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
@@ -469,7 +463,7 @@ public enum MinerState : byte
 public enum ShaftState { Planned, InProgress, Complete, Cancelled }
 
 Role CurrentRole;
-public enum Role : byte { None = 0, Dispatcher, Agent, Lone }
+public enum Role : byte { None = 0, Dispatcher, Agent }
 
 public enum ApckState
 {
@@ -908,23 +902,7 @@ public void RaycastTaskHandler(string[] cmdString)
 					E.DebugLog("Successfully got mining center and mining normal");
 					if (minerController != null)
 					{
-						if (minerController.LocalDispatcher != null)
-						{
-							/*
-							 * FIXME: If minerController != NULL, then dispatcherService must be NULL! (
-							 *        (The PB is either agent or dispatcher.)
-							 *        
-							 *        This must be localDispatcher.CreateTask(...
-							 */
-							//dispatcherService.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"),
-							//		castedSurfacePoint.Value - castedNormal.Value * 10, castedNormal.Value,
-							//		Variables.Get<int>("max-generations"), "LocalDispatcher");
-							minerController.LocalDispatcher.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"),
-									castedSurfacePoint.Value - castedNormal.Value * 10, castedNormal.Value,
-									Variables.Get<int>("max-generations"), "LocalDispatcher");
-							minerController.MineCommandHandler();
-						}
-						else if (minerController.DispatcherId.HasValue)
+						if (minerController.DispatcherId.HasValue)
 							IGC.SendUnicastMessage(minerController.DispatcherId.Value, "create-task",
 									new MyTuple<float, Vector3D, Vector3D>(Variables.Get<float>("circular-pattern-shaft-radius"),
 									castedSurfacePoint.Value - castedNormal.Value * 10,
@@ -1104,7 +1082,6 @@ public class Dispatcher
 MinerController minerController;
 public class MinerController
 {
-	public Dispatcher LocalDispatcher { get; set; } // Local dispatcher for "Lone" role.
 	TimerTriggerService tts;
 
 	public MiningJob CurrentJob { get; private set; }
@@ -1257,16 +1234,6 @@ public class MinerController
 					new MyTuple<float, Vector3D, Vector3D>(Variables.Get<float>("circular-pattern-shaft-radius"), pState.miningEntryPoint.Value,
 					pState.miningPlaneNormal.Value));
 			}
-		}
-		else if (CurrentRole == Role.Lone)
-		{
-			var miningEntryPoint = pState.miningEntryPoint.Value;
-			// this clears pstate
-			LocalDispatcher.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"), miningEntryPoint, pState.miningPlaneNormal.Value,
-				Variables.Get<int>("max-generations"), "LocalDispatcher");
-			// this field refers to blank new pstate now...
-			pState.getAbovePt = miningEntryPoint - pState.miningPlaneNormal.Value * Variables.Get<float>("getAbove-altitude");
-			pState.miningEntryPoint = miningEntryPoint;
 		}
 	}
 
@@ -1625,23 +1592,6 @@ public class MinerController
 				IGC.SendUnicastMessage(DispatcherId.Value, "apck.docking.request", docker.GetPosition());
 				SetState(MinerState.WaitingForDocking);
 			}
-			else
-			{
-				// Lone mode, dynamic docking, don't care about shared space. Docking is arranged by APck.
-				if (!finishSession)
-				{
-					SetState(MinerState.Docking);
-					CommandAutoPillock("command:request-docking");
-				}
-				else
-				{
-					// to not end up hitting the shaft wall
-					CommandAutoPillock("[command:create-wp:Name=AutoDock.getAbovePt,Ng=Forward,SpeedLimit=" + Variables.Get<float>("speed-clear") + ":" +
-						VectorOpsHelper.V3DtoBroadcastString(AddEchelonOffset(pState.getAbovePt.HasValue ? pState.getAbovePt.Value :
-								(fwReferenceBlock.GetPosition() + fwReferenceBlock.WorldMatrix.Up * 50)))
-										+ ":command:request-docking]");
-				}
-			}
 		}
 	}
 
@@ -1926,20 +1876,6 @@ public class MinerController
 					});
 				});
 			}
-			else if (c.CurrentRole == Role.Lone)
-			{
-				c.pState.maxDepth = Variables.Get<float>("depth-limit");
-				c.pState.skipDepth = Variables.Get<float>("skip-depth");
-				c.SetState(MinerState.GoingToEntry);
-				c.pState.currentWp = c.pState.miningEntryPoint;
-
-				//var entryBeh = $"command:create-wp:Name=drill entry,Ng=Forward:{VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value)}";
-				var entryBeh = $"command:create-wp:Name=drill entry,Ng=Forward," +
-					$"AimNormal={VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}" +
-					$":{VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value)}";
-
-				c.CommandAutoPillock(entryBeh);
-			}
 		}
 
 		public void SkipShaft()
@@ -1956,10 +1892,6 @@ public class MinerController
 					if (c.CurrentRole == Role.Agent)
 					{
 						c.UnicastToDispatcher("ban-direction", c.pState.CurrentShaftId.Value);
-					}
-					else
-					{
-						c.LocalDispatcher.BanDirectionByPoint(c.pState.CurrentShaftId.Value);
 					}
 				}
 			}
@@ -1988,21 +1920,6 @@ public class MinerController
 					});
 				});
 			}
-			else if (c.CurrentRole == Role.Lone)
-			{
-				int newShaftId = 0;
-				if (c.LocalDispatcher.AssignNewShaft(ref c.pState.miningEntryPoint, ref c.pState.getAbovePt, ref newShaftId))
-				{
-					c.SetState(MinerState.ChangingShaft);
-					c.drills.ForEach(d => d.Enabled = false);
-					c.pState.CurrentShaftId = newShaftId;
-
-					c.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-					c.pState.currentWp = pt;
-				}
-
-			}
-
 		}
 
 		public void SetShaftVectors(int id, Vector3D miningEntryPoint, Vector3D getAbovePt)
@@ -2086,7 +2003,7 @@ public class MinerController
 				}
 			}
 
-			if ((state == MinerState.GettingOutTheShaft) || (state == MinerState.WaitingForLockInShaft)) {
+			if (state == MinerState.WaitingForLockInShaft) {
 
 				if (!CurrentWpReached(0.5f))
 					return; // We have not reached the top of the shaft yet.
@@ -2469,13 +2386,6 @@ public class MinerController
 					",UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-clear") +
 						":" + VectorOpsHelper.V3DtoBroadcastString(pt));
 				c.pState.currentWp = pt;
-			}
-			else if (c.CurrentRole == Role.Lone)
-			{
-				c.SetState(MinerState.GettingOutTheShaft);
-				c.CommandAutoPillock("command:create-wp:Name=GettingOutTheShaft,Ng=Forward,UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-clear") +
-						":" + VectorOpsHelper.V3DtoBroadcastString(c.pState.miningEntryPoint.Value));
-				c.pState.currentWp = c.pState.miningEntryPoint;
 			}
 		}
 
