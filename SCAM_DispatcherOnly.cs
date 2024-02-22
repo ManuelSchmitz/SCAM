@@ -546,7 +546,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			public float? maxFoundOreDepth;
 			public float? prevTickValCount = 0;
 
-			public int? CurrentShaftId;
 			public List<byte> ShaftStates = new List<byte>();
 			public int MaxGenerations;
 			public string CurrentTaskGroup;
@@ -617,7 +616,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					minFoundOreDepth = ParseValue<float?>(values, "minFoundOreDepth");
 					maxFoundOreDepth = ParseValue<float?>(values, "maxFoundOreDepth");
 
-					CurrentShaftId = ParseValue<int?>(values, "CurrentShaftId");
 					MaxGenerations = ParseValue<int>(values, "MaxGenerations");
 					CurrentTaskGroup = ParseValue<string>(values, "CurrentTaskGroup");
 
@@ -652,7 +650,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 					"CurrentJobMaxShaftYield=" + CurrentJobMaxShaftYield,
 					"minFoundOreDepth=" + minFoundOreDepth,
 					"maxFoundOreDepth=" + maxFoundOreDepth,
-					"CurrentShaftId=" + CurrentShaftId ?? "",
 					"MaxGenerations=" + MaxGenerations,
 					"CurrentTaskGroup=" + CurrentTaskGroup,
 					"ShaftStates=" + string.Join(":", ShaftStates)
@@ -1572,11 +1569,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			//	public bool DockingHandled;
 
-			//	public MinerState GetState()
-			//	{
-			//		return pState.MinerState;
-			//	}
-
 			//	public PersistentState pState
 			//	{
 			//		get
@@ -1637,21 +1629,12 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//		embeddedUnit = unit;
 			//	}
 
-			//	public MinerState PrevState { get; private set; }
-			//	public void SetState(MinerState newState)
+			//	public void SetState()
 			//	{
 			//		tts.TryTriggerNamedTimer(GetState() + ".OnExit");
 			//		Log("SetState: " + GetState() + "=>" + newState);
 			//		tts.TryTriggerNamedTimer(newState + ".OnEnter");
 
-			//		PrevState = pState.MinerState;
-			//		pState.MinerState = newState;
-
-			//		if ((newState == MinerState.Disabled) || (newState == MinerState.Idle))
-			//		{
-			//			drills.ForEach(d => d.Enabled = false);
-			//			CommandAutoPillock("command:pillock-mode:Inert", u => u.SetState(ApckState.Inert));
-			//		}
 			//	}
 
 			//	public void Halt()
@@ -1660,13 +1643,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//		CommandAutoPillock("command:pillock-mode:Disabled", u => u.pc.SetState(PillockController.State.Disabled));
 			//		drills.ForEach(d => d.Enabled = false);
 			//		stateWrapper.ClearPersistentState();
-			//	}
-
-			//	public void TrySetState(string stateName)
-			//	{
-			//		MinerState newState;
-			//		if (Enum.TryParse(stateName, out newState))
-			//			SetState(newState);
 			//	}
 
 			//	public T GetSingleBlock<T>(Func<IMyTerminalBlock, bool> pred) where T : class
@@ -1697,8 +1673,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			//		if ((CurrentJob != null) && (!WaitingForLock))
 			//		{
-			//			if ((CurrentRole != Role.Agent) || (DispatcherId.HasValue))
-			//				CurrentJob.HandleState(pState.MinerState);
 			//		}
 
 			//		var j = CurrentJob;
@@ -1788,7 +1762,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//				report.Id = IGC.Me;
 			//				report.WM = fwReferenceBlock.WorldMatrix;
 			//				report.ColorTag = refLight?.Color ?? Color.White;
-			//				CurrentJob?.UpdateReport(report, pState.MinerState);
+			//				CurrentJob?.UpdateReport(report);
 			//				IGC.SendBroadcastMessage("miners.report", report.ToIgc());
 			//			}
 			//		}
@@ -1992,7 +1966,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			//	public void ArrangeDocking()
 			//	{
-			//		bool finishSession = GetState() == MinerState.ForceFinish;
 			//		if (pState.StaticDockOverride.HasValue)
 			//		{
 			//			if (TryUsingStaticDock(finishSession))
@@ -2000,8 +1973,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			// Static docking, we are safe at own echelon
 			//				if (!WholeAirspaceLocking)
 			//					ReleaseLock(LOCK_NAME_GeneralSection);
-			//				if (!finishSession)
-			//					SetState(MinerState.Docking);
 			//			}
 			//		}
 			//		else
@@ -2014,14 +1985,12 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//					ReleaseLock(LOCK_NAME_GeneralSection);
 			//				InvalidateDockingDto?.Invoke();
 			//				IGC.SendUnicastMessage(DispatcherId.Value, "apck.docking.request", docker.GetPosition());
-			//				SetState(MinerState.WaitingForDocking);
 			//			}
 			//			else
 			//			{
 			// Lone mode, dynamic docking, don't care about shared space. Docking is arranged by APck.
 			//				if (!finishSession)
 			//				{
-			//					SetState(MinerState.Docking);
 			//					CommandAutoPillock("command:request-docking");
 			//				}
 			//			
@@ -2035,7 +2004,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//		{
 			//			batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
 			//			tanks.ForEach(b => b.Stockpile = true);
-			//			SetState(MinerState.Disabled);
 			//		}
 			//		else
 			//		{
@@ -2045,16 +2013,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//			waitedActions.Clear();
 			//			EnterSharedSpace(LOCK_NAME_ForceFinishSection, (mc) =>
 			//			{
-			//				if (pState.MinerState == MinerState.ForceFinish || pState.MinerState == MinerState.Docking || docker.Status == MyShipConnectorStatus.Connected)
-			//				{
-			//					SetState(MinerState.ForceFinish);
-			//					Log("Started force-finish callback during docking in progress!");
-			//					ReleaseLock(LOCK_NAME_ForceFinishSection);
-			//					return;
-			//				}
-
-			//				SetState(MinerState.ForceFinish);
-			// TODO: redo ffs... Handle state for WaitingForDock requires job
 			//				CurrentJob = CurrentJob ?? new MiningJob(this);
 			//				ArrangeDocking();
 			//			});
@@ -2066,21 +2024,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//		if (docker.Status == MyShipConnectorStatus.Connected)
 			//		{
 			//			
-			//			{
-			//				SetState(MinerState.Docking);
-			//				return true;
-			//			}
-			//			else
-			//			{
-			//				if (CurrentRole == Role.Agent)
-			//				{
-			//					UnicastToDispatcher("request-new", "");
-			//					WaitForDispatch("", mc => {
-			//						mc.SetState(MinerState.Docking);
-			//					});
-			//					return true;
-			//				}
-			//			}
 			//		}
 			//		return false;
 			//	}
@@ -2170,7 +2113,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			//	bool CheckBatteriesAndIntegrity(float desiredBatteryLevel, float desiredGasLevel)
 			//	{
-			//		allFunctionalBlocks.ForEach(x => TagDamagedTerminalBlocks(x, GetMyTerminalBlockHealth(x), PrevState != MinerState.ForceFinish));
+			//		allFunctionalBlocks.ForEach(x => TagDamagedTerminalBlocks(x, GetMyTerminalBlockHealth(x)));
 			//		if (allFunctionalBlocks.Any(b => !b.IsFunctional))
 			//		{
 			//			if (antenna != null)
@@ -2284,7 +2227,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//				c.WaitForDispatch("", mc => {
 			//					c.EnterSharedSpace(LOCK_NAME_GeneralSection, x =>
 			//					{
-			//						x.SetState(MinerState.ChangingShaft);
 			//						x.drills.ForEach(d => d.Enabled = false);
 			//						var depth = -15;
 			//						
@@ -2296,7 +2238,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//			{
 			//				c.pState.maxDepth = Variables.Get<float>("depth-limit");
 			//				c.pState.skipDepth = Variables.Get<float>("skip-depth");
-			//				c.SetState(MinerState.GoingToEntry);
 
 			//				c.CommandAutoPillock(entryBeh);
 			//			}
@@ -2313,14 +2254,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			// does not work as the prevTickValCount reflects the whole ore amount, not only from the current shaft
 			//				if (!lastFoundOreDepth.HasValue || ((prevTickValCount + currentShaftValTotal - preShaftValTotal) / c.pState.CurrentJobMaxShaftYield < 0.5f))
 			//				{
-			//					if (c.CurrentRole == Role.Agent)
-			//					{
-			//						c.UnicastToDispatcher("ban-direction", c.pState.CurrentShaftId.Value);
-			//					}
-			//					else
-			//					{
-			//						c.LocalDispatcher.BanDirectionByPoint(c.pState.CurrentShaftId.Value);
-			//					}
 			//				}
 			//			}
 
@@ -2335,12 +2268,9 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			//c.SetState(State.WaitingForDispatch);
 
-			//				c.UnicastToDispatcher("shaft-complete-request-new", c.pState.CurrentShaftId.Value);
-
 			//				c.WaitForDispatch("", mc => {
 			//					c.EnterSharedSpace(LOCK_NAME_GeneralSection, x =>
 			//					{
-			//						x.SetState(MinerState.ChangingShaft);
 			//						x.drills.ForEach(d => d.Enabled = false);
 			//						x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
 			//					});
@@ -2350,9 +2280,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//			{
 			//				int newShaftId = 0;
 			//				{
-			//					c.SetState(MinerState.ChangingShaft);
 			//					c.drills.ForEach(d => d.Enabled = false);
-			//					c.pState.CurrentShaftId = newShaftId;
 
 			//					c.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
 			//				}
@@ -2361,25 +2289,11 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 
 			//		}
 
-			//		public void SetShaftVectors(int id)
+			//		public void HandleState()
 			//		{
-	
-			//			c.pState.CurrentShaftId = id;
-			//		}
+			//			
 
-			//		public void HandleState(MinerState state)
-			//		{
-			//			if (state == MinerState.GoingToEntry)
-			//			{
-			//				if (CurrentWpReached(0.5f))
-			//				{
-			//					c.ReleaseLock(LOCK_NAME_GeneralSection);
-			//					c.drills.ForEach(d => d.Enabled = true);
-			//					c.SetState(MinerState.Drilling);
-			//				}
-			//			}
-
-			//			if (state == MinerState.Drilling)
+			//			if ()
 			//			{
 			//				E.Echo($"Depth: current: {currentDepth:f1} skip: {c.pState.skipDepth:f1}");
 			//				if (c.pState.maxDepth.HasValue && (currentDepth > c.pState.maxDepth.Value) 
@@ -2429,7 +2343,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//				}
 			//			}
 
-			//			if ((state == MinerState.GettingOutTheShaft) || (state == MinerState.WaitingForLockInShaft))
+			//			if ()
 			//			{
 			//				if (CurrentWpReached(0.5f))
 			//				{
@@ -2439,7 +2353,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			// we reached cargo limit
 			//						c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
 			//						{
-			//							mc.SetState(MinerState.GoingToUnload);
 			//							mc.drills.ForEach(d => d.Enabled = false);
 			//							mc.CommandAutoPillock("command:create-wp:Name=GoingToUnload,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
 			//						});
@@ -2452,7 +2365,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//				}
 			//			}
 
-			//			if (state == MinerState.ChangingShaft)
+			//			if ()
 			//			{
 			// triggered 15m above old mining entry
 			//				if (CurrentWpReached(0.5f))
@@ -2461,17 +2374,17 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//					c.AddEchelonOffset(pt);
 			//					c.CommandAutoPillock("command:create-wp:Name=GoingToEntry (ChangingShaft),Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
 			//c.SetState(State.GoingToEntry);
-			//					c.SetState(MinerState.ReturningToShaft);
+	
 			//				}
 			//			}
 
-			//			if (state == MinerState.ReturningToShaft)
+		
 			//			{
 			//				if (CurrentWpReached(1))
 			//				{
 			//					c.EnterSharedSpace(LOCK_NAME_GeneralSection, mc =>
 			//					{
-			//						mc.SetState(MinerState.GoingToEntry);
+	
 			//						c.drills.ForEach(d => d.Enabled = true);
 
 			//						double elevation;
@@ -2491,20 +2404,11 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//				}
 			//			}
 
-			//			if (state == MinerState.GoingToUnload)
-			//			{
-			//				if (CurrentWpReached(0.5f))
-			//				{
-			//					c.ArrangeDocking();
-			//				}
-			//			}
 
-			//			if (state == MinerState.WaitingForDocking)
 			//			{
 			//				var dv = c.ntv("docking");
 			//				if (dv.Position.HasValue)
 			//				{
-			//					if (c.PrevState == MinerState.ForceFinish)
 			//					{
 			//						Vector3D dockingTransEntryPt;
 			//						{
@@ -2529,8 +2433,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//											dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude"),
 			//											MatrixD.Invert(dv.OrientationUnit.Value)))
 			//							+ ":command:pillock-mode:DockingFinal");
-
-			//							c.SetState(MinerState.ForceFinish);
 			//});
 			//					}
 			//					else
@@ -2544,13 +2446,11 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//										dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude"),
 			//										MatrixD.Invert(dv.OrientationUnit.Value)))
 			//							+ ":command:pillock-mode:DockingFinal");
-			//							c.SetState(MinerState.Docking);
 			//						//});
 			//					}
 			//				}
 			//			}
 
-			//			if (state == MinerState.Docking)
 			//			{
 			//				if (c.docker.Status == MyShipConnectorStatus.Connected)
 			//				{
@@ -2588,17 +2488,15 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//								AccountUnload();
 			//								HandleUnload(c.docker.OtherConnector);
 			//								c.docker.Disconnect();
-			//								c.SetState(MinerState.ReturningToShaft);
 			//							});
 			//						}
 			//						else
 			//						{
-			//							c.SetState(MinerState.Maintenance);
 			//							c.pState.LifetimeWentToMaintenance++;
-			//							Scheduler.C.After(10000).RepeatWhile(() => c.GetState() == MinerState.Maintenance).RunCmd(() => {
+			//							Scheduler.C.After(10000).).RunCmd(() => {
 			//								if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-full-factor"), 0.99f))
 			//								{
-			//									c.SetState(MinerState.Docking);
+		
 			//								}
 			//							});
 			//						}
@@ -2613,22 +2511,20 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//				}
 			//			}
 
-			//			if (state == MinerState.Maintenance)
 			//			{
 			// for world reload
-			//				if ((c.PrevState != MinerState.Docking) && (c.docker.Status == MyShipConnectorStatus.Connected))
+			//				if (() && (c.docker.Status == MyShipConnectorStatus.Connected))
 			//				{
 			//					c.CommandAutoPillock("command:pillock-mode:Disabled");
-			//					Scheduler.C.After(10000).RepeatWhile(() => c.GetState() == MinerState.Maintenance).RunCmd(() => {
+			//					Scheduler.C.After(10000).RepeatWhile(() => c.).RunCmd(() => {
 			//						if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-full-factor"), 0.99f))
 			//						{
-			//							c.SetState(MinerState.Docking);
+			//						
 			//						}
 			//					});
 			//				}
 			//			}
 
-			//			if (state == MinerState.ForceFinish)
 			//			{
 			//				if (c.docker.Status == MyShipConnectorStatus.Connected)
 			//				{
@@ -2657,10 +2553,8 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//					}
 			//					else
 			//					{
-			//						c.SetState(MinerState.Disabled);
 			//						AccountUnload();
 
-			//						c.pState.LifetimeOperationTime += (int)(DateTime.Now - SessionStartedAt).TotalSeconds;
 			//						c.stateWrapper.Save();
 
 			// CurrentJob is recreated at command:mine or ResumeFromDock
@@ -2726,22 +2620,7 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//			return true;
 			//		}
 
-			//		void GetOutTheShaft()
-			//		{
-			//			currentDepth = 0;
-			//			if (c.CurrentRole == Role.Agent)
-			//			{
-			//				c.SetState(MinerState.WaitingForLockInShaft);
-
-			//			}
-			//			else if (c.CurrentRole == Role.Lone)
-			//			{
-			//				c.SetState(MinerState.GettingOutTheShaft);
-			//			}
-			//		}
-
-
-			//		public void UpdateReport(TransponderMsg report, MinerState state)
+			//		public void UpdateReport(TransponderMsg report)
 			//		{
 			//			var b = ImmutableArray.CreateBuilder<MyTuple<string, string>>(10);
 			//			b.Add(new MyTuple<string, string>("State", state.ToString()));
@@ -2767,7 +2646,6 @@ namespace ConsoleApplication1.UtilityPillockMonolith
 			//			sb.AppendFormat("lastFoundOreDepth: {0}\n", lastFoundOreDepth.HasValue ? lastFoundOreDepth.Value.ToString("f2") : "-");
 			//			sb.AppendFormat("minFoundOreDepth: {0}\n", MinFoundOreDepth.HasValue ? MinFoundOreDepth.Value.ToString("f2") : "-");
 			//			sb.AppendFormat("maxFoundOreDepth: {0}\n", MaxFoundOreDepth.HasValue ? MaxFoundOreDepth.Value.ToString("f2") : "-");
-			//			sb.AppendFormat("shaft id: {0}\n", c.pState.CurrentShaftId ?? -1);
 
 			//			return sb.ToString();
 			//		}
