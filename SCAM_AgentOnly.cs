@@ -745,28 +745,6 @@ void Main(string param, UpdateType updateType)
 
 				/* Disconnect from base (if departure). */
 				coreUnit.docker.Disconnect();
-
-				/* Depart/approach on assign flight path (given by ATC). */
-				var path = (ImmutableArray<Vector3D>)m.Data;
-				if (path.Length > 0)
-				{
-					foreach (var p in path)
-					{
-						// race c?
-						Func<Vector3D> trans = () => Vector3D.Transform(p, GetNTV("docking").OrientationUnit.Value);
-						var bh = new PcBehavior()
-						{
-							Name = "r",
-							IgnoreTFeed = true,
-							PositionShifter = x => trans(),
-							TranslationOverride = () => coreUnit.docker.GetPosition(),
-							AimpointShifter = tv => coreUnit.docker.GetPosition() - GetNTV("docking").OrientationUnit.Value.Forward * 10000,
-							FwOverride = () => coreUnit.docker.WorldMatrix
-						};
-						coreUnit.CreateWP(APckTask.CreateRelP("r", trans, bh));
-					}
-				}
-
 			}
 
 		}
