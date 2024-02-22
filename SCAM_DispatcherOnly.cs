@@ -1422,37 +1422,53 @@ IMyShipController guiSeat;
  */
 public static class E
 {
+	public enum LogLevel {
+		Critical = 0, ///< Something went wrong.
+		Warning  = 1, ///< Something is odd.
+		Notice   = 2, ///< Something the operator should be aware of.
+		Debug    = 3  ///< Maximum verbosity.
+	}
+
 	static string debugTag = "";
-	static Action<string> e;
+	static Action<string> echoClbk;
 	static IMyTextSurface p;
 	static IMyTextSurface lcd;                             ///< The LCD screen used for displaying the log messages.
-	public static double T;
+	public static double  T;
 	static List<string>   linesToLog = new List<string>(); ///< List of all current log messages.
+	static LogLevel       filterLevel = LogLevel.Notice;   ///< All message with a higher log level are filtered out.
 
+	/**
+	 * \brief Initializes the logging modle.
+	 * \note To be called in the script's constructor, as early as possible.
+	 * \param[out] echo A callback function, which will receive messages sent to the "Echo"
+	 * method. (Used for debugging output only.) 
+	 */
 	public static void Init(Action<string> echo, IMyGridTerminalSystem g, IMyProgrammableBlock me)
 	{
-		e = echo;
+		echoClbk = echo;
 		p = me.GetSurface(0);
 		p.ContentType = ContentType.TEXT_AND_IMAGE;
 		p.WriteText("");
 	}
-	public static void Echo(string s) { if ((debugTag == "") || (s.Contains(debugTag))) e(s); }
 
-	static string buff = "";
-	public static void DebugToPanel(string s)
-	{
-		buff += s + "\n";
+	public static void Echo(string s) {
+		if ((debugTag == "") || (s.Contains(debugTag)))
+			echoClbk(s);
 	}
 	
 	/** 
 	 * \brief Writes a message to the log.
 	 * \details The message is automatically timestamped.
+	 * \param[in] msg The message to be logged.
+	 * \param[in] lvl The severity of the message.
 	 */
-	public static void DebugLog(string s)
+	public static void DebugLog(string msg, LogLevel lvl = LogLevel.Notice)
 	{
-		p.WriteText($"{T:f1}: {s}\n", true);
+		if (lvl > filterLevel)
+			return; // Ignore message.
+		p.WriteText($"{T:f1}: {msg}\n", true);
 		if (lcd != null)
-			linesToLog.Add(s);
+			linesToLog.Add(msg);
 	}
 
 	/** \brief Clears the log, including the LCD screen. */
@@ -1464,15 +1480,7 @@ public static class E
 	/** \brief Sets the LCD display for logging mesages. */
 	public static void SetLCD(IMyTextSurface s) { lcd = s; }
 
-	public static void EndOfTick()
-	{
-		if (!string.IsNullOrEmpty(buff))
-		{
-			var h = UserCtrlTest.ctrls.Where(x => x.IsUnderControl).FirstOrDefault() as IMyTextSurfaceProvider;
-			if ((h != null) && (h.SurfaceCount > 0))
-				h.GetSurface(0).WriteText(buff);
-			buff = "";
-		}
+	public static void EndOfTick() {
 		if (linesToLog.Any())
 		{
 			if (lcd != null)
