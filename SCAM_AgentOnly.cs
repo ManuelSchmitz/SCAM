@@ -949,16 +949,12 @@ namespace IngameScript
 			}
 		}
 
-		//Dispatcher dispatcherService;
 		public class Dispatcher
 		{
-			IMyIntergridCommunicationSystem IGC;
-
 			StateWrapper stateWrapper;
 
 			public Dispatcher(IMyIntergridCommunicationSystem igc, StateWrapper stateWrapper)
 			{
-				IGC = igc;
 				this.stateWrapper = stateWrapper;
 			}
 
@@ -1417,7 +1413,6 @@ namespace IngameScript
 
 			}
 
-			//Action<MinerController> callback;
 			Queue<Action<MinerController>> waitedActions = new Queue<Action<MinerController>>();
 			public void WaitForDispatch(string sectionName, Action<MinerController> callback)
 			{
@@ -3920,13 +3915,6 @@ namespace IngameScript
 			if (NamedTeleData.TryGetValue(key, out r))
 				return r;
 			throw new InvalidOperationException("No TV named " + key);
-		}
-		void SetNTV(string key, TargetTelemetry tt)
-		{
-			if (!NamedTeleData.ContainsKey(key))
-				NamedTeleData.Add(key, tt);
-			else
-				NamedTeleData[key] = tt;
 		}
 		void UpdateNTV(string key, MyTuple<MyTuple<string, long, long, byte, byte>, Vector3D, Vector3D, MatrixD, BoundingBoxD> dto)
 		{
