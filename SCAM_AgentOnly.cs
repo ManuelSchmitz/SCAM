@@ -1481,6 +1481,11 @@ public class MinerController
 
 	public void EnterSharedSpace(string sectionName, Action<MinerController> task)
 	{
+		if (ObtainedLock == sectionName) {
+			/* We already hold the desired lock. */
+			task.Invoke(this);
+			return;
+		}
 		BroadcastToChannel("miners", "common-airspace-ask-for-lock:" + sectionName);
 		WaitForDispatch(sectionName, task);
 	}
@@ -1846,6 +1851,7 @@ public class MinerController
 					c.pState.currentWp = pt;
 					//c.SetState(State.GoingToEntry);
 					c.SetState(MinerState.ReturningToShaft);
+					/* Keep the "mining-site" lock! */
 				}
 			}
 
@@ -1869,10 +1875,6 @@ public class MinerController
 
 				if (!CurrentWpReached(1.0f))
 					return; // Not reached the point above the shaft yet. Keep flying.
-
-				/* Release the "general" airspace lock, if held. */
-				if (c.ObtainedLock == LOCK_NAME_GeneralSection)
-					c.ReleaseLock(LOCK_NAME_GeneralSection);
 
 				/* Acquire "mining-site" airspace lock before descending into the shaft. */
 				c.EnterSharedSpace(LOCK_NAME_MiningSection, mc =>
