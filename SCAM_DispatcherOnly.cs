@@ -205,8 +205,7 @@ public static class E
 		if (lvl > filterLevel)
 			return; // Ignore message.
 		p.WriteText($"{simT:f1}: {msg}\n", true);
-		if (lcd != null)
-			linesToLog.Add($"{simT:f1}: {msg}");
+		linesToLog.Add($"{simT:f1}: {msg}");
 	}
 
 	/** \brief Clears the log, including the LCD screen. */
@@ -216,7 +215,14 @@ public static class E
 	}
 
 	/** \brief Sets the LCD display for logging mesages. */
-	public static void SetLCD(IMyTextSurface s) { lcd = s; }
+	public static void SetLCD(IMyTextSurface s) {
+		lcd = s;
+		/* Set some parameters of the LCD panel. */
+		lcd.ContentType = ContentType.TEXT_AND_IMAGE;
+		lcd.FontColor = new Color(r: 0, g: 255, b: 116);
+		lcd.Font = "Monospace"; // Time stamps will always have the same length.
+		lcd.FontSize = 0.65f;
+	}
 
 	public static void EndOfTick() {
 		if (linesToLog.Any())
@@ -230,7 +236,8 @@ public static class E
 					t = t.Substring(0, u - 1);
 				lcd.WriteText(t);
 			}
-			linesToLog.Clear();
+			if (simT > 5) // Don't drop messages of early initialisation.
+				linesToLog.Clear();
 		}
 	}
 }
@@ -334,6 +341,11 @@ void Ctor()
 		E.Echo("State load failed, clearing Storage now");
 		stateWrapper.Save();
 		Runtime.UpdateFrequency = UpdateFrequency.None;
+	} else {
+		/* Persistent state successfully loaded. */
+		var p = (IMyTextPanel)GridTerminalSystem.GetBlockWithId(stateWrapper.PState.logLCD);
+		if (p != null)
+			E.SetLCD(p);
 	}
 
 	GridTerminalSystem.GetBlocksOfType(cameras, c => c.IsSameConstructAs(Me));
@@ -377,15 +389,9 @@ void Ctor()
 						var p = b.FirstOrDefault();
 						if (p == null)
 							return; // LCD panel not found.
-						
-						/* Set some parameters of the LCD panel. */
-						p.ContentType = ContentType.TEXT_AND_IMAGE;
-						p.FontColor = new Color(r: 0, g: 255, b: 116);
-						p.Font = "Monospace"; // Time stamps will always have the same length.
-						p.FontSize = 0.65f;
-
 						E.SetLCD(p);
-						E.Log("Set logging LCD screen to: " + p.CustomName);
+						E.Log("Set logging LCD screen to: " + p.CustomName, E.LogLevel.Notice);
+						stateWrapper.PState.logLCD = p.EntityId;
 					}
 				},
 				{
@@ -448,7 +454,7 @@ void CreateRole(string role)
 			dockingPoints.ForEach(d => d.CustomData = "");
 
 		/* Create a docking port manager. */
-		dockHost = new DockHost(dispatcherService, dockingPoints, stateWrapper.PState, GridTerminalSystem);
+		dockHost = new DockHost(dispatcherService, dockingPoints, GridTerminalSystem);
 
 		if (stateWrapper.PState.ShaftStates.Count > 0)
 		{
@@ -577,7 +583,7 @@ public class PersistentState
 	public Vector3D? StaticDockOverride { get; set; }
 
 	// cleared by clear-storage-state (task-dependent)
-	public MinerState MinerState = MinerState.Idle;
+	public long logLCD;                ///< Entity ID of the logging screen.
 	public Vector3D? miningPlaneNormal;
 	public Vector3D? corePoint;
 	public float? shaftRadius;
@@ -606,6 +612,8 @@ public class PersistentState
 				return (T)(object)float.Parse(res);
 			else if (typeof(T) == typeof(float?))
 				return (T)(object)float.Parse(res);
+			else if (typeof(T) == typeof(long))
+				return (T)(object)long.Parse(res);
 			else if (typeof(T) == typeof(long?))
 				return (T)(object)long.Parse(res);
 			else if (typeof(T) == typeof(Vector3D?))
@@ -628,29 +636,29 @@ public class PersistentState
 
 	public PersistentState Load(string storage)
 	{
-		if (!string.IsNullOrEmpty(storage))
-		{
-			E.Echo(storage);
+		if (string.IsNullOrEmpty(storage))
+			return this;
+		
+		var values = storage.Split('\n').ToDictionary(s => s.Split('=')[0], s => string.Join("=", s.Split('=').Skip(1)));
+		foreach (var v in values)
+			E.Log("Load: " + v.Key + " <-- " + v.Value , E.LogLevel.Debug);
 
-			var values = storage.Split('\n').ToDictionary(s => s.Split('=')[0], s => string.Join("=", s.Split('=').Skip(1)));
+		LifetimeAcceptedTasks = ParseValue<int>(values, "LifetimeAcceptedTasks");
+		LifetimeOperationTime = ParseValue<int>(values, "LifetimeOperationTime");
 
-			LifetimeAcceptedTasks = ParseValue<int>(values, "LifetimeAcceptedTasks");
-			LifetimeOperationTime = ParseValue<int>(values, "LifetimeOperationTime");
+		StaticDockOverride = ParseValue<Vector3D?>(values, "StaticDockOverride");
+		logLCD             = ParseValue<long>     (values, "logLCD");
+		miningPlaneNormal  = ParseValue<Vector3D?>(values, "miningPlaneNormal");
+		corePoint = ParseValue<Vector3D?>(values, "corePoint");
+		shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
-			StaticDockOverride = ParseValue<Vector3D?>(values, "StaticDockOverride");
-			MinerState = ParseValue<MinerState>(values, "MinerState");
-			miningPlaneNormal = ParseValue<Vector3D?>(values, "miningPlaneNormal");
-			corePoint = ParseValue<Vector3D?>(values, "corePoint");
-			shaftRadius = ParseValue<float?>(values, "shaftRadius");
+		maxDepth = ParseValue<float?>(values, "maxDepth");
+		skipDepth = ParseValue<float?>(values, "skipDepth");
 
-			maxDepth = ParseValue<float?>(values, "maxDepth");
-			skipDepth = ParseValue<float?>(values, "skipDepth");
+		MaxGenerations = ParseValue<int>(values, "MaxGenerations");
+		CurrentTaskGroup = ParseValue<string>(values, "CurrentTaskGroup");
 
-			MaxGenerations = ParseValue<int>(values, "MaxGenerations");
-			CurrentTaskGroup = ParseValue<string>(values, "CurrentTaskGroup");
-
-			ShaftStates = ParseValue<List<byte>>(values, "ShaftStates") ?? new List<byte>();
-		}
+		ShaftStates = ParseValue<List<byte>>(values, "ShaftStates") ?? new List<byte>();
 		return this;
 	}
 #endregion
@@ -667,7 +675,7 @@ public class PersistentState
 			"LifetimeAcceptedTasks=" + LifetimeAcceptedTasks,
 			"LifetimeOperationTime=" + LifetimeOperationTime,
 			"StaticDockOverride=" + (StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(StaticDockOverride.Value) : ""),
-			"MinerState=" + MinerState,
+			"logLCD=" + logLCD,
 			"miningPlaneNormal=" + (miningPlaneNormal.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningPlaneNormal.Value) : ""),
 			"corePoint=" + (corePoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(corePoint.Value) : ""),
 			"shaftRadius=" + shaftRadius,
@@ -1207,7 +1215,7 @@ public class Dispatcher
 			Scheduler.C.After(500).RunCmd(() => {
 				foreach (var v in vals)
 				{
-					Log($"Propagating set-value:'{v}' to {msg.Source}");
+					Log($"Propagating set-value:'{v}' to {msg.Source}", E.LogLevel.Debug);
 					IGC.SendUnicastMessage(msg.Source, "set-value", $"{v}:{Variables.Get<float>(v)}");
 				}
 			});
@@ -1743,7 +1751,7 @@ public class DockHost
 	List<IMyShipConnector> ports;
 	Dictionary<IMyShipConnector, Vector3D> pPositions = new Dictionary<IMyShipConnector, Vector3D>(); // Positions of `ports`.
 
-	public DockHost(Dispatcher disp, List<IMyShipConnector> docks, PersistentState ps, IMyGridTerminalSystem gts)
+	public DockHost(Dispatcher disp, List<IMyShipConnector> docks, IMyGridTerminalSystem gts)
 	{
 		dispatcher = disp;
 		ports = docks;
