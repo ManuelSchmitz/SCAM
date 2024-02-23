@@ -222,6 +222,8 @@ public static class E
 		lcd.FontColor = new Color(r: 0, g: 255, b: 116);
 		lcd.Font = "Monospace"; // Time stamps will always have the same length.
 		lcd.FontSize = 0.65f;
+		/* Clear LCD contents. */
+		lcd.WriteText("");
 	}
 
 	public static void EndOfTick() {
@@ -1181,27 +1183,27 @@ public class Dispatcher
 		while (minerHandshakeChannel.HasPendingMessage)
 		{
 			var msg = minerHandshakeChannel.AcceptMessage();
-			if (!(msg.Data is string))
-				continue; // Corrupt/malformed message.
+			if (!(msg.Data is MyTuple<string,MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>>))
+				continue; // Corrupt/malformed message. (Or wrong s/w version on agent.)
 					
-			var data = (string)msg.Data;
-
+			var data = (MyTuple<string,MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>>)msg.Data;
 			//TODO: Register the agent's script version, so that we can keep them parked.
 
-			Log($"Initiated handshake by {msg.Source}, group tag: {data}");
+			Log($"Initiated handshake by {data.Item2.Item1.Item2}, group tag: {data.Item1}", E.LogLevel.Notice);
 
 			Subordinate sb;
 			if (!subordinates.Any(s => s.Id == msg.Source))
 			{
-				sb = new Subordinate { Id = msg.Source, Echelon = (subordinates.Count + 1) * Variables.Get<float>("echelon-offset") + 10f, Group = data };
+				sb = new Subordinate { Id = msg.Source, Echelon = (subordinates.Count + 1) * Variables.Get<float>("echelon-offset") + 10f, Group = data.Item1 };
 				subordinates.Add(sb);
-				sb.Report = new TransponderMsg() { Id = sb.Id, ColorTag = Color.White };
+				sb.Report = new TransponderMsg();
 			}
 			else
 			{
 				sb = subordinates.Single(s => s.Id == msg.Source);
-				sb.Group = data;
+				sb.Group = data.Item1;
 			}
+			sb.Report.UpdateFromIgc(data.Item2);
 
 			IGC.SendUnicastMessage(msg.Source, "miners.handshake.reply", IGC.Me);
 			IGC.SendUnicastMessage(msg.Source, "miners.echelon", sb.Echelon);
@@ -2243,6 +2245,7 @@ public class GuiHandler
 		}
 	}
 }
+
 
 /**
  * \brief Transponder message, to be broadcasted by an agent.

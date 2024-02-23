@@ -404,7 +404,7 @@ void CreateRole(string role)
 		}
 
 		Scheduler.C.RepeatWhile(() => !minerController.DispatcherId.HasValue).After(1000)
-			.RunCmd(() => BroadcastToChannel("miners.handshake", Variables.Get<string>("group-constraint")));
+			.RunCmd(() => minerController.InitiateHandshake());
 
 		if (stateWrapper.PState.miningEntryPoint.HasValue)
 		{
@@ -1052,6 +1052,22 @@ public class MinerController
 		}
 	}
 
+	/** \brief Compiles a handshake message and broadcasts it. */
+	public void InitiateHandshake() {
+		var report = new TransponderMsg();
+		report.Id       = IGC.Me;
+		report.WM       = fwReferenceBlock.WorldMatrix;
+		report.v        = remCon.GetShipVelocities().LinearVelocity;
+		report.state    = pState.MinerState; //TODO: Duplicate, also in the dictionary, see UpdateReport()
+		report.name     = me.CubeGrid.CustomName; //TODO: Duplicate, also in the dictionary, see UpdateReport()
+		report.ColorTag = refLight?.Color ?? Color.White;
+		CurrentJob?.UpdateReport(report, pState.MinerState);
+		var data = new MyTuple<string,MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>>();
+		data.Item1 = Variables.Get<string>("group-constraint");
+		data.Item2 = report.ToIgc();
+		BroadcastToChannel("miners.handshake", data);
+	}
+
 	public void Handle(List<MyIGCMessage> uniMsgs)
 	{
 		E.Echo(embeddedUnit != null ? "Embedded APck" : pCore.CustomName);
@@ -1180,8 +1196,7 @@ public class MinerController
 				if (msg.Data.ToString() == "dispatcher-change")
 				{
 					DispatcherId = null;
-					Scheduler.C.RepeatWhile(() => !DispatcherId.HasValue).After(1000).RunCmd(() =>
-							BroadcastToChannel("miners.handshake", Variables.Get<string>("group-constraint")));
+					Scheduler.C.RepeatWhile(() => !DispatcherId.HasValue).After(1000).RunCmd(() => InitiateHandshake());
 				}
 			}
 		}
