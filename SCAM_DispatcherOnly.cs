@@ -537,7 +537,6 @@ public class StateWrapper
 		PState = new PersistentState();
 		PState.StaticDockOverride = currentState.StaticDockOverride;
 		PState.LifetimeAcceptedTasks = currentState.LifetimeAcceptedTasks;
-		PState.LifetimeOperationTime = currentState.LifetimeOperationTime;
 	}
 
 	Action<string> stateSaver;
@@ -578,7 +577,6 @@ public class StateWrapper
 
 public class PersistentState
 {
-	public int LifetimeOperationTime = 0;
 	public int LifetimeAcceptedTasks = 0;
 
 	// cleared by specific command
@@ -646,7 +644,6 @@ public class PersistentState
 			E.Log("Load: " + v.Key + " <-- " + v.Value , E.LogLevel.Debug);
 
 		LifetimeAcceptedTasks = ParseValue<int>(values, "LifetimeAcceptedTasks");
-		LifetimeOperationTime = ParseValue<int>(values, "LifetimeOperationTime");
 
 		StaticDockOverride = ParseValue<Vector3D?>(values, "StaticDockOverride");
 		logLCD             = ParseValue<long>     (values, "logLCD");
@@ -675,7 +672,6 @@ public class PersistentState
 		string[] pairs = new string[]
 		{
 			"LifetimeAcceptedTasks=" + LifetimeAcceptedTasks,
-			"LifetimeOperationTime=" + LifetimeOperationTime,
 			"StaticDockOverride=" + (StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(StaticDockOverride.Value) : ""),
 			"logLCD=" + logLCD,
 			"miningPlaneNormal=" + (miningPlaneNormal.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningPlaneNormal.Value) : ""),
@@ -1217,7 +1213,7 @@ public class Dispatcher
 			Scheduler.C.After(500).RunCmd(() => {
 				foreach (var v in vals)
 				{
-					Log($"Propagating set-value:'{v}' to {msg.Source}", E.LogLevel.Debug);
+					Log($"Propagating set-value:'{v}' to " + sb.Report.name, E.LogLevel.Debug);
 					IGC.SendUnicastMessage(msg.Source, "set-value", $"{v}:{Variables.Get<float>(v)}");
 				}
 			});
