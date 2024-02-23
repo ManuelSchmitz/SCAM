@@ -9,6 +9,20 @@ A task is a collection of jobs (shafts), and is usually processed by a dispatche
 
 A job is shaft, processed by an individual agent. The dispatcher will usually assign a job to the individual agents.
 
+## Logging
+
+### Dispatcher
+
+The dispatcher logs events to an LCD panel. The LCD panel should be a wide LCD, if possible. In order to connect an LCD screen to the dispatcher, execute the command `command:add-logger:my_lcd_name`, where `my_lcd_name` is the name of the LCD. 
+
+Note that the connection is _not_ permanently stored. It will be lost when the dispatcher PB is recompiled, or the game is loaded. Instead, the command should be added to the startup script (Custom Data of the Dispatcher's PB).
+
+The verbosity of the log can be controlled by changing the `logLevel` variable at the beginning of the dispatcher script. 
+
+### Agent
+
+TBD
+
 ## Agent Commands
 
 ### `command:create-task`

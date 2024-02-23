@@ -31,8 +31,8 @@ static double Dt = 1 / 60f;
 static float MAX_SP = 104.38f;
 const float G = 9.81f;
 const string DockHostTag = "docka-min3r";
-const string ForwardGyroTag = "forward-gyro";
 bool ClearDocksOnReload = false;
+const string logLevel = "Notice"; // Verbosity of log: "Debug", "Notice", "Warning" or "Critical".
 
 static float StoppingPowerQuotient = 0.5f;
 static bool MaxBrakeInProximity = true;
@@ -184,6 +184,9 @@ public static class E
 		p = me.GetSurface(0);
 		p.ContentType = ContentType.TEXT_AND_IMAGE;
 		p.WriteText("");
+
+		if (!Enum.TryParse(logLevel, out filterLevel))
+			Log("Invalid log-level: \"" + logLevel + "\". Defaulting to \"Notice\".", LogLevel.Notice);
 	}
 
 	public static void Echo(string s) {
@@ -1242,7 +1245,7 @@ public class Dispatcher
 				if (msg.Tag == "shaft-complete-request-new")
 				{
 					CompleteShaft((int)msg.Data);
-					E.Log($"Shaft {msg.Data} complete");
+					Log(GetSubordinateName(msg.Source) + $" reports shaft {msg.Data} complete.", E.LogLevel.Notice);
 				}
 
 				// assign and send new shaft points
@@ -1252,7 +1255,7 @@ public class Dispatcher
 				if ((CurrentTask != null) && AssignNewShaft(ref entry, ref getabove, ref shId))
 				{
 					IGC.SendUnicastMessage(msg.Source, "miners.assign-shaft", new MyTuple<int, Vector3D, Vector3D>(shId, entry.Value, getabove.Value));
-					E.Log($"AssignNewShaft with id {shId} sent");
+					E.Log($"Assigned new shaft {shId} to " + GetSubordinateName(msg.Source) + '.', E.LogLevel.Notice);
 				}
 				else
 				{
@@ -1459,7 +1462,7 @@ public class Dispatcher
 
 	public bool AssignNewShaft(ref Vector3D? entry, ref Vector3D? getAbove, ref int id)
 	{
-		Log("CurrentTask.RequestShaft");
+		Log("CurrentTask.RequestShaft", E.LogLevel.Debug);
 		bool res = CurrentTask.RequestShaft(ref entry, ref getAbove, ref id);
 		stateWrapper.PState.ShaftStates[id] = (byte)ShaftState.InProgress;
 		OnTaskUpdate?.Invoke(CurrentTask);
@@ -1776,7 +1779,7 @@ public class DockHost
 
 				/* Store the ID of the agent's PB in the docking port's custom data. */
 				fd.CustomData = id.ToString();
-				E.Log("Assigned docking port " + fd.CustomName + " to " + dispatcher.GetSubordinateName(id));
+				E.Log("Assigned docking port " + fd.CustomName + " to " + dispatcher.GetSubordinateName(id), E.LogLevel.Notice);
 				i.SendUnicastMessage(id, "apck.docking.approach", ""); //TODO: NEcessary?
 			}
 		}
