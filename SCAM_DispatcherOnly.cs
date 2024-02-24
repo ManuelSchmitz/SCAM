@@ -43,11 +43,6 @@ static string LOCK_NAME_GeneralSection = "general";
 static string LOCK_NAME_MiningSection = "mining-site";///< Airspace above the mining site.
 static string LOCK_NAME_BaseSection = "base";         ///< Airspace above the base.
 
-Action<IMyTextPanel> outputPanelInitializer = x =>
-{
-	x.ContentType = ContentType.TEXT_AND_IMAGE;
-};
-
 
 /** \brief The configuration state of the PB. */
 static class Variables
@@ -379,7 +374,7 @@ void Ctor()
 						if (p != null)
 						{
 							E.Log($"Added {p.CustomName} as GUI panel");
-							outputPanelInitializer(p);
+							p.ContentType = ContentType.TEXT_AND_IMAGE;
 							rawPanel = p;
 						}
 					}
@@ -787,7 +782,7 @@ void Main(string param, UpdateType updateType)
 	/* Check if we can grant airspace locks.
 	 * (Don't do this immediately after start, because there may be some handshaking in progress.) */
 	//FIXME: This might be a performance problem. It is sufficient to only check every 1 s or so.
-	if (TickCount > 40)
+	if (TickCount > 100)
 		dispatcherService.GrantAirspaceLocks();
 
 	/* Request GUI data from the agents. */
@@ -807,6 +802,7 @@ void Main(string param, UpdateType updateType)
 		{
 			if (guiH == null)
 			{
+				/* GUI does not yet exist. Create it! */
 				guiH = new GuiHandler(rawPanel, dispatcherService, stateWrapper);
 				dispatcherService.OnTaskUpdate = guiH.UpdateMiningScheme;
 				guiH.OnShaftClick = id => dispatcherService.CancelShaft(id);
@@ -1000,7 +996,6 @@ public class Dispatcher
 		public float Echelon;
 		public string Group;
 		public TransponderMsg Report; ///< Last received transponder status (position, velocity, ...).
-		//TODO: Add software version for compatibility check.
 	}
 
 	/**
@@ -1515,7 +1510,7 @@ static class VectorOpsHelper
 }
 
 
-IMyTextPanel rawPanel;
+IMyTextPanel rawPanel;     ///< The LCD screen onto which the GUI is drawn.
 IMyShipController guiSeat;
 
 
@@ -1996,7 +1991,6 @@ public class GuiHandler
 	bool eDown;
 	public void Handle(IMyTextPanel panel, IMyShipController seat)
 	{
-		bool needsUpdate = true;
 		Vector2 r = Vector2.Zero;
 		bool clickE = false;
 		if (seat.IsUnderControl && Toggle.C.Check("cc"))
@@ -2011,52 +2005,56 @@ public class GuiHandler
 		}
 		if (r.LengthSquared() > 0 || clickE)
 		{
-			needsUpdate = true;
 			mOffset.X += r.Y;
 			mOffset.Y += r.X;
 			mOffset = Vector2.Clamp(mOffset, -panel.TextureSize / 2, panel.TextureSize / 2);
 		}
 		var cursP = mOffset + panel.TextureSize / 2;
 
-		if (needsUpdate)
+		/* Update the GUI screen contents.*/
+
+		using (var frame = panel.DrawFrame())
 		{
-			using (var frame = panel.DrawFrame())
+			/* Render the agent status table. */
+			DrawReportRepeater(frame);
+
+			foreach (var ae in controls.Where(x => x.Visible).Union(shaftControls))
 			{
-				DrawReportRepeater(frame);
-
-				foreach (var ae in controls.Where(x => x.Visible).Union(shaftControls))
+				if (ae.CheckHover(cursP))
 				{
-					if (ae.CheckHover(cursP))
-					{
-						if (clickE)
-							ae.OnClick?.Invoke(cursP);
-					}
+					if (clickE)
+						ae.OnClick?.Invoke(cursP);
 				}
-
-				foreach (var ae in controls.Where(x => x.Visible).Union(shaftControls))
-				{
-					frame.AddRange(ae.GetSprites());
-				}
-
-				frame.Add(shaftTip);
-				frame.Add(buttonTip);
-				frame.Add(taskSummary);
-
-				DrawAgents(frame);
-
-				var cur = new MySprite(SpriteType.TEXTURE, "Triangle", cursP, new Vector2(7f, 10f), Color.White);
-				cur.RotationOrScale = 6f;
-				frame.Add(cur);
 			}
 
-			if (r.LengthSquared() > 0)
+			foreach (var ae in controls.Where(x => x.Visible).Union(shaftControls))
 			{
-				panel.ContentType = ContentType.TEXT_AND_IMAGE;
-				panel.ContentType = ContentType.SCRIPT;
+				frame.AddRange(ae.GetSprites());
 			}
+
+			frame.Add(shaftTip);
+			frame.Add(buttonTip);
+			frame.Add(taskSummary);
+
+			/* Draw the agent icons. */
+			DrawAgents(frame);
+
+			/* Draw mouse cursor. */
+			var cur = new MySprite(SpriteType.TEXTURE, "Triangle", cursP, new Vector2(7f, 10f), Color.White);
+			cur.RotationOrScale = 6f;
+			frame.Add(cur);
+		}
+
+		if (r.LengthSquared() > 0)
+		{
+			panel.ContentType = ContentType.TEXT_AND_IMAGE;
+			panel.ContentType = ContentType.SCRIPT;
 		}
 	}
 
+	/**
+	 * \brief Renders the agent icons on the GUI screen.
+	 */
 	void DrawAgents(MySpriteDrawFrame frame)
 	{
 		var z = new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y / 2f);
@@ -2081,6 +2079,9 @@ public class GuiHandler
 		}
 	}
 
+	/**
+	 * \brief Renders the agent table on the GUI screen.
+	 */
 	void DrawReportRepeater(MySpriteDrawFrame frame)
 	{
 		bool madeHeader = false;
@@ -2089,9 +2090,17 @@ public class GuiHandler
 		{
 			if (!su.Report.KeyValuePairs.IsDefault)
 			{
-				int offX = 0, startX = 100, interval = 75;
-				if (!madeHeader)
-				{
+				int offX = 0, startX = 100;
+				int interval = 75; ///< Stride between two columns.
+
+				/* Before first row, render the table header. */
+				if (!madeHeader) {
+					/* System columns. */
+					frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(interval - 5, 40), Color.Black));
+					frame.Add(new MySprite(SpriteType.TEXT, "Name\nState", new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
+					offX += interval;
+
+					/* Dynamic columns. */
 					foreach (var kvp in su.Report.KeyValuePairs)
 					{
 						frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(interval - 5, 40), Color.Black));
@@ -2102,9 +2111,15 @@ public class GuiHandler
 					offY += 40;
 				}
 
+				/* Row contents: 1 Row per subordinate */
 				offX = 0;
-				foreach (var kvp in su.Report.KeyValuePairs)
-				{
+
+				/* System columns. */
+				frame.Add(new MySprite(SpriteType.TEXT, su.Report.name + "\n" + su.Report.state.ToString(), new Vector2(startX + offX, startY + offY), null, su.Report.ColorTag, "Debug", TextAlignment.CENTER, 0.5f));
+				offX += interval;
+
+				/* Dynamic columns. */
+				foreach (var kvp in su.Report.KeyValuePairs) {
 					frame.Add(new MySprite(SpriteType.TEXT, kvp.Item2, new Vector2(startX + offX, startY + offY), null,
 						su.Report.ColorTag, "Debug", TextAlignment.CENTER, 0.5f));
 					offX += interval;

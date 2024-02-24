@@ -1047,8 +1047,8 @@ public class MinerController
 		report.Id       = IGC.Me;
 		report.WM       = fwReferenceBlock.WorldMatrix;
 		report.v        = remCon.GetShipVelocities().LinearVelocity;
-		report.state    = pState.MinerState; //TODO: Duplicate, also in the dictionary, see UpdateReport()
-		report.name     = me.CubeGrid.CustomName; //TODO: Duplicate, also in the dictionary, see UpdateReport()
+		report.state    = pState.MinerState;
+		report.name     = me.CubeGrid.CustomName;
 		report.ColorTag = refLight?.Color ?? Color.White;
 		CurrentJob?.UpdateReport(report, pState.MinerState);
 
@@ -1164,8 +1164,8 @@ public class MinerController
 				report.Id       = IGC.Me;
 				report.WM       = fwReferenceBlock.WorldMatrix;
 				report.v        = remCon.GetShipVelocities().LinearVelocity;
-				report.state    = pState.MinerState; //TODO: Duplicate, also in the dictionary, see UpdateReport()
-				report.name     = me.CubeGrid.CustomName; //TODO: Duplicate, also in the dictionary, see UpdateReport()
+				report.state    = pState.MinerState;
+				report.name     = me.CubeGrid.CustomName;
 				report.ColorTag = refLight?.Color ?? Color.White;
 				CurrentJob?.UpdateReport(report, pState.MinerState);
 				IGC.SendBroadcastMessage("miners.report", report.ToIgc());
@@ -2185,7 +2185,6 @@ public class MinerController
 		public void UpdateReport(TransponderMsg report, MinerState state)
 		{
 			var b = ImmutableArray.CreateBuilder<MyTuple<string, string>>(10);
-			b.Add(new MyTuple<string, string>("Name\nState", me.CubeGrid.CustomName + "\n" + state.ToString()));
 			b.Add(new MyTuple<string, string>("Adaptive\nmode", Toggle.C.Check("adaptive-mining") ? "Y" : "N"));
 			b.Add(new MyTuple<string, string>("Session\nore mined", SessionOreMined.ToString("f2")));
 			b.Add(new MyTuple<string, string>("Last found\nore depth", (lastFoundOreDepth ?? 0f).ToString("f2")));
