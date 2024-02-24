@@ -263,6 +263,9 @@ void StartOfTick(string arg)
 	if (pendingInitSequence && string.IsNullOrEmpty(arg))
 	{
 		pendingInitSequence = false;
+		
+		CreateRole("Dispatcher"); //TODO: Resolve
+
 		arg = string.Join(",", Me.CustomData.Trim('\n').Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).Where(s => !s.StartsWith("//"))
 				.Select(s => "[" + s + "]"));
 	}
@@ -307,6 +310,7 @@ void Ctor()
 	if (!string.IsNullOrEmpty(Me.CustomData))
 		pendingInitSequence = true;
 
+	/* Initialise logging subsystem first. */
 	E.Init(Echo, GridTerminalSystem, Me);
 
 	/* Initialise the toggles. */
@@ -337,6 +341,7 @@ void Ctor()
 
 	NamedTeleData.Add("docking", new TargetTelemetry(1, "docking"));
 
+	/* Load persistent state. */
 	stateWrapper = new StateWrapper(s => Storage = s);
 	if (!stateWrapper.TryLoad(Storage))
 	{
@@ -397,7 +402,7 @@ void Ctor()
 					}
 				},
 				{
-					"set-role", (parts) => CreateRole(parts[2])
+					"set-role", (parts) => Log("command:set-role is deprecated.", E.LogLevel.Warning)
 				},
 				{
 					"low-update-rate", (parts) => Runtime.UpdateFrequency = UpdateFrequency.Update10

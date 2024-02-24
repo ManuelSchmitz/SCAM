@@ -167,6 +167,9 @@ void StartOfTick(string arg)
 	if (pendingInitSequence && string.IsNullOrEmpty(arg))
 	{
 		pendingInitSequence = false;
+
+		CreateRole("Agent"); //TODO: Resolve
+
 		arg = string.Join(",", Me.CustomData.Trim('\n').Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).Where(s => !s.StartsWith("//"))
 				.Select(s => "[" + s + "]"));
 	}
@@ -294,7 +297,7 @@ void Ctor()
 					"skip", (parts) => minerController?.SkipCommandHandler()
 				},
 				{
-					"set-role", (parts) => CreateRole(parts[2])
+					"set-role", (parts) => Log("command:set-role is deprecated.")
 				},
 				{
 					"low-update-rate", (parts) => Runtime.UpdateFrequency = UpdateFrequency.Update10
