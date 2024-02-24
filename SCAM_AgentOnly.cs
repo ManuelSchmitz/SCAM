@@ -1048,6 +1048,7 @@ public class MinerController
 		report.WM       = fwReferenceBlock.WorldMatrix;
 		report.v        = remCon.GetShipVelocities().LinearVelocity;
 		report.state    = pState.MinerState;
+		report.f_cargo  = cargoFullness_cached;
 		report.name     = me.CubeGrid.CustomName;
 		report.ColorTag = refLight?.Color ?? Color.White;
 		CurrentJob?.UpdateReport(report, pState.MinerState);
@@ -1063,6 +1064,22 @@ public class MinerController
 
 	public void Handle(List<MyIGCMessage> uniMsgs)
 	{
+		/* Update some expensive quantities. */
+		switch (pState.MinerState) {
+		default:
+			UpdateCargoFullness();
+			break;
+		case MinerState.Disabled:
+		case MinerState.Idle:
+		case MinerState.GoingToEntry:
+		case MinerState.WaitingForDocking:
+		case MinerState.ReturningToShaft:
+		case MinerState.Takeoff:
+		case MinerState.ReturningHome:
+		case MinerState.Docking:
+			break; // Cargo is definitely not changing in these sttes.
+		}
+
 		E.Echo(embeddedUnit != null ? "Embedded APck" : pCore.CustomName);
 		embeddedUnit?.Handle(TickCount, E.Echo);
 
@@ -1165,6 +1182,7 @@ public class MinerController
 				report.WM       = fwReferenceBlock.WorldMatrix;
 				report.v        = remCon.GetShipVelocities().LinearVelocity;
 				report.state    = pState.MinerState;
+				report.f_cargo  = cargoFullness_cached;
 				report.name     = me.CubeGrid.CustomName;
 				report.ColorTag = refLight?.Color ?? Color.White;
 				CurrentJob?.UpdateReport(report, pState.MinerState);
@@ -1643,6 +1661,34 @@ public class MinerController
 		}
 	}
 
+	/**
+	 * \brief Updates the cargo fullness, a value in [0;1], and the cargo mass.
+	 */
+	void UpdateCargoFullness() {
+		float spaceNominal = 0;
+		float spaceOccupied = 0;
+		cargoMass_cached = 0;
+		for (int i = 0; i < allContainers.Count; i++)
+		{
+			var inv = allContainers[i].GetInventory(0);
+			if (inv == null)
+				continue;
+			spaceNominal += (float)inv.MaxVolume;
+			spaceOccupied += (float)inv.CurrentVolume;
+			cargoMass_cached += (float)inv.CurrentMass;
+		}
+		cargoFullness_cached = spaceOccupied / spaceNominal;
+	}
+
+	/* Cached values for some expensive-to-calculate quantities. */
+	float cargoFullness_cached; ///< [-] Use instead of CalcCargoFullness. Will be kept up to date automatically.
+	float cargoMass_cached;     ///< [kg] Mass in inventories.
+
+	/** \brief Returns true, iff the cargo is sufficiently full to return to base. */
+	bool CargoIsFull() {
+		return cargoFullness_cached >= Variables.Get<float>("cargo-full-factor");
+	}
+
 	public class MiningJob
 	{
 		protected MinerController c;
@@ -1792,7 +1838,7 @@ public class MinerController
 							GetOutTheShaft(); // No more ore expected in this shaft, job complete.
 					}
 
-					if (CargoIsFull())
+					if (c.CargoIsFull())
 						GetOutTheShaft(); // Cargo full, return to base.
 				}
 				else
@@ -1807,7 +1853,7 @@ public class MinerController
 					return; // We have not reached the top of the shaft yet.
 						
 				// kinda expensive
-				if (CargoIsFull() || !c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
+				if (c.CargoIsFull() || !c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
 				{
 					// we reached cargo limit
 					c.EnterSharedSpace(LOCK_NAME_MiningSection, mc =>
@@ -2188,7 +2234,7 @@ public class MinerController
 			b.Add(new MyTuple<string, string>("Adaptive\nmode", Toggle.C.Check("adaptive-mining") ? "Y" : "N"));
 			b.Add(new MyTuple<string, string>("Session\nore mined", SessionOreMined.ToString("f2")));
 			b.Add(new MyTuple<string, string>("Last found\nore depth", (lastFoundOreDepth ?? 0f).ToString("f2")));
-			b.Add(new MyTuple<string, string>("Cargo\nfullness", cargoFullness.ToString("f2")));
+			b.Add(new MyTuple<string, string>("Cargo\nfullness", (c.cargoFullness_cached * 100f).ToString("f0") + "%"));
 			b.Add(new MyTuple<string, string>("Current\ndepth", currentDepth.ToString("f2")));
 			b.Add(new MyTuple<string, string>("Lock\nrequested", c.WaitedSection));
 			b.Add(new MyTuple<string, string>("Lock\nowned", c.ObtainedLock));
@@ -2201,8 +2247,8 @@ public class MinerController
 			sb.Clear();
 			sb.AppendFormat("session uptime: {0}\n", (SessionStartedAt == default(DateTime) ? "-" : (DateTime.Now - SessionStartedAt).ToString()));
 			sb.AppendFormat("session ore mass: {0}\n", SessionOreMined);
-			sb.AppendFormat("cargoFullness: {0:f2}\n", cargoFullness);
-			sb.AppendFormat("cargoMass: {0:f2}\n", cargoMass);
+			sb.AppendFormat("cargoFullness: {0:f2}\n", c.cargoFullness_cached);
+			sb.AppendFormat("cargoMass: {0:f2}\n", c.cargoMass_cached);
 			sb.AppendFormat("cargoYield: {0:f2}\n", prevTickValCount);
 			sb.AppendFormat("lastFoundOreDepth: {0}\n", lastFoundOreDepth.HasValue ? lastFoundOreDepth.Value.ToString("f2") : "-");
 			sb.AppendFormat("minFoundOreDepth: {0}\n", MinFoundOreDepth.HasValue ? MinFoundOreDepth.Value.ToString("f2") : "-");
@@ -2248,8 +2294,8 @@ public class MinerController
 
 		void AccountUnload()
 		{
-			SessionOreMined += cargoMass;
-			c.pState.LifetimeOreAmount += cargoMass;
+			SessionOreMined += c.cargoMass_cached;
+			c.pState.LifetimeOreAmount += c.cargoMass_cached;
 			c.pState.LifetimeYield += prevTickValCount;
 			currentShaftValTotal += prevTickValCount - preShaftValTotal;
 			preShaftValTotal = 0;
@@ -2287,26 +2333,6 @@ public class MinerController
 			prevTickValCount = totalAmount;
 
 			return gain;
-		}
-
-		float cargoFullness;
-		float cargoMass;
-		bool CargoIsFull()
-		{
-			float spaceNominal = 0;
-			float spaceOccupied = 0;
-			cargoMass = 0;
-			for (int i = 0; i < c.allContainers.Count; i++)
-			{
-				var inv = c.allContainers[i].GetInventory(0);
-				if (inv == null)
-					continue;
-				spaceNominal += (float)inv.MaxVolume;
-				spaceOccupied += (float)inv.CurrentVolume;
-				cargoMass += (float)inv.CurrentMass;
-			}
-			cargoFullness = spaceOccupied / spaceNominal;
-			return cargoFullness >= Variables.Get<float>("cargo-full-factor");
 		}
 
 		void HandleUnload(IMyShipConnector otherConnector)
@@ -4192,11 +4218,12 @@ void FinalizeWP()
  */
 public class TransponderMsg
 {
-	public long       Id;   ///< Entity ID of the agent's PB.
-	public string     name; ///< Grid name of the agent.
-	public MatrixD    WM;   ///< World matrix of the agent.
-	public Vector3D   v;    ///< [m/s] Velocity of the agent.
-	public MinerState state;///< Current state of the agent.
+	public long       Id;     ///< Entity ID of the agent's PB.
+	public string     name;   ///< Grid name of the agent.
+	public MatrixD    WM;     ///< World matrix of the agent.
+	public Vector3D   v;      ///< [m/s] Velocity of the agent.
+	public MinerState state;  ///< Current state of the agent.
+	public float      f_cargo;///< [-] Cargo fullness in [0;1].
 	public Color      ColorTag;
 	public ImmutableArray<MyTuple<string, string>> KeyValuePairs;
 
