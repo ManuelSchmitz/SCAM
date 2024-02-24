@@ -1043,12 +1043,17 @@ public class MinerController
 	/** \brief Compiles a handshake message and broadcasts it. */
 	public void InitiateHandshake() {
 		/* Assemble a transponder message.*/
+		var damBlck = allFunctionalBlocks.FirstOrDefault(b => !b.IsFunctional); // Damaged block, if exists.
 		var report = new TransponderMsg();
 		report.Id       = IGC.Me;
 		report.WM       = fwReferenceBlock.WorldMatrix;
 		report.v        = remCon.GetShipVelocities().LinearVelocity;
+		report.f_bat    = batteryCharge_cached;
+		report.f_fuel   = fuelLevel_cached;
+		report.damage   = (damBlck != null ? damBlck.CustomName : "");
 		report.state    = pState.MinerState;
 		report.f_cargo  = cargoFullness_cached;
+		report.bUnload  = bUnloading;
 		report.name     = me.CubeGrid.CustomName;
 		report.ColorTag = refLight?.Color ?? Color.White;
 		CurrentJob?.UpdateReport(report, pState.MinerState);
@@ -1065,6 +1070,8 @@ public class MinerController
 	public void Handle(List<MyIGCMessage> uniMsgs)
 	{
 		/* Update some expensive quantities. */
+		UpdateBatteryCharge(); // TODO: Maybe not necessary to update on every cycle
+		UpdateFuelLevel();
 		switch (pState.MinerState) {
 		default:
 			UpdateCargoFullness();
@@ -1177,12 +1184,17 @@ public class MinerController
 			if (msg.Tag == "report.request")
 			{
 				/* Progress report requested, compile and send the report. */
+				var damBlck = allFunctionalBlocks.FirstOrDefault(b => !b.IsFunctional); // Damaged block, if exists.
 				var report = new TransponderMsg();
 				report.Id       = IGC.Me;
 				report.WM       = fwReferenceBlock.WorldMatrix;
 				report.v        = remCon.GetShipVelocities().LinearVelocity;
+				report.f_bat    = batteryCharge_cached;
+				report.f_fuel   = fuelLevel_cached;
+				report.damage   = (damBlck != null ? damBlck.CustomName : "");
 				report.state    = pState.MinerState;
 				report.f_cargo  = cargoFullness_cached;
+				report.bUnload  = bUnloading;
 				report.name     = me.CubeGrid.CustomName;
 				report.ColorTag = refLight?.Color ?? Color.White;
 				CurrentJob?.UpdateReport(report, pState.MinerState);
@@ -1565,42 +1577,26 @@ public class MinerController
 	bool CheckBatteriesAndIntegrity(float desiredBatteryLevel, float desiredGasLevel)
 	{
 		allFunctionalBlocks.ForEach(x => TagDamagedTerminalBlocks(x, GetMyTerminalBlockHealth(x), PrevState != MinerState.ForceFinish));
-		if (allFunctionalBlocks.Any(b => !b.IsFunctional))
-		{
+		if (allFunctionalBlocks.Any(b => !b.IsFunctional)) {
 			if (antenna != null)
 				antenna.CustomName = antenna.CubeGrid.CustomName + "> Damaged. Fix me asap!";
 			allFunctionalBlocks.Where(b => !b.IsFunctional).ToList().ForEach(b => E.DebugLog($"{b.CustomName} is damaged or destroyed"));
 			return false;
 		}
-		float storedPower = 0;
-		float maxPower = 0;
-		foreach (var b in batteries)
-		{
-			maxPower += b.MaxStoredPower;
-			storedPower += b.CurrentStoredPower;
-		}
-		double gasAvg = 0;
-		foreach (var b in tanks)
-		{
-			gasAvg += b.FilledRatio;
+
+		if (tanks.Any() && (fuelLevel_cached < desiredGasLevel)) {
+			if (antenna != null)
+				antenna.CustomName = $"{antenna.CubeGrid.CustomName}> Maintenance. Gas level: {fuelLevel_cached:f2}/{desiredGasLevel:f2}";
+			return false;
 		}
 
-		if (tanks.Any() && (gasAvg / tanks.Count < desiredGasLevel))
-		{
+		if (batteryCharge_cached < desiredBatteryLevel) {
 			if (antenna != null)
-				antenna.CustomName = $"{antenna.CubeGrid.CustomName}> Maintenance. Gas level: {gasAvg / tanks.Count:f2}/{desiredGasLevel:f2}";
+				antenna.CustomName = $"{antenna.CubeGrid.CustomName}> Maintenance. Charge level: {batteryCharge_cached:f2}/{desiredBatteryLevel:f2}";
 			return false;
 		}
-		else if (storedPower / maxPower < desiredBatteryLevel)
-		{
-			if (antenna != null)
-				antenna.CustomName = $"{antenna.CubeGrid.CustomName}> Maintenance. Charge level: {storedPower / maxPower:f2}/{desiredBatteryLevel:f2}";
-			return false;
-		}
-		else
-		{
-			return true;
-		}
+		
+		return true;
 	}
 
 	float GetMyTerminalBlockHealth(IMyTerminalBlock block)
@@ -1662,14 +1658,41 @@ public class MinerController
 	}
 
 	/**
+	 * \brief Updates the battery charge.
+	 */
+	void UpdateBatteryCharge() {
+		float storedPower = 0;
+		float maxPower = 0;
+		foreach (var b in batteries) {
+			maxPower += b.MaxStoredPower;
+			storedPower += b.CurrentStoredPower;
+		}
+		batteryCharge_cached = (maxPower > 0 ? storedPower / maxPower : 1f);
+	}
+
+	/**
+	 * \brief Updates the fuel level.
+	 */
+	void UpdateFuelLevel() {
+		float storedFuel = 0;
+		float fuelCapacity = 0;
+		double gasAvg = 0;
+		foreach (var b in tanks) {
+			storedFuel   += b.Capacity * (float)b.FilledRatio; 
+			fuelCapacity += b.Capacity;
+			gasAvg += b.FilledRatio;
+		}
+		fuelLevel_cached = (fuelCapacity > 0 ? storedFuel / fuelCapacity : 1f);
+	}
+
+	/**
 	 * \brief Updates the cargo fullness, a value in [0;1], and the cargo mass.
 	 */
 	void UpdateCargoFullness() {
 		float spaceNominal = 0;
 		float spaceOccupied = 0;
 		cargoMass_cached = 0;
-		for (int i = 0; i < allContainers.Count; i++)
-		{
+		for (int i = 0; i < allContainers.Count; i++) {
 			var inv = allContainers[i].GetInventory(0);
 			if (inv == null)
 				continue;
@@ -1677,12 +1700,15 @@ public class MinerController
 			spaceOccupied += (float)inv.CurrentVolume;
 			cargoMass_cached += (float)inv.CurrentMass;
 		}
-		cargoFullness_cached = spaceOccupied / spaceNominal;
+		cargoFullness_cached = (spaceNominal > 0 ? spaceOccupied / spaceNominal : 1f);
 	}
 
 	/* Cached values for some expensive-to-calculate quantities. */
+	float batteryCharge_cached; ///< [-] Battery charge in [0;1].
+	float fuelLevel_cached;     ///< [-] Fuel fill in [0;1].
 	float cargoFullness_cached; ///< [-] Use instead of CalcCargoFullness. Will be kept up to date automatically.
 	float cargoMass_cached;     ///< [kg] Mass in inventories.
+	bool bUnloading;            ///< Is the agent still unloading cargo?
 
 	/** \brief Returns true, iff the cargo is sufficiently full to return to base. */
 	bool CargoIsFull() {
@@ -2061,7 +2087,7 @@ public class MinerController
 			{
 
 				E.Echo("Docking: Connected");
-				if (!CargoFlush()) {
+				if (c.bUnloading = !CargoFlush()) {
 					/* Still unloading, remain docked. */
 					E.Echo("Docking: still have items"); //TODO: This information should be shown on the LCD screen, too.
 					return;
@@ -2138,7 +2164,7 @@ public class MinerController
 						c.ReleaseLock(LOCK_NAME_GeneralSection);
 					}
 
-					if (!CargoFlush())
+					if (c.bUnloading = !CargoFlush())
 					{
 						E.Echo("ForceFinish: still have items");
 					}
@@ -2171,6 +2197,7 @@ public class MinerController
 			}
 		}
 
+		/** \brief Unloads all cargo, returns true on success. */
 		bool CargoFlush()
 		{
 			var outerContainers = new List<IMyCargoContainer>();
@@ -2178,39 +2205,38 @@ public class MinerController
 
 			var localInvs = c.allContainers.Select(c => c.GetInventory()).Where(i => i.ItemCount > 0);
 
-			if (localInvs.Any())
+			if (!localInvs.Any())
+				return true; // All containers are already empty.
+			
+			E.Echo("Docking: still have items");
+			foreach (var localInv in localInvs)
 			{
-				E.Echo("Docking: still have items");
-				foreach (var localInv in localInvs)
+				var items = new List<MyInventoryItem>();
+				localInv.GetItems(items);
+				for (int n = 0; n < items.Count; n++)
 				{
-					var items = new List<MyInventoryItem>();
-					localInv.GetItems(items);
-					for (int n = 0; n < items.Count; n++)
+					var itemToPush = items[n];
+					IMyInventory destinationInv;
+
+					var k = Variables.Get<string>("preferred-container");
+					if (!string.IsNullOrEmpty(k))
+						destinationInv = outerContainers.Where(x => x.CustomName.Contains(k)).Select(c => c.GetInventory()).FirstOrDefault();
+					else
+						destinationInv = outerContainers.Select(c => c.GetInventory()).Where(i => i.CanItemsBeAdded((MyFixedPoint)(1f), itemToPush.Type))
+						.OrderBy(i => (float)i.CurrentVolume).FirstOrDefault();
+
+					if (destinationInv != null)
 					{
-						var itemToPush = items[n];
-						IMyInventory destinationInv;
-
-						var k = Variables.Get<string>("preferred-container");
-						if (!string.IsNullOrEmpty(k))
-							destinationInv = outerContainers.Where(x => x.CustomName.Contains(k)).Select(c => c.GetInventory()).FirstOrDefault();
-						else
-							destinationInv = outerContainers.Select(c => c.GetInventory()).Where(i => i.CanItemsBeAdded((MyFixedPoint)(1f), itemToPush.Type))
-							.OrderBy(i => (float)i.CurrentVolume).FirstOrDefault();
-
-						if (destinationInv != null)
+						//E.Echo("Docking: have outer invs to unload to");
+						if (!localInv.TransferItemTo(destinationInv, items[n]))
 						{
-							//E.Echo("Docking: have outer invs to unload to");
-							if (!localInv.TransferItemTo(destinationInv, items[n]))
-							{
-								E.Echo("Docking: failing to transfer from " + (localInv.Owner as IMyTerminalBlock).CustomName + " to "
-									+ (destinationInv.Owner as IMyTerminalBlock).CustomName);
-							}
+							E.Echo("Docking: failing to transfer from " + (localInv.Owner as IMyTerminalBlock).CustomName + " to "
+								+ (destinationInv.Owner as IMyTerminalBlock).CustomName);
 						}
 					}
 				}
-				return false;
 			}
-			return true;
+			return false;
 		}
 
 		void GetOutTheShaft()
@@ -2232,7 +2258,9 @@ public class MinerController
 		{
 			var b = ImmutableArray.CreateBuilder<MyTuple<string, string>>(10);
 			b.Add(new MyTuple<string, string>("Adaptive\nmode", Toggle.C.Check("adaptive-mining") ? "Y" : "N"));
-			b.Add(new MyTuple<string, string>("Session\nore mined", SessionOreMined.ToString("f2")));
+			b.Add(new MyTuple<string, string>("Battery\nFuel", (c.batteryCharge_cached * 100f).ToString("f0") + "%\n" + (c.fuelLevel_cached * 100f).ToString("f0") + "%"));
+			//b.Add(new MyTuple<string, string>("Session\nore mined", SessionOreMined.ToString("f2")));
+			b.Add(new MyTuple<string, string>("Msg", (c.bUnloading ? "unloading ..." : "") + (report.damage != "" ? "\nfix:" + report.damage : "")));
 			b.Add(new MyTuple<string, string>("Last found\nore depth", (lastFoundOreDepth ?? 0f).ToString("f2")));
 			b.Add(new MyTuple<string, string>("Cargo\nfullness", (c.cargoFullness_cached * 100f).ToString("f0") + "%"));
 			b.Add(new MyTuple<string, string>("Current\ndepth", currentDepth.ToString("f2")));
@@ -4222,8 +4250,12 @@ public class TransponderMsg
 	public string     name;   ///< Grid name of the agent.
 	public MatrixD    WM;     ///< World matrix of the agent.
 	public Vector3D   v;      ///< [m/s] Velocity of the agent.
+	public float      f_bat;  ///< [-] Battery charge in [0;1].
+	public float      f_fuel; ///< [-] Fuel level in [0;1].
+	public string     damage; ///< Name of damaged block, if exists.
 	public MinerState state;  ///< Current state of the agent.
 	public float      f_cargo;///< [-] Cargo fullness in [0;1].
+	public bool       bUnload;///< Is the agent unloading cargo?
 	public Color      ColorTag;
 	public ImmutableArray<MyTuple<string, string>> KeyValuePairs;
 
