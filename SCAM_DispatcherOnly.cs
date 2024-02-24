@@ -521,6 +521,7 @@ public class StateWrapper
 		PState = new PersistentState();
 		PState.StaticDockOverride = currentState.StaticDockOverride;
 		PState.LifetimeAcceptedTasks = currentState.LifetimeAcceptedTasks;
+		PState.airspaceLockRequests  = currentState.airspaceLockRequests;
 	}
 
 	Action<string> stateSaver;
@@ -559,6 +560,20 @@ public class StateWrapper
 	}
 }
 
+
+/** \brief Request for an airspace lock. */
+public struct LockRequest {
+	public long   id;      ///< ID of the requesting PB. Send answer there.
+	public string lockName;///< Name of the requested lock.
+	public LockRequest(long _id, string _ln) { id = _id; lockName = _ln; }
+	public override string ToString() { return $"{id},{lockName}"; }
+	public static LockRequest Parse(string s) {
+		var p = s.Split(',');
+		return new LockRequest(long.Parse(p[0]), p[1]);
+	}
+}
+
+
 public class PersistentState
 {
 	public int LifetimeAcceptedTasks = 0;
@@ -567,7 +582,9 @@ public class PersistentState
 	public Vector3D? StaticDockOverride { get; set; }
 
 	// cleared by clear-storage-state (task-dependent)
-	public long logLCD;                ///< Entity ID of the logging screen.
+	public long logLCD;                            ///< Entity ID of the logging screen.
+	public Queue<LockRequest> airspaceLockRequests ///< Airspace lock queue.
+	                         = new Queue<LockRequest>();
 	public Vector3D? miningPlaneNormal;
 	public Vector3D? corePoint;
 	public float? shaftRadius;
@@ -605,6 +622,14 @@ public class PersistentState
 				var d = res.Split(':');
 				return (T)(object)new Vector3D(double.Parse(d[0]), double.Parse(d[1]), double.Parse(d[2]));
 			}
+			else if (typeof(T) == typeof(Queue<LockRequest>))
+			{
+				var d = res.Split(':');
+				var q = new Queue<LockRequest>();
+				foreach (var p in d)
+					q.Enqueue(LockRequest.Parse(p));
+				return (T)(object)q;
+			}
 			else if (typeof(T) == typeof(List<byte>))
 			{
 				var d = res.Split(':');
@@ -629,9 +654,10 @@ public class PersistentState
 
 		LifetimeAcceptedTasks = ParseValue<int>(values, "LifetimeAcceptedTasks");
 
-		StaticDockOverride = ParseValue<Vector3D?>(values, "StaticDockOverride");
-		logLCD             = ParseValue<long>     (values, "logLCD");
-		miningPlaneNormal  = ParseValue<Vector3D?>(values, "miningPlaneNormal");
+		StaticDockOverride   = ParseValue<Vector3D?>         (values, "StaticDockOverride");
+		logLCD               = ParseValue<long>              (values, "logLCD");
+		airspaceLockRequests = ParseValue<Queue<LockRequest>>(values, "airspaceLockRequests") ?? new Queue<LockRequest>();
+		miningPlaneNormal    = ParseValue<Vector3D?>         (values, "miningPlaneNormal");
 		corePoint = ParseValue<Vector3D?>(values, "corePoint");
 		shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
@@ -658,6 +684,7 @@ public class PersistentState
 			"LifetimeAcceptedTasks=" + LifetimeAcceptedTasks,
 			"StaticDockOverride=" + (StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(StaticDockOverride.Value) : ""),
 			"logLCD=" + logLCD,
+			"airspaceLockRequests=" + string.Join(":", airspaceLockRequests),
 			"miningPlaneNormal=" + (miningPlaneNormal.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningPlaneNormal.Value) : ""),
 			"corePoint=" + (corePoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(corePoint.Value) : ""),
 			"shaftRadius=" + shaftRadius,
@@ -757,9 +784,11 @@ void Main(string param, UpdateType updateType)
 	E.Echo(dispatcherService.ToString());
 	dispatcherService.HandleIGC(uniMsgs);
 
-	/* Check if we can grant airspace locks. */
+	/* Check if we can grant airspace locks.
+	 * (Don't do this immediately after start, because there may be some handshaking in progress.) */
 	//FIXME: This might be a performance problem. It is sufficient to only check every 1 s or so.
-	dispatcherService.GrantAirspaceLocks();
+	if (TickCount > 40)
+		dispatcherService.GrantAirspaceLocks();
 
 	/* Request GUI data from the agents. */
 	if (guiH != null)
@@ -960,15 +989,7 @@ Dispatcher dispatcherService;
  */
 public class Dispatcher
 {
-	/** \brief Request for an airspace lock. */
-	public struct LockRequest {
-		public long   id;      ///< ID of the requesting PB. Send answer there.
-		public string lockName;///< Name of the requested lock.
-		public LockRequest(long _id, string _ln) { id = _id; lockName = _ln; }
-	}
-
 	public List<Subordinate> subordinates = new List<Subordinate>();
-	Queue<LockRequest> sectionsLockRequests = new Queue<LockRequest>(); ///< Lock requests to be served ASAP. An agent(=id) can only be queued once.
 
 	public Action<MiningTask> OnTaskUpdate;
 
@@ -1011,8 +1032,8 @@ public class Dispatcher
 	 */
 	private void EnqueueLockRequest(long src, string lockName)
 	{
-		if (!sectionsLockRequests.Any(s => s.id == src))
-			sectionsLockRequests.Enqueue(new LockRequest(src, lockName));
+		if (!stateWrapper.PState.airspaceLockRequests.Any(s => s.id == src))
+			stateWrapper.PState.airspaceLockRequests.Enqueue(new LockRequest(src, lockName));
 		//else
 			; //TODO: Update existing lock request with new lockName
 		Log("Airspace permission request added to requests queue: " + GetSubordinateName(src) + " / " + lockName, E.LogLevel.Debug);
@@ -1097,7 +1118,7 @@ public class Dispatcher
 
 					/* If the other agent is holding position and
 					 * waiting for a lock too, no problem (prevents deadlocks).  */
-					if (sb.Report.v.Length() <= 0.1 && sectionsLockRequests.Any(s => s.id == sb.Id))
+					if (sb.Report.v.Length() <= 0.1 && stateWrapper.PState.airspaceLockRequests.Any(s => s.id == sb.Id))
 						continue;
 
 					return false; // There is in fact another drone with collision risk. Cannot grant airspace lock.
@@ -1113,18 +1134,25 @@ public class Dispatcher
 	 * \details To be called periodically. The method will observe priorities and queues.
 	 */
 	public void GrantAirspaceLocks() {
-		while (sectionsLockRequests.Count > 0) {
+		while (stateWrapper.PState.airspaceLockRequests.Count > 0) {
 
 			//TODO: Prefer agents which are in the air (=not docked). No necessarily the first one.
 			//TODO: Prefer agents with low fuel or low battery.
-			LockRequest cand = sectionsLockRequests.Peek();
+			LockRequest cand = stateWrapper.PState.airspaceLockRequests.Peek();
+
+			/* Drop requests from obsolete agents. */
+			if (!subordinates.Any(s => s.Id == cand.id)) {
+				Log($"Agent {cand.id} is no longer a subordinate. Dropping its request for airspace lock.", E.LogLevel.Warning);
+				stateWrapper.PState.airspaceLockRequests.Dequeue();
+				continue;
+			}
 
 			if (!IsLockGranteable(cand.lockName, cand.id))
 				break;
 
 			/* Requested lock is not held by any other agent.
 			 * Grant immediately to the applicant.             */
-			sectionsLockRequests.Dequeue();
+			stateWrapper.PState.airspaceLockRequests.Dequeue();
 			subordinates.First(s => s.Id == cand.id).ObtainedLock = cand.lockName;
 			IGC.SendUnicastMessage(cand.id, "miners", "common-airspace-lock-granted:" + cand.lockName);
 			Log(cand.lockName + " granted to " + GetSubordinateName(cand.id), E.LogLevel.Debug);
@@ -1320,7 +1348,7 @@ public class Dispatcher
 	public void PurgeLocks()
 	{
 		IGC.SendBroadcastMessage("miners.command", "command:dispatch");
-		sectionsLockRequests.Clear();
+		stateWrapper.PState.airspaceLockRequests.Clear();
 		subordinates.ForEach(x => x.ObtainedLock = "");
 		Log($"WARNING! Purging Locks, green light for everybody...");
 	}
@@ -1466,7 +1494,7 @@ public class Dispatcher
 		sb.AppendLine($"CircularPattern radius: {stateWrapper.PState.shaftRadius:f2}");
 		sb.AppendLine($" ");
 		sb.AppendLine($"Total subordinates: {subordinates.Count}");
-		sb.AppendLine($"Lock queue: {sectionsLockRequests.Count}");
+		sb.AppendLine($"Lock queue: {stateWrapper.PState.airspaceLockRequests.Count}");
 		sb.AppendLine($"LifetimeAcceptedTasks: {stateWrapper.PState.LifetimeAcceptedTasks}");
 		return sb.ToString();
 	}
