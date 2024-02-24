@@ -21,6 +21,14 @@ The verbosity of the log can be controlled by changing the `logLevel` variable a
 
 TBD
 
+## Adding Agents: Handshaking
+
+Agents will broadcast a message on `miners.handshake` on startup. Any dispatcher in range can respond with a `miners.handshake.reply` message, and take the agent into its service. //TODO: Agents must confirm this with another message to avoid becoming the servant to multiple masters.
+
+An agent will initiate a handshake when its PB is recompiled.
+
+The handshake will fail, if agent and dispatcher run different software versions. The version can be found in the info box of the programmable block, or at the beginning of the code in variable `Ver`.
+
 ## Agent Commands
 
 ### `command:create-task`

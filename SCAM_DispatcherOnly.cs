@@ -20,7 +20,7 @@ namespace IngameScript {
 class Program : MyGridProgram {
 
 #region mdk preserve
-string Ver = "0.9.68";
+const string Ver = "0.9.68"; // Must be the same on dispatcher and agents.
 
 //static bool WholeAirspaceLocking = false;
 static long DbgIgc = 0;
@@ -1179,12 +1179,15 @@ public class Dispatcher
 		while (minerHandshakeChannel.HasPendingMessage)
 		{
 			var msg = minerHandshakeChannel.AcceptMessage();
-			if (!(msg.Data is MyTuple<string,MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>>))
+			if (!(msg.Data is MyTuple<string,MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>, string>))
 				continue; // Corrupt/malformed message. (Or wrong s/w version on agent.)
-					
-			var data = (MyTuple<string,MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>>)msg.Data;
-			//TODO: Register the agent's script version, so that we can keep them parked.
-
+				
+			var data = (MyTuple<string,MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>, string>)msg.Data;
+			if (data.Item3 != Ver) {
+				Log($"Ignoring handshake broadcast by {data.Item2.Item1.Item2}: Wrong s/w version {data.Item3} (vs {Ver}).", E.LogLevel.Warning);
+				continue;
+			}
+	
 			Log($"Initiated handshake by {data.Item2.Item1.Item2}, group tag: {data.Item1}", E.LogLevel.Notice);
 
 			Subordinate sb;

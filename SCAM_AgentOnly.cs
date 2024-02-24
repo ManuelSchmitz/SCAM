@@ -20,7 +20,7 @@ namespace IngameScript {
 class Program : MyGridProgram {
 
 #region mdk preserve
-string Ver = "0.9.68";
+const string Ver = "0.9.68"; // Must be the same on dispatcher and agents.
 
 static bool WholeAirspaceLocking = false;
 static long DbgIgc = 0;
@@ -777,7 +777,6 @@ void Main(string param, UpdateType updateType)
 
 	if (rawPanel != null)
 	{
-		SendFeedback($"Version: {Ver}");
 		SendFeedback($"LifetimeAcceptedTasks: {stateWrapper.PState.LifetimeAcceptedTasks}");
 		SendFeedback($"LifetimeOreAmount: {FormatNumberToNeatString(stateWrapper.PState.LifetimeOreAmount)}");
 		SendFeedback($"LifetimeOperationTime: {TimeSpan.FromSeconds(stateWrapper.PState.LifetimeOperationTime)}");
@@ -1054,6 +1053,7 @@ public class MinerController
 
 	/** \brief Compiles a handshake message and broadcasts it. */
 	public void InitiateHandshake() {
+		/* Assemble a transponder message.*/
 		var report = new TransponderMsg();
 		report.Id       = IGC.Me;
 		report.WM       = fwReferenceBlock.WorldMatrix;
@@ -1062,9 +1062,13 @@ public class MinerController
 		report.name     = me.CubeGrid.CustomName; //TODO: Duplicate, also in the dictionary, see UpdateReport()
 		report.ColorTag = refLight?.Color ?? Color.White;
 		CurrentJob?.UpdateReport(report, pState.MinerState);
-		var data = new MyTuple<string,MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>>();
+
+		/* Assemble the data content for the handshake. */
+		var data = new MyTuple<string,MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>, string>();
 		data.Item1 = Variables.Get<string>("group-constraint");
 		data.Item2 = report.ToIgc();
+		data.Item3 = Ver;
+
 		BroadcastToChannel("miners.handshake", data);
 	}
 
