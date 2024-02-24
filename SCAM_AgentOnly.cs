@@ -164,12 +164,14 @@ void StartOfTick(string arg)
 	TickCount++;
 	Echo("Run count: " + TickCount);
 
-	if (pendingInitSequence && string.IsNullOrEmpty(arg))
-	{
+	/* If this is the first cycle, and the game engine has loaded
+	 * all the blocks, then we need to do some more initialisation. */
+	if (pendingInitSequence && string.IsNullOrEmpty(arg)) {
 		pendingInitSequence = false;
 
-		CreateRole("Agent"); //TODO: Resolve
+		CreateRole(); //TODO: Resolve or find a better name
 
+		/* Process commands from the startup script. */
 		arg = string.Join(",", Me.CustomData.Trim('\n').Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).Where(s => !s.StartsWith("//"))
 				.Select(s => "[" + s + "]"));
 	}
@@ -353,18 +355,18 @@ void Ctor()
 				},
 			}
 		);
+	
+	/* Create the miner controller object. */
+	minerController = new MinerController(GridTerminalSystem, IGC, stateWrapper, GetNTV);
 }
 
-void CreateRole(string role)
+void CreateRole()
 {
 	var b = new List<IMyProgrammableBlock>();
 	GridTerminalSystem.GetBlocksOfType(b, pb => pb.CustomName.Contains("core") && pb.IsSameConstructAs(Me) && pb.Enabled);
-	pillockCore = b.FirstOrDefault();
-	minerController = new MinerController(GridTerminalSystem, IGC, stateWrapper, GetNTV);
+	pillockCore = b.FirstOrDefault();	
 	if (pillockCore != null)
-	{
 		minerController.SetControlledUnit(pillockCore);
-	}
 	else
 	{
 		coreUnit = new APckUnit(stateWrapper.PState, GridTerminalSystem, IGC, GetNTV);

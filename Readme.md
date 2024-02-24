@@ -27,6 +27,8 @@ Agents will broadcast a message on `miners.handshake` on startup. Any dispatcher
 
 An agent will initiate a handshake when its PB is recompiled.
 
+A dispatcher will broadcast `miners`/`dispatcher-change` when its PB is recompiled. All agents picking up that broadcast will forget about their master and start handshaking again! 
+
 The handshake will fail, if agent and dispatcher run different software versions. The version can be found in the info box of the programmable block, or at the beginning of the code in variable `Ver`.
 
 ## Agent Commands

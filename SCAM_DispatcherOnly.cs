@@ -259,13 +259,17 @@ static int TickCount;
  */
 void StartOfTick(string arg)
 {
-	/* On first cycle, load initialiation script from custom data. */
+	/* If this is the first cycle, and the game engine has loaded
+	 * all the blocks, then we need to do some more initialisation. */
 	if (pendingInitSequence && string.IsNullOrEmpty(arg))
 	{
 		pendingInitSequence = false;
 		
-		CreateRole("Dispatcher"); //TODO: Resolve
+		/* Announce that a new dispatcher just went online.
+		 * Agents may want to handshake.                   */
+		BroadcastToChannel("miners", "dispatcher-change");
 
+		/* Process commands from the startup script. */
 		arg = string.Join(",", Me.CustomData.Trim('\n').Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).Where(s => !s.StartsWith("//"))
 				.Select(s => "[" + s + "]"));
 	}
@@ -439,10 +443,8 @@ void Ctor()
 				},
 			}
 		);
-}
 
-void CreateRole(string role)
-{
+	/* Create the main dispatcher object. */
 	dispatcherService = new Dispatcher(IGC, stateWrapper);
 
 	/* Find all assigned docking ports ("docka-min3r"). */
@@ -466,9 +468,8 @@ void CreateRole(string role)
 		stateWrapper.PState.ShaftStates = dispatcherService.CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
 		E.Log($"Restored task from pstate, shaft count: {cap.Count}");
 	}
-
-	BroadcastToChannel("miners", "dispatcher-change");
 }
+
 
 static void AddUniqueItem<T>(T item, IList<T> c) where T : class
 {
