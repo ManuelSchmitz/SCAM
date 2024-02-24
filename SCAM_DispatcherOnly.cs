@@ -223,7 +223,7 @@ public static class E
 		lcd.Font = "Monospace"; // Time stamps will always have the same length.
 		lcd.FontSize = 0.65f;
 		/* Clear LCD contents. */
-		lcd.WriteText("");
+		lcd.WriteText("", false);
 	}
 
 	public static void EndOfTick() {
@@ -238,7 +238,7 @@ public static class E
 					t = t.Substring(0, u - 1);
 				lcd.WriteText(t);
 			}
-			if (simT > 5) // Don't drop messages of early initialisation.
+			if (simT > 2) // Don't drop messages of early initialisation.
 				linesToLog.Clear();
 		}
 	}
@@ -443,45 +443,31 @@ void Ctor()
 
 void CreateRole(string role)
 {
-	Role newRole;
-	if (!Enum.TryParse(role, out newRole))
-		throw new Exception("Failed to parse role in command:set-role.");
+	dispatcherService = new Dispatcher(IGC, stateWrapper);
 
-	CurrentRole = newRole;
-	E.Log("Assigned role: " + newRole);
+	/* Find all assigned docking ports ("docka-min3r"). */
+	var dockingPoints = new List<IMyShipConnector>();
+	GridTerminalSystem.GetBlocksOfType(dockingPoints, c => c.IsSameConstructAs(Me) && c.CustomName.Contains(DockHostTag));
+	if (ClearDocksOnReload)
+		dockingPoints.ForEach(d => d.CustomData = "");
 
-	if (newRole == Role.Dispatcher)
+	/* Create a docking port manager. */
+	dockHost = new DockHost(dispatcherService, dockingPoints, GridTerminalSystem);
+
+	if (stateWrapper.PState.ShaftStates.Count > 0)
 	{
-		dispatcherService = new Dispatcher(IGC, stateWrapper);
-
-		/* Find all assigned docking ports ("docka-min3r"). */
-		var dockingPoints = new List<IMyShipConnector>();
-		GridTerminalSystem.GetBlocksOfType(dockingPoints, c => c.IsSameConstructAs(Me) && c.CustomName.Contains(DockHostTag));
-		if (ClearDocksOnReload)
-			dockingPoints.ForEach(d => d.CustomData = "");
-
-		/* Create a docking port manager. */
-		dockHost = new DockHost(dispatcherService, dockingPoints, GridTerminalSystem);
-
-		if (stateWrapper.PState.ShaftStates.Count > 0)
+		var cap = stateWrapper.PState.ShaftStates;
+		dispatcherService.CreateTask(stateWrapper.PState.shaftRadius.Value, stateWrapper.PState.corePoint.Value,
+				stateWrapper.PState.miningPlaneNormal.Value, stateWrapper.PState.MaxGenerations, stateWrapper.PState.CurrentTaskGroup);
+		for (int n = 0; n < dispatcherService.CurrentTask.Shafts.Count; n++)
 		{
-			var cap = stateWrapper.PState.ShaftStates;
-			dispatcherService.CreateTask(stateWrapper.PState.shaftRadius.Value, stateWrapper.PState.corePoint.Value,
-					stateWrapper.PState.miningPlaneNormal.Value, stateWrapper.PState.MaxGenerations, stateWrapper.PState.CurrentTaskGroup);
-			for (int n = 0; n < dispatcherService.CurrentTask.Shafts.Count; n++)
-			{
-				dispatcherService.CurrentTask.Shafts[n].State = (ShaftState)cap[n];
-			}
-			stateWrapper.PState.ShaftStates = dispatcherService.CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
-			E.Log($"Restored task from pstate, shaft count: {cap.Count}");
+			dispatcherService.CurrentTask.Shafts[n].State = (ShaftState)cap[n];
 		}
+		stateWrapper.PState.ShaftStates = dispatcherService.CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
+		E.Log($"Restored task from pstate, shaft count: {cap.Count}");
+	}
 
-		BroadcastToChannel("miners", "dispatcher-change");
-	}
-	else
-	{
-		throw new Exception("This script is for dispatcher only (command:set-role:dispatcher).");
-	}
+	BroadcastToChannel("miners", "dispatcher-change");
 }
 
 static void AddUniqueItem<T>(T item, IList<T> c) where T : class
@@ -522,14 +508,6 @@ public enum MinerState : byte
 }
 
 public enum ShaftState { Planned, InProgress, Complete, Cancelled }
-
-Role CurrentRole; // Current role, always Role.Dispatcher (after config load)
-public enum Role : byte { None = 0, Dispatcher, Agent, Lone }
-
-public enum ApckState
-{
-	Inert, Standby, Formation, DockingAwait, DockingFinal, Brake, CwpTask
-}
 
 StateWrapper stateWrapper;
 public class StateWrapper
@@ -775,45 +753,42 @@ void Main(string param, UpdateType updateType)
 	}
 
 	E.Echo($"Version: {Ver}");
-	E.Echo("Min3r role: " + CurrentRole);
-	if (CurrentRole == Role.Dispatcher)
+	E.Echo(dispatcherService.ToString());
+	dispatcherService.HandleIGC(uniMsgs);
+
+	/* Check if we can grant airspace locks. */
+	//FIXME: This might be a performance problem. It is sufficient to only check every 1 s or so.
+	dispatcherService.GrantAirspaceLocks();
+
+	/* Request GUI data from the agents. */
+	if (guiH != null)
 	{
-		E.Echo(dispatcherService.ToString());
-		dispatcherService.HandleIGC(uniMsgs);
+		foreach (var s in dispatcherService.subordinates)
+			IGC.SendUnicastMessage(s.Id, "report.request", "");
+	}
 
-		/* Check if we can grant airspace locks. */
-		//FIXME: This might be a performance problem. It is sufficient to only check every 1 s or so.
-		dispatcherService.GrantAirspaceLocks();
+	/* Update the GUI. */
+	guiH?.UpdateTaskSummary(dispatcherService);
+	dockHost.Handle(IGC, TickCount);
 
-		/* Request GUI data from the agents. */
-		if (guiH != null)
+	if (rawPanel != null)
+	{
+		if (guiSeat != null)
 		{
-			foreach (var s in dispatcherService.subordinates)
-				IGC.SendUnicastMessage(s.Id, "report.request", "");
-		}
-
-		/* Update the GUI. */
-		guiH?.UpdateTaskSummary(dispatcherService);
-		dockHost.Handle(IGC, TickCount);
-
-		if (rawPanel != null)
-		{
-			if (guiSeat != null)
+			if (guiH == null)
 			{
-				if (guiH == null)
-				{
-					guiH = new GuiHandler(rawPanel, dispatcherService, stateWrapper);
-					dispatcherService.OnTaskUpdate = guiH.UpdateMiningScheme;
-					guiH.OnShaftClick = id => dispatcherService.CancelShaft(id);
+				guiH = new GuiHandler(rawPanel, dispatcherService, stateWrapper);
+				dispatcherService.OnTaskUpdate = guiH.UpdateMiningScheme;
+				guiH.OnShaftClick = id => dispatcherService.CancelShaft(id);
 
-					if (dispatcherService.CurrentTask != null)
-						dispatcherService.OnTaskUpdate.Invoke(dispatcherService.CurrentTask); // restore from pstate
-				}
-				else
-					guiH.Handle(rawPanel, guiSeat);
+				if (dispatcherService.CurrentTask != null)
+					dispatcherService.OnTaskUpdate.Invoke(dispatcherService.CurrentTask); // restore from pstate
 			}
+			else
+				guiH.Handle(rawPanel, guiSeat);
 		}
 	}
+
 	if (Toggle.C.Check("show-pstate"))
 		E.Echo(stateWrapper.PState.ToString());
 

@@ -357,62 +357,52 @@ void Ctor()
 
 void CreateRole(string role)
 {
-	Role newRole;
-	if (Enum.TryParse(role, out newRole))
+	var b = new List<IMyProgrammableBlock>();
+	GridTerminalSystem.GetBlocksOfType(b, pb => pb.CustomName.Contains("core") && pb.IsSameConstructAs(Me) && pb.Enabled);
+	pillockCore = b.FirstOrDefault();
+	minerController = new MinerController(GridTerminalSystem, IGC, stateWrapper, GetNTV);
+	if (pillockCore != null)
 	{
-		CurrentRole = newRole;
-		E.DebugLog("Assigned role: " + newRole);
-
-		if (newRole != Role.Agent)
-			throw new Exception("This script is for agents only (command:set-role:agent).");
-		
-		var b = new List<IMyProgrammableBlock>();
-		GridTerminalSystem.GetBlocksOfType(b, pb => pb.CustomName.Contains("core") && pb.IsSameConstructAs(Me) && pb.Enabled);
-		pillockCore = b.FirstOrDefault();
-		minerController = new MinerController(newRole, GridTerminalSystem, IGC, stateWrapper, GetNTV);
-		if (pillockCore != null)
-		{
-			minerController.SetControlledUnit(pillockCore);
-		}
-		else
-		{
-			coreUnit = new APckUnit(stateWrapper.PState, GridTerminalSystem, IGC, GetNTV);
-			minerController.SetControlledUnit(coreUnit);
-			minerController.ApckRegistry = new CommandRegistry(
-				new Dictionary<string, Action<string[]>>
+		minerController.SetControlledUnit(pillockCore);
+	}
+	else
+	{
+		coreUnit = new APckUnit(stateWrapper.PState, GridTerminalSystem, IGC, GetNTV);
+		minerController.SetControlledUnit(coreUnit);
+		minerController.ApckRegistry = new CommandRegistry(
+			new Dictionary<string, Action<string[]>>
+				{
 					{
-						{
-							"create-wp", (parts) => CreateWP(parts)
-						},
-						{
-							"pillock-mode", (parts) => coreUnit?.TrySetState(parts[2])
-						},
-						{
-							"request-docking", (parts) => {
-								E.DebugLog("Embedded lone mode is not supported");
-							}
-						},
-						{
-							"request-depart", (parts) => {
-								E.DebugLog("Embedded lone mode is not supported");
-							}
+						"create-wp", (parts) => CreateWP(parts)
+					},
+					{
+						"pillock-mode", (parts) => coreUnit?.TrySetState(parts[2])
+					},
+					{
+						"request-docking", (parts) => {
+							E.DebugLog("Embedded lone mode is not supported");
+						}
+					},
+					{
+						"request-depart", (parts) => {
+							E.DebugLog("Embedded lone mode is not supported");
 						}
 					}
-				);
-		}
+				}
+			);
+	}
 
-		if (!string.IsNullOrEmpty(stateWrapper.PState.lastAPckCommand))
-		{
-			Scheduler.C.After(5000).RunCmd(() => minerController.CommandAutoPillock(stateWrapper.PState.lastAPckCommand));
-		}
+	if (!string.IsNullOrEmpty(stateWrapper.PState.lastAPckCommand))
+	{
+		Scheduler.C.After(5000).RunCmd(() => minerController.CommandAutoPillock(stateWrapper.PState.lastAPckCommand));
+	}
 
-		Scheduler.C.RepeatWhile(() => !minerController.DispatcherId.HasValue).After(1000)
-			.RunCmd(() => minerController.InitiateHandshake());
+	Scheduler.C.RepeatWhile(() => !minerController.DispatcherId.HasValue).After(1000)
+		.RunCmd(() => minerController.InitiateHandshake());
 
-		if (stateWrapper.PState.miningEntryPoint.HasValue)
-		{
-			minerController.ResumeJobOnWorldLoad();
-		}
+	if (stateWrapper.PState.miningEntryPoint.HasValue)
+	{
+		minerController.ResumeJobOnWorldLoad();
 	}
 }
 
@@ -457,9 +447,6 @@ public enum MinerState : byte
 }
 
 public enum ShaftState { Planned, InProgress, Complete, Cancelled }
-
-Role CurrentRole;
-public enum Role : byte { None = 0, Dispatcher, Agent }
 
 public enum ApckState
 {
@@ -755,7 +742,6 @@ void Main(string param, UpdateType updateType)
 	}
 
 	E.Echo($"Version: {Ver}");
-	E.Echo("Min3r role: " + CurrentRole);
 			
 	minerController.Handle(uniMsgs);
 	E.Echo("Min3r state: " + minerController.GetState());
@@ -906,7 +892,6 @@ public class MinerController
 
 	public MiningJob CurrentJob { get; private set; }
 
-	public Role CurrentRole;
 	public long? DispatcherId;
 	public float? Echelon;              ///< [m] Additional vertical distance from the docking port and mining plane. 
 	public string ObtainedLock = "";
@@ -943,11 +928,10 @@ public class MinerController
 
 	Func<string, TargetTelemetry> ntv;
 	StateWrapper stateWrapper;
-	public MinerController(Role role, IMyGridTerminalSystem gts, IMyIntergridCommunicationSystem igc, StateWrapper stateWrapper,
+	public MinerController(IMyGridTerminalSystem gts, IMyIntergridCommunicationSystem igc, StateWrapper stateWrapper,
 			Func<string, TargetTelemetry> GetNTV)
 	{
 		ntv = GetNTV;
-		this.CurrentRole = role;
 		this.gts = gts;
 		IGC = igc;
 		//CurrentJob = new MiningJob(this);
