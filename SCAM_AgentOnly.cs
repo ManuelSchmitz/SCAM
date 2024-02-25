@@ -1045,21 +1045,24 @@ public class MinerController
 		/* Assemble a transponder message.*/
 		var damBlck = allFunctionalBlocks.FirstOrDefault(b => !b.IsFunctional); // Damaged block, if exists.
 		var report = new TransponderMsg();
-		report.Id       = IGC.Me;
-		report.WM       = fwReferenceBlock.WorldMatrix;
-		report.v        = remCon.GetShipVelocities().LinearVelocity;
-		report.f_bat    = batteryCharge_cached;
-		report.f_fuel   = fuelLevel_cached;
-		report.damage   = (damBlck != null ? damBlck.CustomName : "");
-		report.state    = pState.MinerState;
-		report.f_cargo  = cargoFullness_cached;
-		report.bUnload  = bUnloading;
-		report.name     = me.CubeGrid.CustomName;
-		report.ColorTag = refLight?.Color ?? Color.White;
+		report.Id          = IGC.Me;
+		report.WM          = fwReferenceBlock.WorldMatrix;
+		report.v           = remCon.GetShipVelocities().LinearVelocity;
+		report.f_bat       = batteryCharge_cached;
+		report.f_bat_min   = Variables.Get<float>("battery-low-factor");
+		report.f_fuel      = fuelLevel_cached;
+		report.f_fuel_min  = Variables.Get<float>("gas-low-factor");
+		report.damage      = (damBlck != null ? damBlck.CustomName : "");
+		report.state       = pState.MinerState;
+		report.f_cargo     = cargoFullness_cached;
+		report.f_cargo_max = Variables.Get<float>("cargo-full-factor");
+		report.bUnload     = bUnloading;
+		report.name        = me.CubeGrid.CustomName;
+		report.ColorTag    = refLight?.Color ?? Color.White;
 		CurrentJob?.UpdateReport(report, pState.MinerState);
 
 		/* Assemble the data content for the handshake. */
-		var data = new MyTuple<string,MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>, string>();
+		var data = new MyTuple<string,MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, Vector4, ImmutableArray<MyTuple<string, string>>>, string>();
 		data.Item1 = Variables.Get<string>("group-constraint");
 		data.Item2 = report.ToIgc();
 		data.Item3 = Ver;
@@ -1186,17 +1189,20 @@ public class MinerController
 				/* Progress report requested, compile and send the report. */
 				var damBlck = allFunctionalBlocks.FirstOrDefault(b => !b.IsFunctional); // Damaged block, if exists.
 				var report = new TransponderMsg();
-				report.Id       = IGC.Me;
-				report.WM       = fwReferenceBlock.WorldMatrix;
-				report.v        = remCon.GetShipVelocities().LinearVelocity;
-				report.f_bat    = batteryCharge_cached;
-				report.f_fuel   = fuelLevel_cached;
-				report.damage   = (damBlck != null ? damBlck.CustomName : "");
-				report.state    = pState.MinerState;
-				report.f_cargo  = cargoFullness_cached;
-				report.bUnload  = bUnloading;
-				report.name     = me.CubeGrid.CustomName;
-				report.ColorTag = refLight?.Color ?? Color.White;
+				report.Id          = IGC.Me;
+				report.WM          = fwReferenceBlock.WorldMatrix;
+				report.v           = remCon.GetShipVelocities().LinearVelocity;
+				report.f_bat       = batteryCharge_cached;
+				report.f_bat_min   = Variables.Get<float>("battery-low-factor");
+				report.f_fuel      = fuelLevel_cached;
+				report.f_fuel_min  = Variables.Get<float>("gas-low-factor");
+				report.damage      = (damBlck != null ? damBlck.CustomName : "");
+				report.state       = pState.MinerState;
+				report.f_cargo     = cargoFullness_cached;
+				report.f_cargo_max = Variables.Get<float>("cargo-full-factor");
+				report.bUnload     = bUnloading;
+				report.name        = me.CubeGrid.CustomName;
+				report.ColorTag    = refLight?.Color ?? Color.White;
 				CurrentJob?.UpdateReport(report, pState.MinerState);
 				IGC.SendBroadcastMessage("miners.report", report.ToIgc());
 			}
@@ -4246,39 +4252,74 @@ void FinalizeWP()
  */
 public class TransponderMsg
 {
-	public long       Id;     ///< Entity ID of the agent's PB.
-	public string     name;   ///< Grid name of the agent.
-	public MatrixD    WM;     ///< World matrix of the agent.
-	public Vector3D   v;      ///< [m/s] Velocity of the agent.
-	public float      f_bat;  ///< [-] Battery charge in [0;1].
-	public float      f_fuel; ///< [-] Fuel level in [0;1].
-	public string     damage; ///< Name of damaged block, if exists.
-	public MinerState state;  ///< Current state of the agent.
-	public float      f_cargo;///< [-] Cargo fullness in [0;1].
-	public bool       bUnload;///< Is the agent unloading cargo?
+	public long       Id;         ///< Entity ID of the agent's PB.
+	public string     name;       ///< Grid name of the agent.
+	public MatrixD    WM;         ///< World matrix of the agent.
+	public Vector3D   v;          ///< [m/s] Velocity of the agent.
+	public float      f_bat;      ///< [-] Battery charge in [0;1].
+	public float      f_bat_min;  ///< [-] Minimum operational charge.
+	public float      f_fuel;     ///< [-] Fuel level in [0;1].
+	public float      f_fuel_min; ///< [-] Minimum operational level.
+	public string     damage;     ///< Name of damaged block, if exists.
+	public MinerState state;      ///< Current state of the agent.
+	public float      f_cargo;    ///< [-] Cargo fullness in [0;1].
+	public float      f_cargo_max;///< [-] Threshold for returning to base.
+	public bool       bUnload;    ///< Is the agent unloading cargo?
 	public Color      ColorTag;
 	public ImmutableArray<MyTuple<string, string>> KeyValuePairs;
 
 	// Note: Commented out, because only required by the receiver of this datagram.
-	//public void UpdateFromIgc(MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>> dto)
+	//public void UpdateFromIgc(MyTuple<
+	//	MyTuple<long, string>,       // Id, name
+	//	MyTuple<MatrixD, Vector3D>,  // WM, v
+	//	MyTuple<byte, string, bool>, // state, damage, bUnload
+	//	ImmutableArray<float>,       // f_bat, f_bat_min, f_fuel, f_fuel_min, f_cargo, f_cargo_max
+	//	Vector4,                     // ColorTag
+	//	ImmutableArray<MyTuple<string, string>>
+	//> dto)
 	//{
-	//	Id       = dto.Item1.Item1;
-	//	name     = dto.Item1.Item2;
-	//	WM       = dto.Item2;
-	//	v        = dto.Item3;
-	//	state    = (MinerState)dto.Item4;
-	//	ColorTag = dto.Item5;
+	//	Id            = dto.Item1.Item1;
+	//	name          = dto.Item1.Item2;
+	//	WM            = dto.Item2.Item1;
+	//	v             = dto.Item2.Item2;
+	//	state         = (MinerState)dto.Item3.Item1;
+	//	damage        = dto.Item3.Item2;
+	//	bUnload       = dto.Item3.Item3;
+	//	f_bat         = dto.Item4[0];
+	//	f_bat_min     = dto.Item4[1];
+	//	f_fuel        = dto.Item4[2];
+	//	f_fuel_min    = dto.Item4[3];
+	//	f_cargo       = dto.Item4[4];
+	//	f_cargo_max   = dto.Item4[5];
+	//	ColorTag      = dto.Item5;
 	//	KeyValuePairs = dto.Item6;
 	//}
 
-	public MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>> ToIgc()
+	public MyTuple<
+		MyTuple<long, string>,       // Id, name
+		MyTuple<MatrixD, Vector3D>,  // WM, v
+		MyTuple<byte, string, bool>, // state, damage, bUnload
+		ImmutableArray<float>,       // f_bat, f_bat_min, f_fuel, f_fuel_min, f_cargo, f_cargo_max
+		Vector4,                     // ColorTag
+		ImmutableArray<MyTuple<string, string>>
+	> ToIgc()
 	{
-		var dto = new MyTuple<MyTuple<long, string>, MatrixD, Vector3D, byte, Vector4, ImmutableArray<MyTuple<string, string>>>();
+		var dto = new MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, Vector4, ImmutableArray<MyTuple<string, string>>>();
 		dto.Item1.Item1 = Id;
 		dto.Item1.Item2 = name;
-		dto.Item2 = WM;
-		dto.Item3 = v;
-		dto.Item4 = (byte)state;
+		dto.Item2.Item1 = WM;
+		dto.Item2.Item2 = v;
+		dto.Item3.Item1 = (byte)state;
+		dto.Item3.Item2 = damage;
+		dto.Item3.Item3 = bUnload;
+		var arr = ImmutableArray.CreateBuilder<float>(6);
+		arr.Add(f_bat);
+		arr.Add(f_bat_min);
+		arr.Add(f_fuel);
+		arr.Add(f_fuel_min);
+		arr.Add(f_cargo);
+		arr.Add(f_cargo_max);
+		dto.Item4 = arr.ToImmutableArray();
 		dto.Item5 = ColorTag.ToVector4();
 		dto.Item6 = KeyValuePairs;
 		return dto;
