@@ -163,6 +163,7 @@ public static class E
 	static Action<string> echoClbk;
 	static IMyTextSurface p;
 	static IMyTextSurface lcd;                             ///< The LCD screen used for displaying the log messages.
+	static bool           bClearLCD = false;               ///< Clear LCD contents on next cycle.
 	public static double  simT;                            ///< [s] Simulation elapsed time.
 	static List<string>   linesToLog = new List<string>(); ///< List of all log messages, which have not yet been written to the LCD screen.
 	static LogLevel       filterLevel = LogLevel.Notice;   ///< All message with a higher log level are filtered out.
@@ -218,7 +219,7 @@ public static class E
 		lcd.Font = "Monospace"; // Time stamps will always have the same length.
 		lcd.FontSize = 0.65f;
 		/* Clear LCD contents. */
-		lcd.WriteText("", false);
+		bClearLCD = true;
 	}
 
 	public static void EndOfTick() {
@@ -226,15 +227,22 @@ public static class E
 		{
 			if (lcd != null)
 			{
+				if (bClearLCD) {
+					lcd.WriteText("");
+					bClearLCD = false;
+				}
 				linesToLog.Reverse();
 				var t = string.Join("\n", linesToLog) + "\n" + lcd.GetText();
 				var u = Variables.Get<int>("logger-char-limit");
 				if (t.Length > u)
 					t = t.Substring(0, u - 1);
 				lcd.WriteText(t);
-			}
-			if (simT > 2) // Don't drop messages of early initialisation.
 				linesToLog.Clear();
+			} else
+				/* Drop excess messages, if they cannot be written to an LCD.
+				 * (Prevent large buildup of memory over time.)             */
+				while (linesToLog.Count() > 100)
+					linesToLog.RemoveAt(0);
 		}
 	}
 }
