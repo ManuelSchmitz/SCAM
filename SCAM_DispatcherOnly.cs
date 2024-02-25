@@ -502,7 +502,7 @@ public enum MinerState : byte
 	WaitingForDocking     = 6, ///< Loitering above the shaft, waiting to be assign a docking port for returning home.
 	Docked                = 7, ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
 	ReturningToShaft      = 8, ///< Traveling from base to point above shaft on a reserved flight level.
-	WaitingForLockInShaft = 9, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
+	AscendingInShaft      = 9, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
 	ChangingShaft        = 10,
 	Maintenance          = 11,
 	ForceFinish          = 12,
@@ -1073,7 +1073,7 @@ public class Dispatcher
 				case MinerState.Disabled:     // Passive agents will not enter airspace without asking permission first.
 				case MinerState.Idle:         // Passive agents will not enter airspace without asking permission first.
 				case MinerState.Drilling:     // Drilling agents will request lock before moving out of their shaft and into airspace.
-				case MinerState.WaitingForLockInShaft:// Agent is loitering in its shaft.
+				case MinerState.AscendingInShaft:// Agent is loitering in its shaft.
 				case MinerState.Maintenance:  // Agent is docked to base, and will not enter airspace without permission.
 				case MinerState.Docked:      // Agent is docked to base, and will not enter airspace without permission.
 					continue;

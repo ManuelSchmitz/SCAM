@@ -439,7 +439,7 @@ public enum MinerState : byte
 	WaitingForDocking     = 6, ///< Loitering above the shaft, waiting to be assign a docking port for returning home.
 	Docked                = 7, ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
 	ReturningToShaft      = 8, ///< Traveling from base to point above shaft on a reserved flight level.
-	WaitingForLockInShaft = 9, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
+	AscendingInShaft      = 9, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
 	ChangingShaft        = 10,
 	Maintenance          = 11,
 	ForceFinish          = 12,
@@ -1883,7 +1883,7 @@ public class MinerController
 				}
 			}
 
-			if (state == MinerState.WaitingForLockInShaft) {
+			if (state == MinerState.AscendingInShaft) {
 
 				if (!CurrentWpReached(0.5f))
 					return; // We have not reached the top of the shaft yet.
@@ -2252,7 +2252,7 @@ public class MinerController
 		void GetOutTheShaft()
 		{
 			currentDepth = 0;
-			c.SetState(MinerState.WaitingForLockInShaft);
+			c.SetState(MinerState.AscendingInShaft);
 
 			var depth = Math.Min(8, (c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length());
 			var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
