@@ -2005,7 +2005,6 @@ public class GuiHandler
 		AddTipToAe(bIncDepthLimit, "Increase depth limit by 5 m");
 		controls.Add(bIncDepthLimit);
 
-
 		var bDecDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(260 + 40, 40), "-", Color.Black);
 		bDecDepthLimit.OnClick = xy => {
 			Variables.Set<float>("depth-limit", Math.Max(0f, Variables.Get<float>("depth-limit") - 5f));
@@ -2013,6 +2012,41 @@ public class GuiHandler
 		AddTipToAe(bDecDepthLimit, "Decrease depth limit by 5 m");
 		controls.Add(bDecDepthLimit);
 
+		{
+			var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0), new Vector2(30, 30), Color.CornflowerBlue);
+			var sprites = new List<MySprite>() { btnSpr };
+
+			var chkAdaptive = new ActiveElement(1, sprites, new Vector2(30, 30), new Vector2(300, 200));
+			chkAdaptive.OnClick = xy => {
+				Toggle.C.Invert("adaptive-mining");
+			};
+			chkAdaptive.OnMouseIn = () => {
+				chkAdaptive.TransformSprites(spr => { var s1 = spr; s1.Color = Color.Black; /*s1.Size = btnSize * 1.05f;*/ return s1; });
+			};
+			chkAdaptive.OnMouseOut = () => {
+				chkAdaptive.TransformSprites(spr => btnSpr);
+			};
+			AddTipToAe(chkAdaptive, "Toggle adaptive mining");
+			controls.Add(chkAdaptive);
+		}
+
+		{
+			var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0), new Vector2(30, 30), Color.CornflowerBlue);
+			var sprites = new List<MySprite>() { btnSpr };
+
+			var chkAdjEntry = new ActiveElement(1, sprites, new Vector2(30, 30), new Vector2(300, 240));
+			chkAdjEntry.OnClick = xy => {
+				Toggle.C.Invert("adjust-entry-by-elevation");
+			};
+			chkAdjEntry.OnMouseIn = () => {
+				chkAdjEntry.TransformSprites(spr => { var s1 = spr; s1.Color = Color.Black; /*s1.Size = btnSize * 1.05f;*/ return s1; });
+			};
+			chkAdjEntry.OnMouseOut = () => {
+				chkAdjEntry.TransformSprites(spr => btnSpr);
+			};
+			AddTipToAe(chkAdjEntry, "Toggle automatic entry point adjustment");
+			controls.Add(chkAdjEntry);
+		}
 
 		shaftTip = new MySprite(SpriteType.TEXT, "", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y * 0.9f),
 			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
@@ -2163,13 +2197,21 @@ public class GuiHandler
 		int offY = 0, startY = 80;
 		int offX = 0, startX = 65;
 
+		offX += 145;
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",       new Vector2(startX + offX,      startY + offY    ), new Vector2(290 - 4, 30), Color.Black));
+		frame.Add(new MySprite(SpriteType.TEXT, "Task / Job Parameters", new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 145;
+
+		offY += 40;
+		offX  = 0;
+
 		offX += 90;
 		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
 		frame.Add(new MySprite(SpriteType.TEXT, "Depth Limit",      new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 
 		offX += 55;
-		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.Gray));
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.DarkGray));
 		frame.Add(new MySprite(SpriteType.TEXT, Variables.Get<float>("depth-limit").ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
@@ -2182,7 +2224,7 @@ public class GuiHandler
 		offX += 90;
 
 		offX += 55;
-		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.Gray));
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.DarkGray));
 		frame.Add(new MySprite(SpriteType.TEXT, Variables.Get<float>("skip-depth").ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
@@ -2190,26 +2232,30 @@ public class GuiHandler
 		offX  = 0;
 
 		offX += 90;
-		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
 		frame.Add(new MySprite(SpriteType.TEXT, "Adaptive mining", new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 	
 		offX += 55;
-		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkKhaki));
-		frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",         new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkKhaki));
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkGray));
+		if (Toggle.C.Check("adaptive-mining"))
+			frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",     new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
 		offX += 55;
 		
 		offY += 40;
 		offX  = 0;
 
 		offX += 90;
-		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",       new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",       new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
 		frame.Add(new MySprite(SpriteType.TEXT, "Adjust entry altitude", new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 
 		offX += 55;
-		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkKhaki));
-		frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",         new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkKhaki));
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(28, 28), Color.DarkGray));
+		if (Toggle.C.Check("adjust-entry-by-elevation"))
+			frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",     new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
 		offX += 55;
 
 	}
@@ -2399,8 +2445,8 @@ public class GuiHandler
 		public bool Hover { get; set; }
 		public bool Visible = true;
 		public int  page = 0;        ///< Page to which this element belongs. Negative values mean "all pages". 
-		Vector2 ContainerSize;
-
+	
+		/** \brief Creates an active element with the y axis scaled. */
 		public ActiveElement(int _p, List<MySprite> sprites, Vector2 sizeN, Vector2 posN, Vector2 deviceSize)
 		{
 			page = _p;
@@ -2409,9 +2455,20 @@ public class GuiHandler
 				posN.X = posN.X / (deviceSize.X * 0.5f) - 1;
 			if (Math.Abs(posN.Y) > 1)
 				posN.Y = 1 - posN.Y / (deviceSize.Y * 0.5f);
-			ContainerSize = deviceSize;
+			Vector2 ContainerSize = deviceSize;
 			SizePx = new Vector2(sizeN.X > 1 ? sizeN.X : sizeN.X * ContainerSize.X, sizeN.Y > 1 ? sizeN.Y : sizeN.Y * ContainerSize.Y);
 			Center = deviceSize / 2f * (Vector2.One + posN);
+			Min = Center - SizePx / 2f;
+			Max = Center + SizePx / 2f;
+		}
+
+		/** \brief Creates an active element in absolute coordinates. */
+		public ActiveElement(int _p, List<MySprite> sprites, Vector2 sizeN, Vector2 posN)
+		{
+			page = _p;
+			Sprites = sprites;
+			SizePx = sizeN;
+			Center = posN;
 			Min = Center - SizePx / 2f;
 			Max = Center + SizePx / 2f;
 		}
