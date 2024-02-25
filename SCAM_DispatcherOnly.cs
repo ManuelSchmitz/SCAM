@@ -1174,10 +1174,8 @@ public class Dispatcher
 			}
 
 			/* Take the one which has least fuel/power. */
-			float urgency      = -Math.Min(sb.Report.f_fuel - sb.Report.f_fuel_min,
-			                               sb.Report.f_bat  - sb.Report.f_bat_min);
-			float pref_urgency = -Math.Min(pref_sb.Report.f_fuel - pref_sb.Report.f_fuel_min,
-			                               pref_sb.Report.f_bat  - pref_sb.Report.f_bat_min);
+			float urgency      = sb.Report.Urgency();
+			float pref_urgency = pref_sb.Report.Urgency();
 			if (urgency > pref_urgency) {
 				/* Applicant is shorter on fuel/power than the other one. */
 				pref    = i;
@@ -2461,6 +2459,15 @@ public class TransponderMsg
 	//	dto.Item6 = KeyValuePairs;
 	//	return dto;
 	//}
+
+	/** 
+	 * \brief Calculates a measure for the need to go home.
+	 * \details Positive values indicate that the agent is running out of fuel (or power).
+	 */
+	public float Urgency() {
+		return -Math.Min(f_bat  - f_bat_min,
+                         f_fuel - f_fuel_min);
+	}
 }
 
 List<MyTuple<string, Vector3D, ImmutableArray<string>>> prjs = new List<MyTuple<string, Vector3D, ImmutableArray<string>>>();
