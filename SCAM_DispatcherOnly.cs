@@ -586,8 +586,8 @@ public class PersistentState
 
 	// cleared by clear-storage-state (task-dependent)
 	public long logLCD;                            ///< Entity ID of the logging screen.
-	public Queue<LockRequest> airspaceLockRequests ///< Airspace lock queue.
-	                         = new Queue<LockRequest>();
+	public List<LockRequest> airspaceLockRequests  ///< Airspace lock queue.
+	                         = new List<LockRequest>();
 	public Vector3D? miningPlaneNormal;
 	public Vector3D? corePoint;
 	public float? shaftRadius;
@@ -625,12 +625,12 @@ public class PersistentState
 				var d = res.Split(':');
 				return (T)(object)new Vector3D(double.Parse(d[0]), double.Parse(d[1]), double.Parse(d[2]));
 			}
-			else if (typeof(T) == typeof(Queue<LockRequest>))
+			else if (typeof(T) == typeof(List<LockRequest>))
 			{
 				var d = res.Split(':');
-				var q = new Queue<LockRequest>();
+				var q = new List<LockRequest>();
 				foreach (var p in d)
-					q.Enqueue(LockRequest.Parse(p));
+					q.Add(LockRequest.Parse(p));
 				return (T)(object)q;
 			}
 			else if (typeof(T) == typeof(List<byte>))
@@ -657,10 +657,10 @@ public class PersistentState
 
 		LifetimeAcceptedTasks = ParseValue<int>(values, "LifetimeAcceptedTasks");
 
-		StaticDockOverride   = ParseValue<Vector3D?>         (values, "StaticDockOverride");
-		logLCD               = ParseValue<long>              (values, "logLCD");
-		airspaceLockRequests = ParseValue<Queue<LockRequest>>(values, "airspaceLockRequests") ?? new Queue<LockRequest>();
-		miningPlaneNormal    = ParseValue<Vector3D?>         (values, "miningPlaneNormal");
+		StaticDockOverride   = ParseValue<Vector3D?>        (values, "StaticDockOverride");
+		logLCD               = ParseValue<long>             (values, "logLCD");
+		airspaceLockRequests = ParseValue<List<LockRequest>>(values, "airspaceLockRequests") ?? new List<LockRequest>();
+		miningPlaneNormal    = ParseValue<Vector3D?>        (values, "miningPlaneNormal");
 		corePoint = ParseValue<Vector3D?>(values, "corePoint");
 		shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
@@ -1036,7 +1036,7 @@ public class Dispatcher
 	private void EnqueueLockRequest(long src, string lockName)
 	{
 		if (!stateWrapper.PState.airspaceLockRequests.Any(s => s.id == src))
-			stateWrapper.PState.airspaceLockRequests.Enqueue(new LockRequest(src, lockName));
+			stateWrapper.PState.airspaceLockRequests.Add(new LockRequest(src, lockName));
 		//else
 			; //TODO: Update existing lock request with new lockName
 		Log("Airspace permission request added to requests queue: " + GetSubordinateName(src) + " / " + lockName, E.LogLevel.Debug);
@@ -1137,29 +1137,67 @@ public class Dispatcher
 	 * \details To be called periodically. The method will observe priorities and queues.
 	 */
 	public void GrantAirspaceLocks() {
-		while (stateWrapper.PState.airspaceLockRequests.Count > 0) {
+			
+		/* Find the applicant with the most urgent need. */
+		int         pref    = -1;                  // Index of preferred applicant. (negative means none)
+		Subordinate pref_sb = new Subordinate();   // Data of the preferred applicant.
+		for (int i = 0; i < stateWrapper.PState.airspaceLockRequests.Count(); ++i) {
 
-			//TODO: Prefer agents which are in the air (=not docked). No necessarily the first one.
-			//TODO: Prefer agents with low fuel or low battery.
-			LockRequest cand = stateWrapper.PState.airspaceLockRequests.Peek();
-
-			/* Drop requests from obsolete agents. */
-			if (!subordinates.Any(s => s.Id == cand.id)) {
-				Log($"Agent {cand.id} is no longer a subordinate. Dropping its request for airspace lock.", E.LogLevel.Warning);
-				stateWrapper.PState.airspaceLockRequests.Dequeue();
+			/* Get some information about the applicant. */
+			var sb = subordinates.First(s => s.Id == stateWrapper.PState.airspaceLockRequests[i].id);
+			if (sb == null) {
+				/* Drop requests from obsolete agents. */
+				Log($"Agent {stateWrapper.PState.airspaceLockRequests[i].id} is no longer a subordinate. Dropping its request for airspace lock.", E.LogLevel.Warning);
+				stateWrapper.PState.airspaceLockRequests.RemoveAt(i);
+				--i;
 				continue;
 			}
 
-			if (!IsLockGranteable(cand.lockName, cand.id))
-				break;
+			/* If the lock is not granteable at the moment, try next. */
+			if (!IsLockGranteable(stateWrapper.PState.airspaceLockRequests[i].lockName, stateWrapper.PState.airspaceLockRequests[i].id))
+				continue;
 
-			/* Requested lock is not held by any other agent.
-			 * Grant immediately to the applicant.             */
-			stateWrapper.PState.airspaceLockRequests.Dequeue();
-			subordinates.First(s => s.Id == cand.id).ObtainedLock = cand.lockName;
-			IGC.SendUnicastMessage(cand.id, "miners", "common-airspace-lock-granted:" + cand.lockName);
-			Log(cand.lockName + " granted to " + GetSubordinateName(cand.id), E.LogLevel.Debug);
+			/* This lock is granteable. */
+			if (pref < 0) {
+				/* No other applicant yet, this is our favuorite for now. */
+				pref    = i;
+				pref_sb = sb;
+				continue;
+			}
+
+			/* Is the current applicant better than the previous one? */
+			if (pref_sb.Report.state == MinerState.Docked && sb.Report.state != MinerState.Docked) {
+				/* The applicant is in the air, the other one isn't. */
+				pref    = i;
+				pref_sb = sb;
+				continue;
+			}
+
+			/* Take the one which has least fuel/power. */
+			float urgency      = -Math.Min(sb.Report.f_fuel - sb.Report.f_fuel_min,
+			                               sb.Report.f_bat  - sb.Report.f_bat_min);
+			float pref_urgency = -Math.Min(pref_sb.Report.f_fuel - pref_sb.Report.f_fuel_min,
+			                               pref_sb.Report.f_bat  - pref_sb.Report.f_bat_min);
+			if (urgency > pref_urgency) {
+				/* Applicant is shorter on fuel/power than the other one. */
+				pref    = i;
+				pref_sb = sb;
+				continue;
+			}
+
+			/* Keep the old favourite. */
 		}
+
+		if (pref < 0)
+			return; // No lock granteable.
+			
+		/* Requested lock is not held by any other agent.
+		 * Grant immediately to the applicant.             */
+		var cand = stateWrapper.PState.airspaceLockRequests[pref];
+		stateWrapper.PState.airspaceLockRequests.RemoveAt(pref);
+		subordinates.First(s => s.Id == cand.id).ObtainedLock = cand.lockName;
+		IGC.SendUnicastMessage(cand.id, "miners", "common-airspace-lock-granted:" + cand.lockName);
+		Log(cand.lockName + " granted to " + GetSubordinateName(cand.id), E.LogLevel.Debug);
 	}
 
 	public void HandleIGC(List<MyIGCMessage> uniMsgs)
@@ -2126,6 +2164,11 @@ public class GuiHandler
 					frame.Add(new MySprite(SpriteType.TEXTURE, "Arrow",   new Vector2(startX + offX, startY), new Vector2(40, 40), Color.White, "", TextAlignment.CENTER, (float)Math.PI));
 					offX += 22;
 
+					offX += 75;
+					frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(150 - 4, 40), Color.Black));
+					frame.Add(new MySprite(SpriteType.TEXT, "Settings\nDamage",     new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
+					offX += 75;
+
 					/* Dynamic columns. */
 					offX += interval / 2;
 					foreach (var kvp in su.Report.KeyValuePairs)
@@ -2156,19 +2199,28 @@ public class GuiHandler
 				offX += 22;
 				frame.Add(new MySprite(SpriteType.TEXT,
 					(su.Report.f_cargo * 100f).ToString("f0") + "%",
-					new Vector2(startX + offX, startY + offY), null, (su.Report.f_cargo <= su.Report.f_cargo_max ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
+					new Vector2(startX + offX, startY + offY), null, (su.Report.f_cargo <= su.Report.f_cargo_max ? Color.DarkKhaki : Color.DarkOrange), "Debug", TextAlignment.CENTER, 0.5f));
 				if (su.Report.bUnload)
 					frame.Add(new MySprite(SpriteType.TEXTURE, "Danger", new Vector2(startX + offX, startY + offY + 24), new Vector2(22, 22), Color.Red));
 				offX += 22;
 				offX += 22;
 				//TODO: Color in red, when below the mining job's max depth!
 				frame.Add(new MySprite(SpriteType.TEXT,
-					(su.Report.t_shaft * 100f).ToString("f2") + " m",
+					su.Report.t_shaft.ToString("f2") + " m",
 					new Vector2(startX + offX, startY + offY), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
 				frame.Add(new MySprite(SpriteType.TEXT,
-					"(" + (su.Report.t_ore * 100f).ToString("f2") + " m)",
+					"(" + su.Report.t_ore.ToString("f2") + " m)",
 					new Vector2(startX + offX, startY + offY + fontHeight), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
 				offX += 22;
+				offX += 75;
+				if (su.Report.bAdaptive)
+				frame.Add(new MySprite(SpriteType.TEXT,
+					"A",
+					new Vector2(startX + offX, startY + offY), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
+				frame.Add(new MySprite(SpriteType.TEXT,
+					su.Report.damage,
+					new Vector2(startX + offX, startY + offY + fontHeight), null, Color.DarkRed, "Debug", TextAlignment.CENTER, 0.5f));
+				offX += 75;
 
 				/* Dynamic columns. */
 				offX += interval / 2;

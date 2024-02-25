@@ -2268,7 +2268,6 @@ public class MinerController
 		{
 			var b = ImmutableArray.CreateBuilder<MyTuple<string, string>>(10);
 			//b.Add(new MyTuple<string, string>("Session\nore mined", SessionOreMined.ToString("f2")));
-			b.Add(new MyTuple<string, string>("Msg", report.damage != "" ? "fix:" + report.damage : ""));
 			b.Add(new MyTuple<string, string>("Lock\nrequested", c.WaitedSection));
 			b.Add(new MyTuple<string, string>("Lock\nowned", c.ObtainedLock));
 			report.KeyValuePairs = b.ToImmutableArray();
