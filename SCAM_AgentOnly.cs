@@ -2264,11 +2264,9 @@ public class MinerController
 		{
 			var b = ImmutableArray.CreateBuilder<MyTuple<string, string>>(10);
 			b.Add(new MyTuple<string, string>("Adaptive\nmode", Toggle.C.Check("adaptive-mining") ? "Y" : "N"));
-			b.Add(new MyTuple<string, string>("Battery\nFuel", (c.batteryCharge_cached * 100f).ToString("f0") + "%\n" + (c.fuelLevel_cached * 100f).ToString("f0") + "%"));
 			//b.Add(new MyTuple<string, string>("Session\nore mined", SessionOreMined.ToString("f2")));
-			b.Add(new MyTuple<string, string>("Msg", (c.bUnloading ? "unloading ..." : "") + (report.damage != "" ? "\nfix:" + report.damage : "")));
+			b.Add(new MyTuple<string, string>("Msg", report.damage != "" ? "fix:" + report.damage : ""));
 			b.Add(new MyTuple<string, string>("Last found\nore depth", (lastFoundOreDepth ?? 0f).ToString("f2")));
-			b.Add(new MyTuple<string, string>("Cargo\nfullness", (c.cargoFullness_cached * 100f).ToString("f0") + "%"));
 			b.Add(new MyTuple<string, string>("Current\ndepth", currentDepth.ToString("f2")));
 			b.Add(new MyTuple<string, string>("Lock\nrequested", c.WaitedSection));
 			b.Add(new MyTuple<string, string>("Lock\nowned", c.ObtainedLock));
