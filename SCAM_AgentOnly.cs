@@ -1056,13 +1056,15 @@ public class MinerController
 		report.state       = pState.MinerState;
 		report.f_cargo     = cargoFullness_cached;
 		report.f_cargo_max = Variables.Get<float>("cargo-full-factor");
+		report.bAdaptive   = Toggle.C.Check("adaptive-mining");
+		report.t_shaft     = CurrentJob != null ? CurrentJob.currentDepth : 0f;
+		report.t_ore       = CurrentJob != null ? CurrentJob.lastFoundOreDepth.GetValueOrDefault(0f) : 0f;
 		report.bUnload     = bUnloading;
 		report.name        = me.CubeGrid.CustomName;
-		report.ColorTag    = refLight?.Color ?? Color.White;
 		CurrentJob?.UpdateReport(report, pState.MinerState);
 
 		/* Assemble the data content for the handshake. */
-		var data = new MyTuple<string,MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, Vector4, ImmutableArray<MyTuple<string, string>>>, string>();
+		var data = new MyTuple<string,MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, MyTuple<bool, float, float>, ImmutableArray<MyTuple<string, string>>>, string>();
 		data.Item1 = Variables.Get<string>("group-constraint");
 		data.Item2 = report.ToIgc();
 		data.Item3 = Ver;
@@ -1200,9 +1202,11 @@ public class MinerController
 				report.state       = pState.MinerState;
 				report.f_cargo     = cargoFullness_cached;
 				report.f_cargo_max = Variables.Get<float>("cargo-full-factor");
+				report.bAdaptive   = Toggle.C.Check("adaptive-mining");
+				report.t_shaft     = CurrentJob != null ? CurrentJob.currentDepth : 0f;
+				report.t_ore       = CurrentJob != null ? CurrentJob.lastFoundOreDepth.GetValueOrDefault(0f) : 0f;
 				report.bUnload     = bUnloading;
 				report.name        = me.CubeGrid.CustomName;
-				report.ColorTag    = refLight?.Color ?? Color.White;
 				CurrentJob?.UpdateReport(report, pState.MinerState);
 				IGC.SendBroadcastMessage("miners.report", report.ToIgc());
 			}
@@ -2263,11 +2267,8 @@ public class MinerController
 		public void UpdateReport(TransponderMsg report, MinerState state)
 		{
 			var b = ImmutableArray.CreateBuilder<MyTuple<string, string>>(10);
-			b.Add(new MyTuple<string, string>("Adaptive\nmode", Toggle.C.Check("adaptive-mining") ? "Y" : "N"));
 			//b.Add(new MyTuple<string, string>("Session\nore mined", SessionOreMined.ToString("f2")));
 			b.Add(new MyTuple<string, string>("Msg", report.damage != "" ? "fix:" + report.damage : ""));
-			b.Add(new MyTuple<string, string>("Last found\nore depth", (lastFoundOreDepth ?? 0f).ToString("f2")));
-			b.Add(new MyTuple<string, string>("Current\ndepth", currentDepth.ToString("f2")));
 			b.Add(new MyTuple<string, string>("Lock\nrequested", c.WaitedSection));
 			b.Add(new MyTuple<string, string>("Lock\nowned", c.ObtainedLock));
 			report.KeyValuePairs = b.ToImmutableArray();
@@ -2290,11 +2291,11 @@ public class MinerController
 			return sb.ToString();
 		}
 
-		float currentDepth;        ///< Last recorded depth inside the shaft.
+		public float currentDepth;        ///< Last recorded depth inside the shaft.
 		public float SessionOreMined;
 		public DateTime SessionStartedAt;
 
-		float? lastFoundOreDepth;
+		public float? lastFoundOreDepth;  ///< Last depth at which ore has been found.
 
 		float? MinFoundOreDepth
 		{
@@ -4262,8 +4263,10 @@ public class TransponderMsg
 	public MinerState state;      ///< Current state of the agent.
 	public float      f_cargo;    ///< [-] Cargo fullness in [0;1].
 	public float      f_cargo_max;///< [-] Threshold for returning to base.
+	public bool       bAdaptive;  ///< Is the adaptive mode active?
+	public float      t_shaft;    ///< [m] Current depth in shaft.
+	public float      t_ore;      ///< [m] Depth at which ore has been found.
 	public bool       bUnload;    ///< Is the agent unloading cargo?
-	public Color      ColorTag;
 	public ImmutableArray<MyTuple<string, string>> KeyValuePairs;
 
 	// Note: Commented out, because only required by the receiver of this datagram.
@@ -4272,7 +4275,7 @@ public class TransponderMsg
 	//	MyTuple<MatrixD, Vector3D>,  // WM, v
 	//	MyTuple<byte, string, bool>, // state, damage, bUnload
 	//	ImmutableArray<float>,       // f_bat, f_bat_min, f_fuel, f_fuel_min, f_cargo, f_cargo_max
-	//	Vector4,                     // ColorTag
+	//	MyTuple<bool, float, float>, // bAdaptive, t_shaft, t_ore
 	//	ImmutableArray<MyTuple<string, string>>
 	//> dto)
 	//{
@@ -4289,7 +4292,9 @@ public class TransponderMsg
 	//	f_fuel_min    = dto.Item4[3];
 	//	f_cargo       = dto.Item4[4];
 	//	f_cargo_max   = dto.Item4[5];
-	//	ColorTag      = dto.Item5;
+	//	bAdaptive     = dto.Item5.Item1;
+	//	t_shaft       = dto.Item5.Item2;
+	//	t_ore         = dto.Item5.Item3;
 	//	KeyValuePairs = dto.Item6;
 	//}
 
@@ -4298,11 +4303,11 @@ public class TransponderMsg
 		MyTuple<MatrixD, Vector3D>,  // WM, v
 		MyTuple<byte, string, bool>, // state, damage, bUnload
 		ImmutableArray<float>,       // f_bat, f_bat_min, f_fuel, f_fuel_min, f_cargo, f_cargo_max
-		Vector4,                     // ColorTag
+		MyTuple<bool, float, float>, // bAdaptive, t_shaft, t_ore
 		ImmutableArray<MyTuple<string, string>>
 	> ToIgc()
 	{
-		var dto = new MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, Vector4, ImmutableArray<MyTuple<string, string>>>();
+		var dto = new MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, MyTuple<bool, float, float>, ImmutableArray<MyTuple<string, string>>>();
 		dto.Item1.Item1 = Id;
 		dto.Item1.Item2 = name;
 		dto.Item2.Item1 = WM;
@@ -4318,7 +4323,9 @@ public class TransponderMsg
 		arr.Add(f_cargo);
 		arr.Add(f_cargo_max);
 		dto.Item4 = arr.ToImmutableArray();
-		dto.Item5 = ColorTag.ToVector4();
+		dto.Item5.Item1 = bAdaptive;
+		dto.Item5.Item2 = t_shaft;
+		dto.Item5.Item3 = t_ore;
 		dto.Item6 = KeyValuePairs;
 		return dto;
 	}

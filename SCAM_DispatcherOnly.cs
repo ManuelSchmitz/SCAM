@@ -1191,10 +1191,10 @@ public class Dispatcher
 		while (minerHandshakeChannel.HasPendingMessage)
 		{
 			var msg = minerHandshakeChannel.AcceptMessage();
-			if (!(msg.Data is MyTuple<string,MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, Vector4, ImmutableArray<MyTuple<string, string>>>, string>))
+			if (!(msg.Data is MyTuple<string,MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, MyTuple<bool, float, float>, ImmutableArray<MyTuple<string, string>>>, string>))
 				continue; // Corrupt/malformed message. (Or wrong s/w version on agent.)
 				
-			var data = (MyTuple<string,MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, Vector4, ImmutableArray<MyTuple<string, string>>>, string>)msg.Data;
+			var data = (MyTuple<string,MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, MyTuple<bool, float, float>, ImmutableArray<MyTuple<string, string>>>, string>)msg.Data;
 			if (data.Item3 != Ver) {
 				Log($"Ignoring handshake broadcast by {data.Item2.Item1.Item2}: Wrong s/w version {data.Item3} (vs {Ver}).", E.LogLevel.Warning);
 				continue;
@@ -1242,7 +1242,7 @@ public class Dispatcher
 			var sub = subordinates.FirstOrDefault(s => s.Id == msg.Source);
 			if (sub == null)
 				continue; // None of our subordinates.
-			var data = (MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, Vector4, ImmutableArray<MyTuple<string, string>>>)msg.Data;
+			var data = (MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, MyTuple<bool, float, float>, ImmutableArray<MyTuple<string, string>>>)msg.Data;
 			sub.Report.UpdateFromIgc(data);
 		}
 
@@ -2077,7 +2077,7 @@ public class GuiHandler
 				var posViewport = z + new Vector2((float)posLoc.Y, (float)posLoc.X) * scale;
 				var btnSize = Vector2.One * scale * task.R * 2;
 
-				var btnSpr = new MySprite(SpriteType.TEXTURE, "AH_BoreSight", posViewport + new Vector2(0, 5), btnSize * 0.8f, ag.Report.ColorTag);
+				var btnSpr = new MySprite(SpriteType.TEXTURE, "AH_BoreSight", posViewport + new Vector2(0, 5), btnSize * 0.8f, Color.Orange);
 				btnSpr.RotationOrScale = (float)Math.PI / 2f;
 				var btnSprBack = new MySprite(SpriteType.TEXTURE, "Textures\\FactionLogo\\Miners\\MinerIcon_3.dds", posViewport, btnSize * 1.2f, Color.Black);
 
@@ -2121,6 +2121,11 @@ public class GuiHandler
 					frame.Add(new MySprite(SpriteType.TEXTURE, "MyObjectBuilder_Ore/Stone",   new Vector2(startX + offX, startY), new Vector2(40, 40), Color.White));
 					offX += 22;
 
+					offX += 22;
+					frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(44 - 4, 40), Color.Black));
+					frame.Add(new MySprite(SpriteType.TEXTURE, "Arrow",   new Vector2(startX + offX, startY), new Vector2(40, 40), Color.White, "", TextAlignment.CENTER, (float)Math.PI));
+					offX += 22;
+
 					/* Dynamic columns. */
 					offX += interval / 2;
 					foreach (var kvp in su.Report.KeyValuePairs)
@@ -2138,29 +2143,38 @@ public class GuiHandler
 
 				/* System columns. */
 				offX += 55;
-				frame.Add(new MySprite(SpriteType.TEXT, su.Report.name + "\n" + su.Report.state.ToString(), new Vector2(startX + offX, startY + offY), null, su.Report.ColorTag, "Debug", TextAlignment.CENTER, 0.5f));
+				frame.Add(new MySprite(SpriteType.TEXT, su.Report.name + "\n" + su.Report.state.ToString(), new Vector2(startX + offX, startY + offY), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
 				offX += 55;
 				offX += 22;
 				frame.Add(new MySprite(SpriteType.TEXT,
 					(su.Report.f_bat * 100f).ToString("f0") + "%",
-					new Vector2(startX + offX, startY + offY), null, (su.Report.f_bat > su.Report.f_bat_min ? su.Report.ColorTag : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
+					new Vector2(startX + offX, startY + offY), null, (su.Report.f_bat > su.Report.f_bat_min ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
 				frame.Add(new MySprite(SpriteType.TEXT,
 					(su.Report.f_fuel * 100f).ToString("f0") + "%",
-					new Vector2(startX + offX, startY + offY + fontHeight), null, (su.Report.f_fuel > su.Report.f_fuel_min ? su.Report.ColorTag : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
+					new Vector2(startX + offX, startY + offY + fontHeight), null, (su.Report.f_fuel > su.Report.f_fuel_min ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
 				offX += 22;
 				offX += 22;
 				frame.Add(new MySprite(SpriteType.TEXT,
 					(su.Report.f_cargo * 100f).ToString("f0") + "%",
-					new Vector2(startX + offX, startY + offY), null, (su.Report.f_cargo <= su.Report.f_cargo_max ? su.Report.ColorTag : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
+					new Vector2(startX + offX, startY + offY), null, (su.Report.f_cargo <= su.Report.f_cargo_max ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
 				if (su.Report.bUnload)
 					frame.Add(new MySprite(SpriteType.TEXTURE, "Danger", new Vector2(startX + offX, startY + offY + 24), new Vector2(22, 22), Color.Red));
+				offX += 22;
+				offX += 22;
+				//TODO: Color in red, when below the mining job's max depth!
+				frame.Add(new MySprite(SpriteType.TEXT,
+					(su.Report.t_shaft * 100f).ToString("f2") + " m",
+					new Vector2(startX + offX, startY + offY), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
+				frame.Add(new MySprite(SpriteType.TEXT,
+					"(" + (su.Report.t_ore * 100f).ToString("f2") + " m)",
+					new Vector2(startX + offX, startY + offY + fontHeight), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
 				offX += 22;
 
 				/* Dynamic columns. */
 				offX += interval / 2;
 				foreach (var kvp in su.Report.KeyValuePairs) {
 					frame.Add(new MySprite(SpriteType.TEXT, kvp.Item2, new Vector2(startX + offX, startY + offY), null,
-						su.Report.ColorTag, "Debug", TextAlignment.CENTER, 0.5f));
+						Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
 					offX += interval;
 				}
 				offY += 40;
@@ -2329,8 +2343,10 @@ public class TransponderMsg
 	public MinerState state;      ///< Current state of the agent.
 	public float      f_cargo;    ///< [-] Cargo fullness in [0;1].
 	public float      f_cargo_max;///< [-] Threshold for returning to base.
+	public bool       bAdaptive;  ///< Is the adaptive mode active?
+	public float      t_shaft;    ///< [m] Current depth in shaft.
+	public float      t_ore;      ///< [m] Depth at which ore has been found.
 	public bool       bUnload;    ///< Is the agent unloading cargo?
-	public Color      ColorTag;
 	public ImmutableArray<MyTuple<string, string>> KeyValuePairs;
 
 	public void UpdateFromIgc(MyTuple<
@@ -2338,7 +2354,7 @@ public class TransponderMsg
 		MyTuple<MatrixD, Vector3D>,  // WM, v
 		MyTuple<byte, string, bool>, // state, damage, bUnload
 		ImmutableArray<float>,       // f_bat, f_bat_min, f_fuel, f_fuel_min, f_cargo, f_cargo_max
-		Vector4,                     // ColorTag
+		MyTuple<bool, float, float>, // bAdaptive, t_shaft, t_ore
 		ImmutableArray<MyTuple<string, string>>
 	> dto)
 	{
@@ -2355,7 +2371,9 @@ public class TransponderMsg
 		f_fuel_min    = dto.Item4[3];
 		f_cargo       = dto.Item4[4];
 		f_cargo_max   = dto.Item4[5];
-		ColorTag      = dto.Item5;
+		bAdaptive     = dto.Item5.Item1;
+		t_shaft       = dto.Item5.Item2;
+		t_ore         = dto.Item5.Item3;
 		KeyValuePairs = dto.Item6;
 	}
 
@@ -2365,7 +2383,7 @@ public class TransponderMsg
 	//	MyTuple<MatrixD, Vector3D>,  // WM, v
 	//	MyTuple<byte, string, bool>, // state, damage, bUnload
 	//	ImmutableArray<float>,       // f_bat, f_bat_min, f_fuel, f_fuel_min, f_cargo, f_cargo_max
-	//	Vector4,                     // ColorTag
+	//	MyTuple<bool, float, float>, // bAdaptive, t_shaft, t_ore
 	//	ImmutableArray<MyTuple<string, string>>
 	//> ToIgc()
 	//{
@@ -2385,7 +2403,9 @@ public class TransponderMsg
 	//	arr.Add(f_cargo);
 	//	arr.Add(f_cargo_max);
 	//	dto.Item4 = arr.ToImmutableArray();
-	//	dto.Item5 = ColorTag.ToVector4();
+	//	dto.Item5.Item1 = bAdaptive;
+	//	dto.Item5.Item2 = t_shaft;
+	//	dto.Item5.Item3 = t_ore;
 	//	dto.Item6 = KeyValuePairs;
 	//	return dto;
 	//}
