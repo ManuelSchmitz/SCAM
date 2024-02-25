@@ -1938,6 +1938,7 @@ public class GuiHandler
 	Dispatcher _dispatcher;
 	StateWrapper _stateWrapper;
 	Vector2 viewPortSize;
+	int current_page = 0; ///< The page that is currently being displayed.
 
 	public GuiHandler(IMyTextSurface p, Dispatcher dispatcher, StateWrapper stateWrapper)
 	{
@@ -1949,46 +1950,69 @@ public class GuiHandler
 		Vector2 btnSize = new Vector2(85, 40);
 		float b_X = -0.967f;
 
-		var bRecall = CreateButton(p, btnSize, new Vector2(b_X + interval, 0.85f), "Recall", Color.Black);
+		var bCyclePage = CreateButton(-1, p, btnSize, new Vector2(b_X /*+ interval*/, 0.85f), ">>", Color.Black);
+		bCyclePage.OnClick = xy => {
+			current_page = (current_page + 1) % 2;
+		};
+		AddTipToAe(bCyclePage, "Next page ...");
+		controls.Add(bCyclePage);
+
+		var bRecall = CreateButton(0, p, btnSize, new Vector2(b_X + interval, 0.85f), "Recall", Color.Black);
 		bRecall.OnClick = xy => {
 			dispatcher.Recall();
 		};
 		AddTipToAe(bRecall, "Finish work (broadcast command:force-finish)");
 		controls.Add(bRecall);
 
-		var bResume = CreateButton(p, btnSize, new Vector2(b_X + interval * 2, 0.85f), "Resume", Color.Black);
+		var bResume = CreateButton(0, p, btnSize, new Vector2(b_X + interval * 2, 0.85f), "Resume", Color.Black);
 		bResume.OnClick = xy => {
 			dispatcher.BroadcastResume();
 		};
 		AddTipToAe(bResume, "Resume work (broadcast 'miners.resume' message)");
 		controls.Add(bResume);
 
-		var bClearState = CreateButton(p, btnSize, new Vector2(b_X + interval * 3, 0.85f), "Clear state", Color.Black);
+		var bClearState = CreateButton(0, p, btnSize, new Vector2(b_X + interval * 3, 0.85f), "Clear state", Color.Black);
 		bClearState.OnClick = xy => {
 			stateWrapper?.ClearPersistentState();
 		};
 		AddTipToAe(bClearState, "Clear Dispatcher state");
 		controls.Add(bClearState);
 
-		var bClearLog = CreateButton(p, btnSize, new Vector2(b_X + interval * 4, 0.85f), "Clear log", Color.Black);
+		var bClearLog = CreateButton(0, p, btnSize, new Vector2(b_X + interval * 4, 0.85f), "Clear log", Color.Black);
 		bClearLog.OnClick = xy => {
 			E.ClearLog();
 		};
 		controls.Add(bClearLog);
 
-		var bPurgeLocks = CreateButton(p, btnSize, new Vector2(b_X + interval * 5, 0.85f), "Purge locks", Color.Black);
+		var bPurgeLocks = CreateButton(0, p, btnSize, new Vector2(b_X + interval * 5, 0.85f), "Purge locks", Color.Black);
 		bPurgeLocks.OnClick = xy => {
 			dispatcher.PurgeLocks();
 		};
 		AddTipToAe(bPurgeLocks, "Clear lock ownership. Last resort in case of deadlock");
 		controls.Add(bPurgeLocks);
 
-		var bHalt = CreateButton(p, btnSize, new Vector2(b_X + interval * 6, 0.85f), "EMRG HALT", Color.Black);
+		var bHalt = CreateButton(0, p, btnSize, new Vector2(b_X + interval * 6, 0.85f), "EMRG HALT", Color.Black);
 		bHalt.OnClick = xy => {
 			dispatcher.BroadCastHalt();
 		};
 		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
 		controls.Add(bHalt);
+
+		var bIncDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(260 + 120, 40), "+", Color.Black);
+		bIncDepthLimit.OnClick = xy => {
+			Variables.Set<float>("depth-limit", Variables.Get<float>("depth-limit") + 5f);
+		};
+		AddTipToAe(bIncDepthLimit, "Increase depth limit by 5 m");
+		controls.Add(bIncDepthLimit);
+
+
+		var bDecDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(260 + 40, 40), "-", Color.Black);
+		bDecDepthLimit.OnClick = xy => {
+			Variables.Set<float>("depth-limit", Math.Max(0f, Variables.Get<float>("depth-limit") - 5f));
+		};
+		AddTipToAe(bDecDepthLimit, "Decrease depth limit by 5 m");
+		controls.Add(bDecDepthLimit);
+
 
 		shaftTip = new MySprite(SpriteType.TEXT, "", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y * 0.9f),
 			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
@@ -1998,7 +2022,10 @@ public class GuiHandler
 			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
 	}
 
-	ActiveElement CreateButton(IMyTextSurface p, Vector2 btnSize, Vector2 posN, string label, Color? hoverColor = null)
+	/**
+	 * \param[in] page The page on which this button will exist. Negative value means "all pages".
+	 */
+	ActiveElement CreateButton(int page, IMyTextSurface p, Vector2 btnSize, Vector2 posN, string label, Color? hoverColor = null)
 	{
 		var textureSize = p.TextureSize;
 		var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0),
@@ -2010,7 +2037,7 @@ public class GuiHandler
 
 		var lbl = new MySprite(SpriteType.TEXT, label, lblHeight, Vector2.One, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
 		var sprites = new List<MySprite>() { btnSpr, lbl };
-		var btn = new ActiveElement(sprites, btnSize, posN, textureSize);
+		var btn = new ActiveElement(page, sprites, btnSize, posN, textureSize);
 
 		if (hoverColor != null)
 		{
@@ -2060,9 +2087,10 @@ public class GuiHandler
 		using (var frame = panel.DrawFrame())
 		{
 			/* Render the agent status table. */
-			DrawReportRepeater(frame);
+			if (current_page == 0)
+				DrawReportRepeater(frame);
 
-			foreach (var ae in controls.Where(x => x.Visible).Union(shaftControls))
+			foreach (var ae in controls.Union(shaftControls).Where(x => x.Visible && (x.page == current_page || x.page < 0)))
 			{
 				if (ae.CheckHover(cursP))
 				{
@@ -2071,19 +2099,24 @@ public class GuiHandler
 				}
 			}
 
-			foreach (var ae in controls.Where(x => x.Visible).Union(shaftControls))
-			{
+			/* Render the active elements. */
+			foreach (var ae in controls.Union(shaftControls).Where(x => x.Visible && (x.page == current_page || x.page < 0)))
 				frame.AddRange(ae.GetSprites());
-			}
 
-			frame.Add(shaftTip);
+			if (current_page == 0)
+				frame.Add(shaftTip);
+
 			frame.Add(buttonTip);
-			frame.Add(taskSummary);
 
-			/* Draw the agent icons. */
-			DrawAgents(frame);
+			if (current_page == 0) {
+				frame.Add(taskSummary);
 
-			/* Draw mouse cursor. */
+				/* Draw the agent icons. */
+				DrawAgents(frame);
+			} else if (current_page == 1)
+				DrawDispatcherParameters(frame);
+
+			/* Render mouse cursor. */
 			var cur = new MySprite(SpriteType.TEXTURE, "Triangle", cursP, new Vector2(7f, 10f), Color.White);
 			cur.RotationOrScale = 6f;
 			frame.Add(cur);
@@ -2124,6 +2157,64 @@ public class GuiHandler
 	}
 
 	/**
+	 * \brief Renders the dispatcher parameter page.
+	 */
+	void DrawDispatcherParameters(MySpriteDrawFrame frame) {
+		int offY = 0, startY = 80;
+		int offX = 0, startX = 65;
+
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
+		frame.Add(new MySprite(SpriteType.TEXT, "Depth Limit",      new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
+
+		offX += 55;
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.Gray));
+		frame.Add(new MySprite(SpriteType.TEXT, Variables.Get<float>("depth-limit").ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 55;
+
+		offY += 40;
+		offX  = 0;
+
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
+		frame.Add(new MySprite(SpriteType.TEXT, "Skip depth",      new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
+
+		offX += 55;
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.Gray));
+		frame.Add(new MySprite(SpriteType.TEXT, Variables.Get<float>("skip-depth").ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 55;
+
+		offY += 40;
+		offX  = 0;
+
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
+		frame.Add(new MySprite(SpriteType.TEXT, "Adaptive mining", new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
+	
+		offX += 55;
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkKhaki));
+		frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",         new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
+		offX += 55;
+		
+		offY += 40;
+		offX  = 0;
+
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",       new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
+		frame.Add(new MySprite(SpriteType.TEXT, "Adjust entry altitude", new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
+
+		offX += 55;
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkKhaki));
+		frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",         new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
+		offX += 55;
+
+	}
+
+	/**
 	 * \brief Renders the agent table on the GUI screen.
 	 */
 	void DrawReportRepeater(MySpriteDrawFrame frame)
@@ -2140,6 +2231,7 @@ public class GuiHandler
 
 				/* Before first row, render the table header. */
 				if (!madeHeader) {
+					
 					/* System columns. */
 					offX += 55;
 					frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(110 - 4, 40), Color.Black));
@@ -2266,7 +2358,7 @@ public class GuiHandler
 
 			var btnSpr = new MySprite(SpriteType.TEXTURE, "Circle", new Vector2(0, 0), btnSize, mainCol);
 			var sprites = new List<MySprite>() { btnSpr };
-			var btn = new ActiveElement(sprites, btnSize, pos, viewPortSize);
+			var btn = new ActiveElement(0, sprites, btnSize, pos, viewPortSize);
 
 			var hoverColor = Color.Red;
 
@@ -2306,10 +2398,12 @@ public class GuiHandler
 		public Action<Vector2> OnClick { get; set; }
 		public bool Hover { get; set; }
 		public bool Visible = true;
+		public int  page = 0;        ///< Page to which this element belongs. Negative values mean "all pages". 
 		Vector2 ContainerSize;
 
-		public ActiveElement(List<MySprite> sprites, Vector2 sizeN, Vector2 posN, Vector2 deviceSize)
+		public ActiveElement(int _p, List<MySprite> sprites, Vector2 sizeN, Vector2 posN, Vector2 deviceSize)
 		{
+			page = _p;
 			Sprites = sprites;
 			if (Math.Abs(posN.X) > 1)
 				posN.X = posN.X / (deviceSize.X * 0.5f) - 1;
