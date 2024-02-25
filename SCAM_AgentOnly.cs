@@ -20,7 +20,7 @@ namespace IngameScript {
 class Program : MyGridProgram {
 
 #region mdk preserve
-const string Ver = "0.9.68"; // Must be the same on dispatcher and agents.
+const string Ver = "0.10.0"; // Must be the same on dispatcher and agents.
 
 static bool WholeAirspaceLocking = false;
 static long DbgIgc = 0;
