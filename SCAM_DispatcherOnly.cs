@@ -1998,19 +1998,33 @@ public class GuiHandler
 		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
 		controls.Add(bHalt);
 
-		var bIncDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(260 + 120, 40), "+", Color.Black);
+		var bIncDepthLimit = CreateButton(1, "+", p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 120), Color.Black);
 		bIncDepthLimit.OnClick = xy => {
 			Variables.Set<float>("depth-limit", Variables.Get<float>("depth-limit") + 5f);
 		};
 		AddTipToAe(bIncDepthLimit, "Increase depth limit by 5 m");
 		controls.Add(bIncDepthLimit);
 
-		var bDecDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(260 + 40, 40), "-", Color.Black);
+		var bDecDepthLimit = CreateButton(1, "-", p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 120), Color.Black);
 		bDecDepthLimit.OnClick = xy => {
 			Variables.Set<float>("depth-limit", Math.Max(0f, Variables.Get<float>("depth-limit") - 5f));
 		};
 		AddTipToAe(bDecDepthLimit, "Decrease depth limit by 5 m");
 		controls.Add(bDecDepthLimit);
+
+		var bIncSkipDepth = CreateButton(1, "+", p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 160), Color.Black);
+		bIncSkipDepth.OnClick = xy => {
+			Variables.Set<float>("skip-depth", Variables.Get<float>("skip-depth") + 5f);
+		};
+		AddTipToAe(bIncSkipDepth, "Increase skip-depth by 5 m");
+		controls.Add(bIncSkipDepth);
+
+		var bDecSkipDepth = CreateButton(1, "-", p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 160), Color.Black);
+		bDecSkipDepth.OnClick = xy => {
+			Variables.Set<float>("skip-depth", Math.Max(0f, Variables.Get<float>("skip-depth") - 5f));
+		};
+		AddTipToAe(bDecSkipDepth, "Decrease skip-depth by 5 m");
+		controls.Add(bDecSkipDepth);
 
 		{
 			var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0), new Vector2(30, 30), Color.CornflowerBlue);
@@ -2087,6 +2101,36 @@ public class GuiHandler
 		return btn;
 	}
 
+	/** \brief Creates a button without scaling. */
+	//TODO: Lots of duplicate code between both CreateButon() ... refactor!
+	ActiveElement CreateButton(int page, string label, IMyTextSurface p, Vector2 btnSize, Vector2 posN, Color? hoverColor = null)
+	{
+		var textureSize = p.TextureSize;
+		var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0),
+						btnSize, Color.CornflowerBlue);
+		var lblHeight = Vector2.Zero;
+		// norm relative to parent widget...
+		if (btnSize.Y > 1)
+			lblHeight.Y = -p.MeasureStringInPixels(new StringBuilder(label), "Debug", 0.5f).Y / btnSize.Y;
+
+		var lbl = new MySprite(SpriteType.TEXT, label, lblHeight, Vector2.One, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
+		var sprites = new List<MySprite>() { btnSpr, lbl };
+		var btn = new ActiveElement(page, sprites, btnSize, posN);
+
+		if (hoverColor != null)
+		{
+			btn.OnMouseIn = () =>
+			{
+				btn.TransformSprites(spr => { var s1 = spr; s1.Color = hoverColor; s1.Size = btnSize * 1.05f; return spr.Type == SpriteType.TEXTURE ? s1 : spr; });
+			};
+			btn.OnMouseOut = () =>
+			{
+				btn.TransformSprites(spr => spr.Type == SpriteType.TEXTURE ? btnSpr : spr);
+			};
+		}
+		return btn;
+	}
+	
 	void AddTipToAe(ActiveElement ae, string tip)
 	{
 		ae.OnMouseIn += () => buttonTip.Data = tip;
@@ -2199,19 +2243,19 @@ public class GuiHandler
 
 		offX += 145;
 		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",       new Vector2(startX + offX,      startY + offY    ), new Vector2(290 - 4, 30), Color.Black));
-		frame.Add(new MySprite(SpriteType.TEXT, "Task / Job Parameters", new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXT, "Task / Job Parameters", new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 145;
 
 		offY += 40;
 		offX  = 0;
 
 		offX += 90;
-		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
-		frame.Add(new MySprite(SpriteType.TEXT, "Depth Limit",      new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
+		frame.Add(new MySprite(SpriteType.TEXT, "Depth Limit",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 
 		offX += 55;
-		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.DarkGray));
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.DarkGray));
 		frame.Add(new MySprite(SpriteType.TEXT, Variables.Get<float>("depth-limit").ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
@@ -2219,12 +2263,12 @@ public class GuiHandler
 		offX  = 0;
 
 		offX += 90;
-		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
-		frame.Add(new MySprite(SpriteType.TEXT, "Skip depth",      new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
+		frame.Add(new MySprite(SpriteType.TEXT, "Skip depth",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 
 		offX += 55;
-		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.DarkGray));
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.DarkGray));
 		frame.Add(new MySprite(SpriteType.TEXT, Variables.Get<float>("skip-depth").ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
@@ -2233,7 +2277,7 @@ public class GuiHandler
 
 		offX += 90;
 		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
-		frame.Add(new MySprite(SpriteType.TEXT, "Adaptive mining", new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXT, "Adaptive mining", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 	
 		offX += 55;
@@ -2248,7 +2292,7 @@ public class GuiHandler
 
 		offX += 90;
 		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",       new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
-		frame.Add(new MySprite(SpriteType.TEXT, "Adjust entry altitude", new Vector2(startX + offX + 90, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXT, "Adjust entry altitude", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 
 		offX += 55;
