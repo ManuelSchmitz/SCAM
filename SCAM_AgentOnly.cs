@@ -529,7 +529,7 @@ public class PersistentState
 
 	public float? maxDepth;
 	public Vector3D? currentWp; ///< Current target waypoint for autopilot.
-	public float? skipDepth;
+	public float skipDepth;
 
 	public float? lastFoundOreDepth;
 	public float CurrentJobMaxShaftYield;
@@ -607,7 +607,7 @@ public class PersistentState
 
 			/* Job parameters. */
 			maxDepth = ParseValue<float?>(values, "maxDepth");
-			skipDepth = ParseValue<float?>(values, "skipDepth");
+			skipDepth = ParseValue<float>(values, "skipDepth");
 			Toggle.C.Set("adaptive-mining",           ParseValue<bool>(values, "adaptiveMode"));
 			Toggle.C.Set("adjust-entry-by-elevation", ParseValue<bool>(values, "adjustAltitude"));
 
@@ -1855,14 +1855,17 @@ public class MinerController
 				currentDepth = (float)(c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length();
 				E.Echo($"Depth: current: {currentDepth:f1} skip: {c.pState.skipDepth:f1}");
 						
-				if (c.pState.maxDepth.HasValue && (currentDepth > c.pState.maxDepth.Value))
+				if (c.pState.maxDepth.HasValue && (currentDepth > c.pState.maxDepth.Value)) {
 					GetOutTheShaft(); // We have reached max depth, job complete.
+					return;
+				}
 
-				if (!c.CheckBatteriesAndIntegrityThrottled(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
+				if (!c.CheckBatteriesAndIntegrityThrottled(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor"))) {
 					GetOutTheShaft(); // We need to return to base for maintenance reasons. //TODO: Prioritise with ATC, because we may run out of gas or power.
-					                                                                        //TODO: Emit MAYDAY if docking port is damaged or we cannot make it back to base for other reasons.
+					return;                                                                 //TODO: Emit MAYDAY if docking port is damaged or we cannot make it back to base for other reasons.
+				}
 
-				if ((!c.pState.skipDepth.HasValue) || (currentDepth > c.pState.skipDepth))
+				if (currentDepth > c.pState.skipDepth)
 				{
 					// skipped surface layer, checking for ore and caring about cargo level
 					c.drills.ForEach(d => d.UseConveyorSystem = true);
