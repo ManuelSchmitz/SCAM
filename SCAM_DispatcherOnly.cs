@@ -48,12 +48,18 @@ static string LOCK_NAME_BaseSection = "base";         ///< Airspace above the ba
 static class Variables
 {
 	static Dictionary<string, object> v = new Dictionary<string, object> {
-		{ "depth-limit", new Variable<float> { value = 80, parser = s => float.Parse(s) } },
+		{ "depth-limit", new Variable<float> { value = 80, parser = s => { 
+			Log("(deprecated) Set depth-limit in the GUI-screen instead command:set-value.", E.LogLevel.Warning);
+			return float.Parse(s); 
+		} } },
 		{ "max-generations", new Variable<int> { value = 7, parser = s => int.Parse(s) } },
 		{ "circular-pattern-shaft-radius", new Variable<float> { value = 3.6f, parser = s => float.Parse(s) } },
 		{ "echelon-offset", new Variable<float> { value = 12f, parser = s => float.Parse(s) } },
 		{ "getAbove-altitude", new Variable<float> { value = 20, parser = s => float.Parse(s) } },
-		{ "skip-depth", new Variable<float> { value = 0, parser = s => float.Parse(s) } },
+		{ "skip-depth", new Variable<float> { value = 0, parser = s => {
+			Log("(deprecated) Set depth-limit in the GUI-screen instead command:set-value.", E.LogLevel.Warning);
+			return float.Parse(s);
+		} } },
 		{ "ct-raycast-range", new Variable<float> { value = 1000, parser = s => float.Parse(s) } },
 		{ "preferred-container", new Variable<string> { value = "", parser = s => s } },
 		{ "group-constraint", new Variable<string> { value = "general", parser = s => s } },
@@ -201,7 +207,17 @@ public static class E
 		if (lvl > filterLevel)
 			return; // Ignore message.
 		p.WriteText($"{simT:f1}: {msg}\n", true);
-		linesToLog.Add($"{simT:f1}: {msg}");
+		switch (lvl) {
+		case LogLevel.Critical:
+			linesToLog.Add($"{simT:f1}: CRITICAL: {msg}");
+			break;
+		case LogLevel.Warning:
+			linesToLog.Add($"{simT:f1}: Warning: {msg}");
+			break;
+		default:
+			linesToLog.Add($"{simT:f1}: {msg}");
+			break;
+		}
 	}
 
 	/** \brief Clears the log, including the LCD screen. */
@@ -592,9 +608,6 @@ public class PersistentState
 	public Vector3D? corePoint;
 	public float? shaftRadius;
 
-	public float? maxDepth;
-	public float? skipDepth;
-
 	public List<byte> ShaftStates = new List<byte>();
 	public int MaxGenerations;
 	public string CurrentTaskGroup;
@@ -608,6 +621,8 @@ public class PersistentState
 		{
 			if (typeof(T) == typeof(String))
 				return (T)(object)res;
+			else if (typeof(T) == typeof(bool))
+				return (T)(object)bool.Parse(res);
 			else if (typeof(T) == typeof(int))
 				return (T)(object)int.Parse(res);
 			else if (typeof(T) == typeof(int?))
@@ -664,9 +679,12 @@ public class PersistentState
 		corePoint = ParseValue<Vector3D?>(values, "corePoint");
 		shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
-		maxDepth = ParseValue<float?>(values, "maxDepth");
-		skipDepth = ParseValue<float?>(values, "skipDepth");
-
+		/* Job parameters. */
+		Variables.Set<float>("depth-limit", ParseValue<float?>(values, "maxDepth")   ?? 20f);
+		Variables.Set<float>("skip-depth",  ParseValue<float?>(values, "skipDepth")  ?? 0f);
+		Toggle.C.Set("adaptive-mining",           ParseValue<bool>(values, "adaptiveMode"));
+		Toggle.C.Set("adjust-entry-by-elevation", ParseValue<bool>(values, "adjustAltitude"));
+		
 		MaxGenerations = ParseValue<int>(values, "MaxGenerations");
 		CurrentTaskGroup = ParseValue<string>(values, "CurrentTaskGroup");
 
@@ -691,13 +709,21 @@ public class PersistentState
 			"miningPlaneNormal=" + (miningPlaneNormal.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningPlaneNormal.Value) : ""),
 			"corePoint=" + (corePoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(corePoint.Value) : ""),
 			"shaftRadius=" + shaftRadius,
-			"maxDepth=" + maxDepth,
-			"skipDepth=" + skipDepth,
+
+			/* Job parameters. */
+			"maxDepth="  + Variables.Get<float>("depth-limit"),
+			"skipDepth=" + Variables.Get<float>("skip-depth"),
+			"adaptiveMode=" + Toggle.C.Check("adaptive-mining"),
+			"adjustAltitude" + Toggle.C.Check("adjust-entry-by-elevation"),
+
 			"MaxGenerations=" + MaxGenerations,
 			"CurrentTaskGroup=" + CurrentTaskGroup,
-			"ShaftStates=" + string.Join(":", ShaftStates)
+			"ShaftStates=" + string.Join(":", ShaftStates),
 		};
-		return string.Join("\n", pairs);
+		//return string.Join("\n", pairs);
+		string s = string.Join("\n", pairs);
+		Log("Serialised persistent state: " + s, E.LogLevel.Debug);
+		return s;
 	}
 
 	public override string ToString()
