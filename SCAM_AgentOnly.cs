@@ -1865,40 +1865,41 @@ public class MinerController
 					return;                                                                 //TODO: Emit MAYDAY if docking port is damaged or we cannot make it back to base for other reasons.
 				}
 
-				if (currentDepth > c.pState.skipDepth)
+				if (currentDepth <= c.pState.skipDepth) {
+					c.drills.ForEach(d => d.UseConveyorSystem = false);
+					return;
+				}
+				
+				// skipped surface layer, checking for ore and caring about cargo level
+				c.drills.ForEach(d => d.UseConveyorSystem = true);
+
+				if (CargoIsGettingValuableOre())
 				{
-					// skipped surface layer, checking for ore and caring about cargo level
-					c.drills.ForEach(d => d.UseConveyorSystem = true);
-
-					if (CargoIsGettingValuableOre())
+					// lastFoundOreDepth = currentDepth;
+					// this causes early shaft abandon when lastFoundOreDepth gets occasional inputs from shaft walls during consequental shaft entries
+					// lastFoundOreDepth scope is current shaft
+					lastFoundOreDepth = Math.Max(currentDepth, lastFoundOreDepth ?? 0);
+					// test this
+					if ((!MinFoundOreDepth.HasValue) || (MinFoundOreDepth > currentDepth))
+						MinFoundOreDepth = currentDepth;
+					if ((!MaxFoundOreDepth.HasValue) || (MaxFoundOreDepth < currentDepth))
+						MaxFoundOreDepth = currentDepth;
+					if (Toggle.C.Check("adaptive-mining"))
 					{
-						// lastFoundOreDepth = currentDepth;
-						// this causes early shaft abandon when lastFoundOreDepth gets occasional inputs from shaft walls during consequental shaft entries
-						// lastFoundOreDepth scope is current shaft
-						lastFoundOreDepth = Math.Max(currentDepth, lastFoundOreDepth ?? 0);
-						// test this
-						if ((!MinFoundOreDepth.HasValue) || (MinFoundOreDepth > currentDepth))
-							MinFoundOreDepth = currentDepth;
-						if ((!MaxFoundOreDepth.HasValue) || (MaxFoundOreDepth < currentDepth))
-							MaxFoundOreDepth = currentDepth;
-						if (Toggle.C.Check("adaptive-mining"))
-						{
-							c.pState.skipDepth = MinFoundOreDepth.Value - 2f;
-							c.pState.maxDepth = MaxFoundOreDepth.Value + 2f;
-						}
+						c.pState.skipDepth = MinFoundOreDepth.Value - 2f;
+						c.pState.maxDepth = MaxFoundOreDepth.Value + 2f;
 					}
-					else
-					{
-						if (lastFoundOreDepth.HasValue && (currentDepth - lastFoundOreDepth > 2))
-							GetOutTheShaft(); // No more ore expected in this shaft, job complete.
-					}
-
-					if (c.CargoIsFull())
-						GetOutTheShaft(); // Cargo full, return to base.
 				}
 				else
 				{
-					c.drills.ForEach(d => d.UseConveyorSystem = false);
+					/* Give up drilling 2 m below the last valuable ore. */
+					if (lastFoundOreDepth.HasValue && (currentDepth - lastFoundOreDepth > 2))
+						GetOutTheShaft(); // No more ore expected in this shaft, job complete.
+				}
+
+				if (c.CargoIsFull()) {
+					GetOutTheShaft(); // Cargo full, return to base.
+					return;
 				}
 			}
 
