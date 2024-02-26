@@ -553,6 +553,8 @@ public class PersistentState
 		{
 			if (typeof(T) == typeof(String))
 				return (T)(object)res;
+			else if (typeof(T) == typeof(bool))
+				return (T)(object)bool.Parse(res);
 			else if (typeof(T) == typeof(int))
 				return (T)(object)int.Parse(res);
 			else if (typeof(T) == typeof(int?))
@@ -603,10 +605,13 @@ public class PersistentState
 			corePoint = ParseValue<Vector3D?>(values, "corePoint");
 			shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
+			/* Job parameters. */
 			maxDepth = ParseValue<float?>(values, "maxDepth");
-			currentWp = ParseValue<Vector3D?>(values, "currentWp");
 			skipDepth = ParseValue<float?>(values, "skipDepth");
+			Toggle.C.Set("adaptive-mining",           ParseValue<bool>(values, "adaptiveMode"));
+			Toggle.C.Set("adjust-entry-by-elevation", ParseValue<bool>(values, "adjustAltitude"));
 
+			currentWp = ParseValue<Vector3D?>(values, "currentWp");
 			lastFoundOreDepth = ParseValue<float?>(values, "lastFoundOreDepth");
 			CurrentJobMaxShaftYield = ParseValue<float>(values, "CurrentJobMaxShaftYield");
 
@@ -645,9 +650,14 @@ public class PersistentState
 			"miningEntryPoint=" + (miningEntryPoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningEntryPoint.Value) : ""),
 			"corePoint=" + (corePoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(corePoint.Value) : ""),
 			"shaftRadius=" + shaftRadius,
+			
+			/* Job parameters. */
 			"maxDepth=" + maxDepth,
-			"currentWp=" +  (currentWp.HasValue ? VectorOpsHelper.V3DtoBroadcastString(currentWp.Value) : ""),
 			"skipDepth=" + skipDepth,
+			"adaptiveMode=" + Toggle.C.Check("adaptive-mining"),
+			"adjustAltitude=" + Toggle.C.Check("adjust-entry-by-elevation"),
+
+			"currentWp=" +  (currentWp.HasValue ? VectorOpsHelper.V3DtoBroadcastString(currentWp.Value) : ""),			
 			"lastFoundOreDepth=" + lastFoundOreDepth,
 			"CurrentJobMaxShaftYield=" + CurrentJobMaxShaftYield,
 			"minFoundOreDepth=" + minFoundOreDepth,
@@ -1110,13 +1120,19 @@ public class MinerController
 			if (!msg.Tag.Contains("set-vectors"))
 				LogMsg(msg, false);
 
-			if ((msg.Tag == "miners.assign-shaft") && (msg.Data is MyTuple<int, Vector3D, Vector3D>))
+			if ((msg.Tag == "miners.assign-shaft") && (msg.Data is MyTuple<int, Vector3D, Vector3D, MyTuple<float, float, bool, bool>>))
 			{
 				/* We have been assigned a new job (=shaft) to work on. */
-				var data = (MyTuple<int, Vector3D, Vector3D>)msg.Data;
+				var data = (MyTuple<int, Vector3D, Vector3D, MyTuple<float, float, bool, bool>>)msg.Data;
 				if (j != null)
 				{
 					j.SetShaftVectors(data.Item1, data.Item2, data.Item3);
+					Variables.Set<float>("depth-limit",       data.Item4.Item1);
+					Variables.Set<float>("skip-depth",        data.Item4.Item2);
+					Toggle.C.Set("adaptive-mining",           data.Item4.Item3);
+					Toggle.C.Set("adjust-entry-by-elevation", data.Item4.Item4);
+					pState.maxDepth  = Variables.Get<float>("depth-limit");
+					pState.skipDepth = Variables.Get<float>("skip-depth");
 					Log("Got new ShaftVectors");
 					Dispatch();
 				}

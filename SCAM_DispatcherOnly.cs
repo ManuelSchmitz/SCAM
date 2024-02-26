@@ -714,7 +714,7 @@ public class PersistentState
 			"maxDepth="  + Variables.Get<float>("depth-limit"),
 			"skipDepth=" + Variables.Get<float>("skip-depth"),
 			"adaptiveMode=" + Toggle.C.Check("adaptive-mining"),
-			"adjustAltitude" + Toggle.C.Check("adjust-entry-by-elevation"),
+			"adjustAltitude=" + Toggle.C.Check("adjust-entry-by-elevation"),
 
 			"MaxGenerations=" + MaxGenerations,
 			"CurrentTaskGroup=" + CurrentTaskGroup,
@@ -1286,7 +1286,7 @@ public class Dispatcher
 			{
 				IGC.SendUnicastMessage(msg.Source, "miners.normal", stateWrapper.PState.miningPlaneNormal.Value);
 			}
-			var vals = new string[] { "skip-depth", "depth-limit", "getAbove-altitude" };
+			var vals = new string[] { "getAbove-altitude" };
 			Scheduler.C.After(500).RunCmd(() => {
 				foreach (var v in vals)
 				{
@@ -1337,7 +1337,17 @@ public class Dispatcher
 				int shId = 0;
 				if ((CurrentTask != null) && AssignNewShaft(ref entry, ref getabove, ref shId))
 				{
-					IGC.SendUnicastMessage(msg.Source, "miners.assign-shaft", new MyTuple<int, Vector3D, Vector3D>(shId, entry.Value, getabove.Value));
+					IGC.SendUnicastMessage(msg.Source, "miners.assign-shaft", new MyTuple<int, Vector3D, Vector3D, MyTuple<float, float, bool, bool>>(
+						shId,
+						entry.Value,
+						getabove.Value,
+						new MyTuple<float, float, bool, bool>(
+							Variables.Get<float>("depth-limit"),
+							Variables.Get<float>("skip-depth"),
+							Toggle.C.Check("adaptive-mining"),
+							Toggle.C.Check("adjust-entry-by-elevation")
+						)
+					));
 					E.Log($"Assigned new shaft {shId} to " + GetSubordinateName(msg.Source) + '.', E.LogLevel.Notice);
 				}
 				else
