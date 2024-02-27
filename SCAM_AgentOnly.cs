@@ -60,12 +60,9 @@ Action<IMyTextPanel> logPanelInitializer = x =>
 static class Variables
 {
 	static Dictionary<string, object> v = new Dictionary<string, object> {
-		{ "depth-limit", new Variable<float> { value = 80, parser = s => float.Parse(s) } },
-		{ "max-generations", new Variable<int> { value = 7, parser = s => int.Parse(s) } },
 		{ "circular-pattern-shaft-radius", new Variable<float> { value = 3.6f, parser = s => float.Parse(s) } },
 		{ "echelon-offset", new Variable<float> { value = 12f, parser = s => float.Parse(s) } },
 		{ "getAbove-altitude", new Variable<float> { value = 20, parser = s => float.Parse(s) } },
-		{ "skip-depth", new Variable<float> { value = 0, parser = s => float.Parse(s) } },
 		{ "ct-raycast-range", new Variable<float> { value = 1000, parser = s => float.Parse(s) } },
 		{ "preferred-container", new Variable<string> { value = "", parser = s => s } },
 		{ "group-constraint", new Variable<string> { value = "general", parser = s => s } },
@@ -527,7 +524,7 @@ public class PersistentState
 	public Vector3D? corePoint;
 	public float? shaftRadius;
 
-	public float? maxDepth;
+	public float maxDepth;
 	public Vector3D? currentWp; ///< Current target waypoint for autopilot.
 	public float skipDepth;
 
@@ -606,7 +603,7 @@ public class PersistentState
 			shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
 			/* Job parameters. */
-			maxDepth = ParseValue<float?>(values, "maxDepth");
+			maxDepth = ParseValue<float>(values, "maxDepth");
 			skipDepth = ParseValue<float>(values, "skipDepth");
 			Toggle.C.Set("adaptive-mining",           ParseValue<bool>(values, "adaptiveMode"));
 			Toggle.C.Set("adjust-entry-by-elevation", ParseValue<bool>(values, "adjustAltitude"));
@@ -1127,12 +1124,10 @@ public class MinerController
 				if (j != null)
 				{
 					j.SetShaftVectors(data.Item1, data.Item2, data.Item3);
-					Variables.Set<float>("depth-limit",       data.Item4.Item1);
-					Variables.Set<float>("skip-depth",        data.Item4.Item2);
+					pState.maxDepth =                         data.Item4.Item1;
+					pState.skipDepth =                        data.Item4.Item2;
 					Toggle.C.Set("adaptive-mining",           data.Item4.Item3);
 					Toggle.C.Set("adjust-entry-by-elevation", data.Item4.Item4);
-					pState.maxDepth  = Variables.Get<float>("depth-limit");
-					pState.skipDepth = Variables.Get<float>("skip-depth");
 					Log("Got new ShaftVectors");
 					Dispatch();
 				}
@@ -1339,8 +1334,6 @@ public class MinerController
 		CurrentJob = new MiningJob(this);
 		CurrentJob.SessionStartedAt = DateTime.Now;
 		pState.LifetimeAcceptedTasks++;
-		pState.maxDepth = Variables.Get<float>("depth-limit");
-		pState.skipDepth = Variables.Get<float>("skip-depth");
 		if (!TryResumeFromDock())
 		{
 			/* This is the agent that was used for task designation.
@@ -1855,7 +1848,7 @@ public class MinerController
 				currentDepth = (float)(c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length();
 				E.Echo($"Depth: current: {currentDepth:f1} skip: {c.pState.skipDepth:f1}");
 						
-				if (c.pState.maxDepth.HasValue && (currentDepth > c.pState.maxDepth.Value)) {
+				if (currentDepth > c.pState.maxDepth) {
 					GetOutTheShaft(); // We have reached max depth, job complete.
 					return;
 				}
@@ -1863,6 +1856,11 @@ public class MinerController
 				if (!c.CheckBatteriesAndIntegrityThrottled(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor"))) {
 					GetOutTheShaft(); // We need to return to base for maintenance reasons. //TODO: Prioritise with ATC, because we may run out of gas or power.
 					return;                                                                 //TODO: Emit MAYDAY if docking port is damaged or we cannot make it back to base for other reasons.
+				}
+
+				if (c.CargoIsFull()) {
+					GetOutTheShaft(); // Cargo full, return to base.
+					return;
 				}
 
 				if (currentDepth <= c.pState.skipDepth) {
@@ -1893,13 +1891,9 @@ public class MinerController
 				else
 				{
 					/* Give up drilling 2 m below the last valuable ore. */
+					//TODO: Introduce variable "least-depth": A depth where ore is to be expected. 
 					if (lastFoundOreDepth.HasValue && (currentDepth - lastFoundOreDepth > 2))
 						GetOutTheShaft(); // No more ore expected in this shaft, job complete.
-				}
-
-				if (c.CargoIsFull()) {
-					GetOutTheShaft(); // Cargo full, return to base.
-					return;
 				}
 			}
 
