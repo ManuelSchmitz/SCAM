@@ -538,9 +538,13 @@ public class StateWrapper
 	{
 		var currentState = PState;
 		PState = new PersistentState();
-		PState.StaticDockOverride = currentState.StaticDockOverride;
+
+		/* Preserve some of the values. */
+		PState.StaticDockOverride    = currentState.StaticDockOverride;
 		PState.LifetimeAcceptedTasks = currentState.LifetimeAcceptedTasks;
 		PState.airspaceLockRequests  = currentState.airspaceLockRequests;
+		/* Job Parameters */
+		PState.leastDepth            = currentState.leastDepth;
 	}
 
 	Action<string> stateSaver;
@@ -607,6 +611,9 @@ public class PersistentState
 	public Vector3D? miningPlaneNormal;
 	public Vector3D? corePoint;
 	public float? shaftRadius;
+
+	/* Job parameters. */
+	public float leastDepth;
 
 	public List<byte> ShaftStates = new List<byte>();
 	public int MaxGenerations;
@@ -680,6 +687,7 @@ public class PersistentState
 		shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
 		/* Job parameters. */
+		leastDepth           = ParseValue<float>(values, "leastDepth");
 		Variables.Set<float>("depth-limit", ParseValue<float?>(values, "maxDepth")   ?? 20f);
 		Variables.Set<float>("skip-depth",  ParseValue<float?>(values, "skipDepth")  ?? 0f);
 		Toggle.C.Set("adaptive-mining",           ParseValue<bool>(values, "adaptiveMode"));
@@ -713,6 +721,7 @@ public class PersistentState
 			/* Job parameters. */
 			"maxDepth="  + Variables.Get<float>("depth-limit"),
 			"skipDepth=" + Variables.Get<float>("skip-depth"),
+			"leastDepth=" + leastDepth,
 			"adaptiveMode=" + Toggle.C.Check("adaptive-mining"),
 			"adjustAltitude=" + Toggle.C.Check("adjust-entry-by-elevation"),
 
@@ -1337,13 +1346,14 @@ public class Dispatcher
 				int shId = 0;
 				if ((CurrentTask != null) && AssignNewShaft(ref entry, ref getabove, ref shId))
 				{
-					IGC.SendUnicastMessage(msg.Source, "miners.assign-shaft", new MyTuple<int, Vector3D, Vector3D, MyTuple<float, float, bool, bool>>(
+					IGC.SendUnicastMessage(msg.Source, "miners.assign-shaft", new MyTuple<int, Vector3D, Vector3D, MyTuple<float, float, float, bool, bool>>(
 						shId,
 						entry.Value,
 						getabove.Value,
-						new MyTuple<float, float, bool, bool>(
+						new MyTuple<float, float, float, bool, bool>(
 							Variables.Get<float>("depth-limit"),
 							Variables.Get<float>("skip-depth"),
+							stateWrapper.PState.leastDepth,
 							Toggle.C.Check("adaptive-mining"),
 							Toggle.C.Check("adjust-entry-by-elevation")
 						)
@@ -2062,11 +2072,25 @@ public class GuiHandler
 		AddTipToAe(bDecSkipDepth, "Decrease skip-depth by 5 m");
 		controls.Add(bDecSkipDepth);
 
+		var bIncLeastDepth = CreateButton(1, "+", p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 200), Color.Black);
+		bIncLeastDepth.OnClick = xy => {
+			_stateWrapper.PState.leastDepth += 5f;
+		};
+		AddTipToAe(bIncLeastDepth, "Increase least-depth by 5 m");
+		controls.Add(bIncLeastDepth);
+
+		var bDecLeastDepth = CreateButton(1, "-", p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 200), Color.Black);
+		bDecLeastDepth.OnClick = xy => {
+			_stateWrapper.PState.leastDepth -= 5f;
+		};
+		AddTipToAe(bDecLeastDepth, "Decrease least-depth by 5 m");
+		controls.Add(bDecLeastDepth);
+
 		{
 			var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0), new Vector2(30, 30), Color.CornflowerBlue);
 			var sprites = new List<MySprite>() { btnSpr };
 
-			var chkAdaptive = new ActiveElement(1, sprites, new Vector2(30, 30), new Vector2(300, 200));
+			var chkAdaptive = new ActiveElement(1, sprites, new Vector2(30, 30), new Vector2(300, 240));
 			chkAdaptive.OnClick = xy => {
 				Toggle.C.Invert("adaptive-mining");
 			};
@@ -2084,7 +2108,7 @@ public class GuiHandler
 			var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0), new Vector2(30, 30), Color.CornflowerBlue);
 			var sprites = new List<MySprite>() { btnSpr };
 
-			var chkAdjEntry = new ActiveElement(1, sprites, new Vector2(30, 30), new Vector2(300, 240));
+			var chkAdjEntry = new ActiveElement(1, sprites, new Vector2(30, 30), new Vector2(300, 280));
 			chkAdjEntry.OnClick = xy => {
 				Toggle.C.Invert("adjust-entry-by-elevation");
 			};
@@ -2312,6 +2336,19 @@ public class GuiHandler
 		offX  = 0;
 
 		offX += 90;
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
+		frame.Add(new MySprite(SpriteType.TEXT, "Least depth",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
+
+		offX += 55;
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.DarkGray));
+		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.leastDepth.ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 55;
+
+		offY += 40;
+		offX  = 0;
+
+		offX += 90;
 		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
 		frame.Add(new MySprite(SpriteType.TEXT, "Adaptive mining", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
@@ -2420,10 +2457,9 @@ public class GuiHandler
 					frame.Add(new MySprite(SpriteType.TEXTURE, "Danger", new Vector2(startX + offX, startY + offY + 24), new Vector2(22, 22), Color.Red));
 				offX += 22;
 				offX += 22;
-				//TODO: Color in red, when below the mining job's max depth!
 				frame.Add(new MySprite(SpriteType.TEXT,
 					su.Report.t_shaft.ToString("f2") + " m",
-					new Vector2(startX + offX, startY + offY), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
+					new Vector2(startX + offX, startY + offY), null, (su.Report.t_shaft <= Variables.Get<float>("depth-limit") ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
 				frame.Add(new MySprite(SpriteType.TEXT,
 					"(" + su.Report.t_ore.ToString("f2") + " m)",
 					new Vector2(startX + offX, startY + offY + fontHeight), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));

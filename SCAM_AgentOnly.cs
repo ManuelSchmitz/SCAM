@@ -524,10 +524,12 @@ public class PersistentState
 	public Vector3D? corePoint;
 	public float? shaftRadius;
 
+	/* Job parameters. */
 	public float maxDepth;
-	public Vector3D? currentWp; ///< Current target waypoint for autopilot.
 	public float skipDepth;
+	public float leastDepth;
 
+	public Vector3D? currentWp; ///< Current target waypoint for autopilot.
 	public float? lastFoundOreDepth;
 	public float CurrentJobMaxShaftYield;
 
@@ -536,8 +538,6 @@ public class PersistentState
 	public float? prevTickValCount = 0;
 
 	public int? CurrentShaftId;
-	public List<byte> ShaftStates = new List<byte>();
-	public int MaxGenerations;
 	public string CurrentTaskGroup;
 
 	public string lastAPckCommand;
@@ -603,8 +603,9 @@ public class PersistentState
 			shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
 			/* Job parameters. */
-			maxDepth = ParseValue<float>(values, "maxDepth");
-			skipDepth = ParseValue<float>(values, "skipDepth");
+			maxDepth   = ParseValue<float>(values, "maxDepth");
+			skipDepth  = ParseValue<float>(values, "skipDepth");
+			leastDepth = ParseValue<float>(values, "leastDepth");
 			Toggle.C.Set("adaptive-mining",           ParseValue<bool>(values, "adaptiveMode"));
 			Toggle.C.Set("adjust-entry-by-elevation", ParseValue<bool>(values, "adjustAltitude"));
 
@@ -616,11 +617,8 @@ public class PersistentState
 			maxFoundOreDepth = ParseValue<float?>(values, "maxFoundOreDepth");
 
 			CurrentShaftId = ParseValue<int?>(values, "CurrentShaftId");
-			MaxGenerations = ParseValue<int>(values, "MaxGenerations");
-
+		
 			lastAPckCommand = ParseValue<string>(values, "lastAPckCommand");
-
-			ShaftStates = ParseValue<List<byte>>(values, "ShaftStates") ?? new List<byte>();
 		}
 		return this;
 	}
@@ -651,6 +649,7 @@ public class PersistentState
 			/* Job parameters. */
 			"maxDepth=" + maxDepth,
 			"skipDepth=" + skipDepth,
+			"leastDepth=" + leastDepth,
 			"adaptiveMode=" + Toggle.C.Check("adaptive-mining"),
 			"adjustAltitude=" + Toggle.C.Check("adjust-entry-by-elevation"),
 
@@ -660,8 +659,6 @@ public class PersistentState
 			"minFoundOreDepth=" + minFoundOreDepth,
 			"maxFoundOreDepth=" + maxFoundOreDepth,
 			"CurrentShaftId=" + CurrentShaftId ?? "",
-			"MaxGenerations=" + MaxGenerations,
-			"ShaftStates=" + string.Join(":", ShaftStates),
 			"lastAPckCommand=" + lastAPckCommand
 		};
 		return string.Join("\n", pairs);
@@ -1117,17 +1114,18 @@ public class MinerController
 			if (!msg.Tag.Contains("set-vectors"))
 				LogMsg(msg, false);
 
-			if ((msg.Tag == "miners.assign-shaft") && (msg.Data is MyTuple<int, Vector3D, Vector3D, MyTuple<float, float, bool, bool>>))
+			if ((msg.Tag == "miners.assign-shaft") && (msg.Data is MyTuple<int, Vector3D, Vector3D, MyTuple<float, float, float, bool, bool>>))
 			{
 				/* We have been assigned a new job (=shaft) to work on. */
-				var data = (MyTuple<int, Vector3D, Vector3D, MyTuple<float, float, bool, bool>>)msg.Data;
+				var data = (MyTuple<int, Vector3D, Vector3D, MyTuple<float, float, float, bool, bool>>)msg.Data;
 				if (j != null)
 				{
 					j.SetShaftVectors(data.Item1, data.Item2, data.Item3);
 					pState.maxDepth =                         data.Item4.Item1;
 					pState.skipDepth =                        data.Item4.Item2;
-					Toggle.C.Set("adaptive-mining",           data.Item4.Item3);
-					Toggle.C.Set("adjust-entry-by-elevation", data.Item4.Item4);
+					pState.leastDepth =                       data.Item4.Item3;
+					Toggle.C.Set("adaptive-mining",           data.Item4.Item4);
+					Toggle.C.Set("adjust-entry-by-elevation", data.Item4.Item5);
 					Log("Got new ShaftVectors");
 					Dispatch();
 				}
@@ -1847,6 +1845,7 @@ public class MinerController
 				/* Update some repoting stuff. */
 				currentDepth = (float)(c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length();
 				E.Echo($"Depth: current: {currentDepth:f1} skip: {c.pState.skipDepth:f1}");
+				E.Echo($"Depth: least: {c.pState.leastDepth:f1} max: {c.pState.maxDepth:f1}");
 						
 				if (currentDepth > c.pState.maxDepth) {
 					GetOutTheShaft(); // We have reached max depth, job complete.
@@ -1871,19 +1870,19 @@ public class MinerController
 				// skipped surface layer, checking for ore and caring about cargo level
 				c.drills.ForEach(d => d.UseConveyorSystem = true);
 
-				if (CargoIsGettingValuableOre())
-				{
-					// lastFoundOreDepth = currentDepth;
-					// this causes early shaft abandon when lastFoundOreDepth gets occasional inputs from shaft walls during consequental shaft entries
-					// lastFoundOreDepth scope is current shaft
+				bool bValOre = CargoIsGettingValuableOre();
+				if (bValOre)
 					lastFoundOreDepth = Math.Max(currentDepth, lastFoundOreDepth ?? 0);
-					// test this
+
+				if (currentDepth <= c.pState.leastDepth)
+					return;
+
+				if (bValOre) {
 					if ((!MinFoundOreDepth.HasValue) || (MinFoundOreDepth > currentDepth))
 						MinFoundOreDepth = currentDepth;
 					if ((!MaxFoundOreDepth.HasValue) || (MaxFoundOreDepth < currentDepth))
 						MaxFoundOreDepth = currentDepth;
-					if (Toggle.C.Check("adaptive-mining"))
-					{
+					if (Toggle.C.Check("adaptive-mining")) {
 						c.pState.skipDepth = MinFoundOreDepth.Value - 2f;
 						c.pState.maxDepth = MaxFoundOreDepth.Value + 2f;
 					}

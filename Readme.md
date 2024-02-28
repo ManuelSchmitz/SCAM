@@ -1,3 +1,19 @@
+## Getting Started
+
+1. Get a setup running with v0.9.68.
+2. [Update](#update) to this version
+
+(Sorry, did not have the time to write a tutorial yet.)
+
+## Updating from v0.9.68 {update}
+
+1. Recall all agents.
+2. Remove the following commands from your startup scripts (Custom Data of the PBs). They are not supported any more,
+	- `command:set-value:depth-limit` - Now set on the LCD screen menu.
+	- `command:set-value:skip-depth` - Now set on the LCD screen menu.
+	- `command:set-role` - Now determined by the script. (Separate scripts for agent and dispatcher.)
+3. Copy dispatcher script to the dispatcher and recompile.
+4. Copy the agent script to all agents and recompile.
 
 ## Definitions
 
@@ -8,6 +24,67 @@ A task is a collection of jobs (shafts), and is usually processed by a dispatche
 ### Job
 
 A job is shaft, processed by an individual agent. The dispatcher will usually assign a job to the individual agents.
+
+## Task Creation
+
+1. Recall all agents, if a task is being processed. Any existing task will be overwritten by the new one.
+2. Designate the location by one of the following methods:
+   - TODO
+3. The dispatcher will create the task using the following parameters.
+   - TODO: shaft radius, agent group, location & orientation, #generations, max. depth, adaptive, skip-depth
+4. The dispatcher will start dispatching jobs to the agents.
+
+## Job Processing
+
+An agent will drill down in two steps:
+1. To the `skip-depth`, without taking on stone/ore/ice. (*)
+2. Further to `least-depth`, picking up stone/ore/ice. 
+3. On to `depth-limit`, but only if there is ore or ice.
+
+(*) The agent actually takes on a some stone/ore/ice, but only into the inventory of the drills. These are disconnected from the conveyor system.
+
+![shaft schematic](shaft.svg "Schematic drawing of the drilling behaviour.")
+
+Note that `depth-limit` is stronger than `least-depth`, e.g. when the latter is greater than the former, the agent will stop at `depth-limit`. 
+
+The following subsections contain parameter sets for typical mining tasks.
+
+### Surface Ore
+
+Mine ore that is on the surface. This is typical for asteroid deposits, or surface ice on planets.
+
+- Set `skip-depth` to 0.
+- Set `least-depth` to 0.
+- Set `depth-limit` to a high value, e.g. 50 m. The agent will finish the shaft when there is no more ore/ice being picked up by the drills.
+
+### Subsurface Ore
+
+Mine ore that is below the surface, under a layer of dirt or rock.
+
+First, drill a pilot shaft:
+- Set `skip-depth` to 0 to a high value, depending on whether you want to pick up material from the pilot shaft.
+- Set `least-depth` to the expected depth of the ore plus 5 m. The expected depth can be detected with an ore detector.
+- Set `depth-limit` to `least-depth` plus 30 m.
+- Use only 1 agent.
+
+Observe at which depth the agent picks up useful ore. The value is displayed on the LCD GUI. Then:
+- Set `skip-depth` to a 5 m  above the start of the ore.
+- Set `least-depth` to the start of the ore, or slightly deeper (round to full 5m).
+- Set `depth-limit` to the end of the ore, or slightly deeper.
+
+### Two-layer Ore
+
+Typically, there is ore below ice, sometimes with a layer of rock in between.
+
+Proceed as with subsurface ore, but make sure that `least-depth` and `depth-limit` values are sufficiently high. So that the agent will drill through the deepest ore layer.
+
+### Excavation
+
+Sometimes you just want the mining drones to excavate a site.
+
+Set `skip-depth`, `least-depth` and `depth-limit` to the same value.
+
+### Adaptive Mining
 
 ## Logging
 
