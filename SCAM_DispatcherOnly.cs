@@ -2049,35 +2049,35 @@ public class GuiHandler
 
 		var bDecDepthLimit = CreateButton(1, "-", p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 120), Color.Black);
 		bDecDepthLimit.OnClick = xy => {
-			_stateWrapper.PState.maxDepth = Math.Max(0f, _stateWrapper.PState.maxDepth - 5f);
+			_stateWrapper.PState.maxDepth = Math.Max(_stateWrapper.PState.leastDepth, _stateWrapper.PState.maxDepth - 5f);
 		};
 		AddTipToAe(bDecDepthLimit, "Decrease depth limit by 5 m");
 		controls.Add(bDecDepthLimit);
 
 		var bIncSkipDepth = CreateButton(1, "+", p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 160), Color.Black);
 		bIncSkipDepth.OnClick = xy => {
-			_stateWrapper.PState.skipDepth += 5f;
+			_stateWrapper.PState.skipDepth = Math.Min(_stateWrapper.PState.maxDepth, _stateWrapper.PState.skipDepth + 5f);
 		};
 		AddTipToAe(bIncSkipDepth, "Increase skip-depth by 5 m");
 		controls.Add(bIncSkipDepth);
 
 		var bDecSkipDepth = CreateButton(1, "-", p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 160), Color.Black);
 		bDecSkipDepth.OnClick = xy => {
-			_stateWrapper.PState.skipDepth -= 5f;
+			_stateWrapper.PState.skipDepth = Math.Max(0f, _stateWrapper.PState.skipDepth - 5f);
 		};
 		AddTipToAe(bDecSkipDepth, "Decrease skip-depth by 5 m");
 		controls.Add(bDecSkipDepth);
 
 		var bIncLeastDepth = CreateButton(1, "+", p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 200), Color.Black);
 		bIncLeastDepth.OnClick = xy => {
-			_stateWrapper.PState.leastDepth += 5f;
+			_stateWrapper.PState.leastDepth = Math.Min(_stateWrapper.PState.maxDepth, _stateWrapper.PState.leastDepth + 5f);
 		};
 		AddTipToAe(bIncLeastDepth, "Increase least-depth by 5 m");
 		controls.Add(bIncLeastDepth);
 
 		var bDecLeastDepth = CreateButton(1, "-", p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 200), Color.Black);
 		bDecLeastDepth.OnClick = xy => {
-			_stateWrapper.PState.leastDepth -= 5f;
+			_stateWrapper.PState.leastDepth = Math.Max(0f, _stateWrapper.PState.leastDepth - 5f);
 		};
 		AddTipToAe(bDecLeastDepth, "Decrease least-depth by 5 m");
 		controls.Add(bDecLeastDepth);
