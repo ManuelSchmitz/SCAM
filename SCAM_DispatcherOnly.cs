@@ -48,18 +48,10 @@ static string LOCK_NAME_BaseSection = "base";         ///< Airspace above the ba
 static class Variables
 {
 	static Dictionary<string, object> v = new Dictionary<string, object> {
-		{ "depth-limit", new Variable<float> { value = 80, parser = s => { 
-			Log("(deprecated) Set depth-limit in the GUI-screen instead command:set-value.", E.LogLevel.Warning);
-			return float.Parse(s); 
-		} } },
 		{ "max-generations", new Variable<int> { value = 7, parser = s => int.Parse(s) } },
 		{ "circular-pattern-shaft-radius", new Variable<float> { value = 3.6f, parser = s => float.Parse(s) } },
 		{ "echelon-offset", new Variable<float> { value = 12f, parser = s => float.Parse(s) } },
 		{ "getAbove-altitude", new Variable<float> { value = 20, parser = s => float.Parse(s) } },
-		{ "skip-depth", new Variable<float> { value = 0, parser = s => {
-			Log("(deprecated) Set depth-limit in the GUI-screen instead command:set-value.", E.LogLevel.Warning);
-			return float.Parse(s);
-		} } },
 		{ "ct-raycast-range", new Variable<float> { value = 1000, parser = s => float.Parse(s) } },
 		{ "preferred-container", new Variable<string> { value = "", parser = s => s } },
 		{ "group-constraint", new Variable<string> { value = "general", parser = s => s } },
@@ -544,6 +536,8 @@ public class StateWrapper
 		PState.LifetimeAcceptedTasks = currentState.LifetimeAcceptedTasks;
 		PState.airspaceLockRequests  = currentState.airspaceLockRequests;
 		/* Job Parameters */
+		PState.maxDepth              = currentState.maxDepth;
+		PState.skipDepth             = currentState.skipDepth;
 		PState.leastDepth            = currentState.leastDepth;
 	}
 
@@ -613,6 +607,8 @@ public class PersistentState
 	public float? shaftRadius;
 
 	/* Job parameters. */
+	public float maxDepth;
+	public float skipDepth;
 	public float leastDepth;
 
 	public List<byte> ShaftStates = new List<byte>();
@@ -687,9 +683,9 @@ public class PersistentState
 		shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
 		/* Job parameters. */
-		leastDepth           = ParseValue<float>(values, "leastDepth");
-		Variables.Set<float>("depth-limit", ParseValue<float?>(values, "maxDepth")   ?? 20f);
-		Variables.Set<float>("skip-depth",  ParseValue<float?>(values, "skipDepth")  ?? 0f);
+		maxDepth    = ParseValue<float>(values, "maxDepth");
+		skipDepth   = ParseValue<float>(values, "skipDepth");
+		leastDepth  = ParseValue<float>(values, "leastDepth");
 		Toggle.C.Set("adaptive-mining",           ParseValue<bool>(values, "adaptiveMode"));
 		Toggle.C.Set("adjust-entry-by-elevation", ParseValue<bool>(values, "adjustAltitude"));
 		
@@ -719,8 +715,8 @@ public class PersistentState
 			"shaftRadius=" + shaftRadius,
 
 			/* Job parameters. */
-			"maxDepth="  + Variables.Get<float>("depth-limit"),
-			"skipDepth=" + Variables.Get<float>("skip-depth"),
+			"maxDepth="  + maxDepth,
+			"skipDepth=" + skipDepth,
 			"leastDepth=" + leastDepth,
 			"adaptiveMode=" + Toggle.C.Check("adaptive-mining"),
 			"adjustAltitude=" + Toggle.C.Check("adjust-entry-by-elevation"),
@@ -1351,8 +1347,8 @@ public class Dispatcher
 						entry.Value,
 						getabove.Value,
 						new MyTuple<float, float, float, bool, bool>(
-							Variables.Get<float>("depth-limit"),
-							Variables.Get<float>("skip-depth"),
+							stateWrapper.PState.maxDepth,
+							stateWrapper.PState.skipDepth,
 							stateWrapper.PState.leastDepth,
 							Toggle.C.Check("adaptive-mining"),
 							Toggle.C.Check("adjust-entry-by-elevation")
@@ -2046,28 +2042,28 @@ public class GuiHandler
 
 		var bIncDepthLimit = CreateButton(1, "+", p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 120), Color.Black);
 		bIncDepthLimit.OnClick = xy => {
-			Variables.Set<float>("depth-limit", Variables.Get<float>("depth-limit") + 5f);
+			_stateWrapper.PState.maxDepth += 5f;
 		};
 		AddTipToAe(bIncDepthLimit, "Increase depth limit by 5 m");
 		controls.Add(bIncDepthLimit);
 
 		var bDecDepthLimit = CreateButton(1, "-", p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 120), Color.Black);
 		bDecDepthLimit.OnClick = xy => {
-			Variables.Set<float>("depth-limit", Math.Max(0f, Variables.Get<float>("depth-limit") - 5f));
+			_stateWrapper.PState.maxDepth = Math.Max(0f, _stateWrapper.PState.maxDepth - 5f);
 		};
 		AddTipToAe(bDecDepthLimit, "Decrease depth limit by 5 m");
 		controls.Add(bDecDepthLimit);
 
 		var bIncSkipDepth = CreateButton(1, "+", p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 160), Color.Black);
 		bIncSkipDepth.OnClick = xy => {
-			Variables.Set<float>("skip-depth", Variables.Get<float>("skip-depth") + 5f);
+			_stateWrapper.PState.skipDepth += 5f;
 		};
 		AddTipToAe(bIncSkipDepth, "Increase skip-depth by 5 m");
 		controls.Add(bIncSkipDepth);
 
 		var bDecSkipDepth = CreateButton(1, "-", p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 160), Color.Black);
 		bDecSkipDepth.OnClick = xy => {
-			Variables.Set<float>("skip-depth", Math.Max(0f, Variables.Get<float>("skip-depth") - 5f));
+			_stateWrapper.PState.skipDepth -= 5f;
 		};
 		AddTipToAe(bDecSkipDepth, "Decrease skip-depth by 5 m");
 		controls.Add(bDecSkipDepth);
@@ -2316,7 +2312,7 @@ public class GuiHandler
 
 		offX += 55;
 		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.DarkGray));
-		frame.Add(new MySprite(SpriteType.TEXT, Variables.Get<float>("depth-limit").ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.maxDepth.ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
 		offY += 40;
@@ -2329,7 +2325,7 @@ public class GuiHandler
 
 		offX += 55;
 		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.DarkGray));
-		frame.Add(new MySprite(SpriteType.TEXT, Variables.Get<float>("skip-depth").ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.skipDepth.ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
 		offY += 40;
@@ -2459,7 +2455,7 @@ public class GuiHandler
 				offX += 22;
 				frame.Add(new MySprite(SpriteType.TEXT,
 					su.Report.t_shaft.ToString("f2") + " m",
-					new Vector2(startX + offX, startY + offY), null, (su.Report.t_shaft <= Variables.Get<float>("depth-limit") ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
+					new Vector2(startX + offX, startY + offY), null, (su.Report.t_shaft <= _stateWrapper.PState.maxDepth ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
 				frame.Add(new MySprite(SpriteType.TEXT,
 					"(" + su.Report.t_ore.ToString("f2") + " m)",
 					new Vector2(startX + offX, startY + offY + fontHeight), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
