@@ -1988,52 +1988,52 @@ public class GuiHandler
 		_stateWrapper = stateWrapper;
 		viewPortSize = p.TextureSize;
 
-		float interval = 0.18f;
 		Vector2 btnSize = new Vector2(85, 40);
-		float b_X = -0.967f;
+		float interval  = 0.18f   * viewPortSize.X / 2f; // [px] place button every 18% of screen width
+		float y_btn     = 0.85f   * viewPortSize.Y; // [px] y-position of button ribbon at 85%
 
-		var bCyclePage = CreateButton(-1, p, btnSize, new Vector2(b_X /*+ interval*/, 0.85f), ">>", Color.Black);
+		var bCyclePage = CreateButton(-1, p, btnSize, new Vector2(0f /*+ interval*/, y_btn), ">>", Color.Black);
 		bCyclePage.OnClick = xy => {
 			current_page = (current_page + 1) % 2;
 		};
 		AddTipToAe(bCyclePage, "Next page ...");
 		controls.Add(bCyclePage);
 
-		var bRecall = CreateButton(0, p, btnSize, new Vector2(b_X + interval, 0.85f), "Recall", Color.Black);
+		var bRecall = CreateButton(0, p, btnSize, new Vector2(interval, y_btn), "Recall", Color.Black);
 		bRecall.OnClick = xy => {
 			dispatcher.Recall();
 		};
 		AddTipToAe(bRecall, "Finish work (broadcast command:force-finish)");
 		controls.Add(bRecall);
 
-		var bResume = CreateButton(0, p, btnSize, new Vector2(b_X + interval * 2, 0.85f), "Resume", Color.Black);
+		var bResume = CreateButton(0, p, btnSize, new Vector2(interval * 2, y_btn), "Resume", Color.Black);
 		bResume.OnClick = xy => {
 			dispatcher.BroadcastResume();
 		};
 		AddTipToAe(bResume, "Resume work (broadcast 'miners.resume' message)");
 		controls.Add(bResume);
 
-		var bClearState = CreateButton(0, p, btnSize, new Vector2(b_X + interval * 3, 0.85f), "Clear state", Color.Black);
+		var bClearState = CreateButton(0, p, btnSize, new Vector2(interval * 3, y_btn), "Clear state", Color.Black);
 		bClearState.OnClick = xy => {
 			stateWrapper?.ClearPersistentState();
 		};
 		AddTipToAe(bClearState, "Clear Dispatcher state");
 		controls.Add(bClearState);
 
-		var bClearLog = CreateButton(0, p, btnSize, new Vector2(b_X + interval * 4, 0.85f), "Clear log", Color.Black);
+		var bClearLog = CreateButton(0, p, btnSize, new Vector2(interval * 4, y_btn), "Clear log", Color.Black);
 		bClearLog.OnClick = xy => {
 			E.ClearLog();
 		};
 		controls.Add(bClearLog);
 
-		var bPurgeLocks = CreateButton(0, p, btnSize, new Vector2(b_X + interval * 5, 0.85f), "Purge locks", Color.Black);
+		var bPurgeLocks = CreateButton(0, p, btnSize, new Vector2(interval * 5, y_btn), "Purge locks", Color.Black);
 		bPurgeLocks.OnClick = xy => {
 			dispatcher.PurgeLocks();
 		};
 		AddTipToAe(bPurgeLocks, "Clear lock ownership. Last resort in case of deadlock");
 		controls.Add(bPurgeLocks);
 
-		var bHalt = CreateButton(0, p, btnSize, new Vector2(b_X + interval * 6, 0.85f), "EMRG HALT", Color.Black);
+		var bHalt = CreateButton(0, p, btnSize, new Vector2(interval * 6, y_btn), "EMRG HALT", Color.Black);
 		bHalt.OnClick = xy => {
 			dispatcher.BroadCastHalt();
 		};
@@ -2128,20 +2128,27 @@ public class GuiHandler
 
 	/**
 	 * \param[in] page The page on which this button will exist. Negative value means "all pages".
+	 * \param[in] btnSize The size of the button in [px]. Must be at least 1x1, or undefined behaviour.
 	 */
-	ActiveElement CreateButton(int page, IMyTextSurface p, Vector2 btnSize, Vector2 posN, string label, Color? hoverColor = null)
+	ActiveElement CreateButton(
+		int page,
+		IMyTextSurface p,
+		Vector2 btnSize,
+		Vector2 posN,
+		string label,
+		Color? hoverColor = null
+	)
 	{
-		var textureSize = p.TextureSize;
 		var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0),
-						btnSize, Color.CornflowerBlue);
+		                          btnSize, Color.CornflowerBlue);
+
+		/* Determine the right Y-position for the text. */
 		var lblHeight = Vector2.Zero;
-		// norm relative to parent widget...
-		if (btnSize.Y > 1)
-			lblHeight.Y = -p.MeasureStringInPixels(new StringBuilder(label), "Debug", 0.5f).Y / btnSize.Y;
+		lblHeight.Y = -p.MeasureStringInPixels(new StringBuilder(label), "Debug", 0.5f).Y / btnSize.Y;
 
 		var lbl = new MySprite(SpriteType.TEXT, label, lblHeight, Vector2.One, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
 		var sprites = new List<MySprite>() { btnSpr, lbl };
-		var btn = new ActiveElement(page, sprites, btnSize, posN, textureSize);
+		var btn = new ActiveElement(page, sprites, btnSize, posN, p.TextureSize);
 
 		if (hoverColor != null)
 		{
@@ -2545,31 +2552,38 @@ public class GuiHandler
 					$"Group: {d.CurrentTask.GroupConstraint}";
 	}
 
+	/**
+	 * \brief This is an interactive dialog control.
+   * \details The element interacts with the mouse cursor, e.g. on click or on
+	 * mouse-over.
+	 */
 	class ActiveElement
 	{
-		public Vector2 Min, Max, Center;
-		public List<MySprite> Sprites;
+		public int  page    = 0;      ///< Page to which this element belongs. Negative values mean "all pages". 
+		public bool Visible = true;   ///< An invisible element does not interact with the user.
+		//TODO: Should be private:
+		//private Vector2 Min;         ///< Upper left corner.
+		public Vector2 Min;           ///< Upper left corner.
+		private Vector2 Max;          ///< Lower right corner.
+		private Vector2 Center;       ///< Center coordinates
+		public List<MySprite> Sprites;///< The sprites visually representing the element.
 		public Vector2 SizePx;
+
+		/* Event handlers. */
 		public Action OnMouseIn { get; set; }
 		public Action OnMouseOut { get; set; }
 		public Action<Vector2> OnHover { get; set; }
 		public Action<Vector2> OnClick { get; set; }
-		public bool Hover { get; set; }
-		public bool Visible = true;
-		public int  page = 0;        ///< Page to which this element belongs. Negative values mean "all pages". 
+		
+		private bool bHover { get; set; } ///< Is the mouse currently hovering above the element?
 	
 		/** \brief Creates an active element with the y axis scaled. */
 		public ActiveElement(int _p, List<MySprite> sprites, Vector2 sizeN, Vector2 posN, Vector2 deviceSize)
 		{
 			page = _p;
 			Sprites = sprites;
-			if (Math.Abs(posN.X) > 1)
-				posN.X = posN.X / (deviceSize.X * 0.5f) - 1;
-			if (Math.Abs(posN.Y) > 1)
-				posN.Y = 1 - posN.Y / (deviceSize.Y * 0.5f);
-			Vector2 ContainerSize = deviceSize;
-			SizePx = new Vector2(sizeN.X > 1 ? sizeN.X : sizeN.X * ContainerSize.X, sizeN.Y > 1 ? sizeN.Y : sizeN.Y * ContainerSize.Y);
-			Center = deviceSize / 2f * (Vector2.One + posN);
+			SizePx = sizeN;
+			Center = posN;
 			Min = Center - SizePx / 2f;
 			Max = Center + SizePx / 2f;
 		}
@@ -2585,26 +2599,27 @@ public class GuiHandler
 			Max = Center + SizePx / 2f;
 		}
 
+		/** 
+		 * \brief Checks if the mouse cursor is currently hovering above the element.
+		 * \details To be called on every cycle. Will trigger OnMouseIn and OnMouseOut
+		 * actions.
+		 */
 		public bool CheckHover(Vector2 cursorPosition)
 		{
 			bool res = (cursorPosition.X > Min.X) && (cursorPosition.X < Max.X)
-						&& (cursorPosition.Y > Min.Y) && (cursorPosition.Y < Max.Y);
+			        && (cursorPosition.Y > Min.Y) && (cursorPosition.Y < Max.Y);
 			if (res)
 			{
-				if (!Hover)
-				{
+				if (!bHover)
 					OnMouseIn?.Invoke();
-				}
-				Hover = true;
+				bHover = true;
 				OnHover?.Invoke(cursorPosition);
 			}
-			else
+			else 
 			{
-				if (Hover)
-				{
+				if (bHover)
 					OnMouseOut?.Invoke();
-				}
-				Hover = false;
+				bHover = false;
 			}
 
 			return res;
@@ -2618,6 +2633,11 @@ public class GuiHandler
 			}
 		}
 
+		/** 
+		 * \brief Transforms (translate & scale) the sprites to the element's
+		 * coordinates, and returns the transformed sprites.
+		 * \details To be called on every frame for rendering.
+		 */
 		public IEnumerable<MySprite> GetSprites()
 		{
 			foreach (var x in Sprites)
@@ -2626,8 +2646,6 @@ public class GuiHandler
 
 				var x1 = x;
 				x1.Position = Center + SizePx / 2f * x.Position;
-				var sz = x.Size.Value;
-				x1.Size = new Vector2(sz.X > 1 ? sz.X : sz.X * rect.X, sz.Y > 1 ? sz.Y : sz.Y * rect.Y);
 
 				yield return x1;
 			}
