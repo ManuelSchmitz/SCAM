@@ -1526,8 +1526,7 @@ public class Dispatcher
 			/* Find the first planned shaft. */
 			var sh = Shafts.FirstOrDefault(x => x.State == ShaftState.Planned
 			     &&  Shafts.All(other =>                     // All other shafts ...
-			            other.Id == x.Id                     // ... 
-			         || other.State != ShaftState.InProgress // ... must be either not in progress ...
+			             other.State != ShaftState.InProgress // ... must be either not in progress ...
 			         || (other.Point - x.Point).Length() >= d_safety )); // ... or have the proper safety distance.
 			if (sh == null)
 				return false; // No more shafts planned.
@@ -2547,17 +2546,18 @@ public class GuiHandler
 
 		foreach (var t in obj.Shafts)
 		{
-			var pos = bPos + t.Point * scale;
+			/* Convert from [m] to [px] (and from RHS to LHS!). */
+			var pos = bPos + new Vector2(t.Point.X, -t.Point.Y) * scale;
 
 			Color mainCol = Color.White;
 			if (t.State == ShaftState.Planned)
-				mainCol = Color.CornflowerBlue;
+				mainCol = Color.Darken(Color.CornflowerBlue, 0.1f);
 			else if (t.State == ShaftState.Complete)
 				mainCol = Color.Darken(Color.CornflowerBlue, 0.4f);
 			else if (t.State == ShaftState.InProgress)
 				mainCol = Color.Lighten(Color.CornflowerBlue, 0.2f);
 			else if (t.State == ShaftState.Cancelled)
-				mainCol = Color.DarkSlateGray;
+				mainCol = Color.Darken(Color.DarkSlateGray, 0.2f);
 
 			var hoverColor = Color.Red;
 			
