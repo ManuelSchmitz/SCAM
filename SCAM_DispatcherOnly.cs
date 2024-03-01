@@ -112,10 +112,12 @@ class Toggle
 		if (sw[key] != value)
 			Invert(key);
 	}
-	public void Invert(string key)
+	/** \brief Flips the toggle and returns the state after the flip. */
+	public bool Invert(string key)
 	{
 		sw[key] = !sw[key];
 		onToggleStateChangeHandler(key);
+		return sw[key];
 	}
 	public bool Check(string key)
 	{
@@ -1988,94 +1990,107 @@ public class GuiHandler
 		_stateWrapper = stateWrapper;
 		viewPortSize = p.TextureSize;
 
-		Vector2 btnSize = new Vector2(85, 40);
-		float interval  = 0.18f   * viewPortSize.X / 2f; // [px] place button every 18% of screen width
-		float y_btn     = 0.85f   * viewPortSize.Y; // [px] y-position of button ribbon at 85%
+		Vector2 btnSize = new Vector2(84, 40);
+		float y_btn = 0.85f * viewPortSize.Y; // [px] y-position of button ribbon at 85%
+		int   x_btn = 20;
 
-		var bCyclePage = CreateButton(-1, p, btnSize, new Vector2(0f /*+ interval*/, y_btn), ">>", Color.Black);
+		x_btn += 20;
+		var bCyclePage = CreateButton(-1, p, new Vector2(40,40), new Vector2(x_btn, y_btn), ">", 1.2f);
 		bCyclePage.OnClick = xy => {
 			current_page = (current_page + 1) % 2;
 		};
 		AddTipToAe(bCyclePage, "Next page ...");
 		controls.Add(bCyclePage);
 
-		var bRecall = CreateButton(0, p, btnSize, new Vector2(interval, y_btn), "Recall", Color.Black);
+		x_btn += 20 + 10 + 42;
+
+		var bRecall = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Recall");
 		bRecall.OnClick = xy => {
 			dispatcher.Recall();
 		};
 		AddTipToAe(bRecall, "Finish work (broadcast command:force-finish)");
 		controls.Add(bRecall);
+		
+		x_btn += 42 + 10 + 42;
 
-		var bResume = CreateButton(0, p, btnSize, new Vector2(interval * 2, y_btn), "Resume", Color.Black);
+		var bResume = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Resume");
 		bResume.OnClick = xy => {
 			dispatcher.BroadcastResume();
 		};
 		AddTipToAe(bResume, "Resume work (broadcast 'miners.resume' message)");
 		controls.Add(bResume);
+		
+		x_btn += 42 + 10 + 42;
 
-		var bClearState = CreateButton(0, p, btnSize, new Vector2(interval * 3, y_btn), "Clear state", Color.Black);
+		var bClearState = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Clear state");
 		bClearState.OnClick = xy => {
 			stateWrapper?.ClearPersistentState();
 		};
 		AddTipToAe(bClearState, "Clear Dispatcher state");
 		controls.Add(bClearState);
+		
+		x_btn += 42 + 10 + 42;
 
-		var bClearLog = CreateButton(0, p, btnSize, new Vector2(interval * 4, y_btn), "Clear log", Color.Black);
+		var bClearLog = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Clear log");
 		bClearLog.OnClick = xy => {
 			E.ClearLog();
 		};
 		controls.Add(bClearLog);
+		
+		x_btn += 42 + 10 + 42;
 
-		var bPurgeLocks = CreateButton(0, p, btnSize, new Vector2(interval * 5, y_btn), "Purge locks", Color.Black);
+		var bPurgeLocks = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Purge locks");
 		bPurgeLocks.OnClick = xy => {
 			dispatcher.PurgeLocks();
 		};
 		AddTipToAe(bPurgeLocks, "Clear lock ownership. Last resort in case of deadlock");
 		controls.Add(bPurgeLocks);
+		
+		x_btn += 42 + 10 + 42;
 
-		var bHalt = CreateButton(0, p, btnSize, new Vector2(interval * 6, y_btn), "EMRG HALT", Color.Black);
+		var bHalt = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "EMRG HALT");
 		bHalt.OnClick = xy => {
 			dispatcher.BroadCastHalt();
 		};
 		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
 		controls.Add(bHalt);
 
-		var bIncDepthLimit = CreateButton(1, "+", p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 120), Color.Black);
+		var bIncDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 120), "+", 1.2f);
 		bIncDepthLimit.OnClick = xy => {
 			_stateWrapper.PState.maxDepth += 5f;
 		};
 		AddTipToAe(bIncDepthLimit, "Increase depth limit by 5 m");
 		controls.Add(bIncDepthLimit);
 
-		var bDecDepthLimit = CreateButton(1, "-", p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 120), Color.Black);
+		var bDecDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 120), "-", 1.2f);
 		bDecDepthLimit.OnClick = xy => {
 			_stateWrapper.PState.maxDepth = Math.Max(_stateWrapper.PState.leastDepth, _stateWrapper.PState.maxDepth - 5f);
 		};
 		AddTipToAe(bDecDepthLimit, "Decrease depth limit by 5 m");
 		controls.Add(bDecDepthLimit);
 
-		var bIncSkipDepth = CreateButton(1, "+", p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 160), Color.Black);
+		var bIncSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 160), "+", 1.2f);
 		bIncSkipDepth.OnClick = xy => {
 			_stateWrapper.PState.skipDepth = Math.Min(_stateWrapper.PState.maxDepth, _stateWrapper.PState.skipDepth + 5f);
 		};
 		AddTipToAe(bIncSkipDepth, "Increase skip-depth by 5 m");
 		controls.Add(bIncSkipDepth);
 
-		var bDecSkipDepth = CreateButton(1, "-", p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 160), Color.Black);
+		var bDecSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 160), "-", 1.2f);
 		bDecSkipDepth.OnClick = xy => {
 			_stateWrapper.PState.skipDepth = Math.Max(0f, _stateWrapper.PState.skipDepth - 5f);
 		};
 		AddTipToAe(bDecSkipDepth, "Decrease skip-depth by 5 m");
 		controls.Add(bDecSkipDepth);
 
-		var bIncLeastDepth = CreateButton(1, "+", p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 200), Color.Black);
+		var bIncLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 200), "+", 1.2f);
 		bIncLeastDepth.OnClick = xy => {
 			_stateWrapper.PState.leastDepth = Math.Min(_stateWrapper.PState.maxDepth, _stateWrapper.PState.leastDepth + 5f);
 		};
 		AddTipToAe(bIncLeastDepth, "Increase least-depth by 5 m");
 		controls.Add(bIncLeastDepth);
 
-		var bDecLeastDepth = CreateButton(1, "-", p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 200), Color.Black);
+		var bDecLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 200), "-", 1.2f);
 		bDecLeastDepth.OnClick = xy => {
 			_stateWrapper.PState.leastDepth = Math.Max(0f, _stateWrapper.PState.leastDepth - 5f);
 		};
@@ -2083,36 +2098,20 @@ public class GuiHandler
 		controls.Add(bDecLeastDepth);
 
 		{
-			var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0), new Vector2(30, 30), Color.CornflowerBlue);
-			var sprites = new List<MySprite>() { btnSpr };
-
-			var chkAdaptive = new ActiveElement(1, sprites, new Vector2(30, 30), new Vector2(300, 240));
+			var chkAdaptive = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,240));
+			chkAdaptive.bChecked = Toggle.C.Check("adaptive-mining");
 			chkAdaptive.OnClick = xy => {
-				Toggle.C.Invert("adaptive-mining");
-			};
-			chkAdaptive.OnMouseIn = () => {
-				chkAdaptive.TransformSprites(spr => { var s1 = spr; s1.Color = Color.Black; /*s1.Size = btnSize * 1.05f;*/ return s1; });
-			};
-			chkAdaptive.OnMouseOut = () => {
-				chkAdaptive.TransformSprites(spr => btnSpr);
+				chkAdaptive.bChecked = Toggle.C.Invert("adaptive-mining");
 			};
 			AddTipToAe(chkAdaptive, "Toggle adaptive mining");
 			controls.Add(chkAdaptive);
 		}
 
 		{
-			var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0), new Vector2(30, 30), Color.CornflowerBlue);
-			var sprites = new List<MySprite>() { btnSpr };
-
-			var chkAdjEntry = new ActiveElement(1, sprites, new Vector2(30, 30), new Vector2(300, 280));
+			var chkAdjEntry = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,280));
+			chkAdjEntry.bChecked = Toggle.C.Check("adjust-entry-by-elevation");
 			chkAdjEntry.OnClick = xy => {
-				Toggle.C.Invert("adjust-entry-by-elevation");
-			};
-			chkAdjEntry.OnMouseIn = () => {
-				chkAdjEntry.TransformSprites(spr => { var s1 = spr; s1.Color = Color.Black; /*s1.Size = btnSize * 1.05f;*/ return s1; });
-			};
-			chkAdjEntry.OnMouseOut = () => {
-				chkAdjEntry.TransformSprites(spr => btnSpr);
+				chkAdjEntry.bChecked = Toggle.C.Invert("adjust-entry-by-elevation");
 			};
 			AddTipToAe(chkAdjEntry, "Toggle automatic entry point adjustment");
 			controls.Add(chkAdjEntry);
@@ -2127,8 +2126,27 @@ public class GuiHandler
 	}
 
 	/**
+	 * \brief Creates a check box control.
+	 * \param[in] page The page on which this button will exist. Negative value means "all pages".
+	 */
+	ActiveElement CreateCheckbox(
+		int page,
+		Vector2 size,
+		Vector2 pos
+	)
+	{
+		/* Create the background sprites. */
+		var checkBox = new ActiveElement(page, size, pos);
+		checkBox.bkSprite0 = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0), size, Color.CornflowerBlue);
+		checkBox.bkSprite1 = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0), size, Color.Black);
+		checkBox.fgSprite  = new MySprite(SpriteType.TEXTURE, "Cross",        new Vector2(0, 0), size * 0.8f, Color.DarkKhaki);
+		return checkBox;
+	}
+
+	/**
 	 * \param[in] page The page on which this button will exist. Negative value means "all pages".
 	 * \param[in] btnSize The size of the button in [px]. Must be at least 1x1, or undefined behaviour.
+	 * \param[in] fsize The font size/scale.
 	 */
 	ActiveElement CreateButton(
 		int page,
@@ -2136,61 +2154,17 @@ public class GuiHandler
 		Vector2 btnSize,
 		Vector2 posN,
 		string label,
-		Color? hoverColor = null
+		float fsize = 0.5f
 	)
 	{
-		var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0),
-		                          btnSize, Color.CornflowerBlue);
-
 		/* Determine the right Y-position for the text. */
-		var lblHeight = Vector2.Zero;
-		lblHeight.Y = -p.MeasureStringInPixels(new StringBuilder(label), "Debug", 0.5f).Y / btnSize.Y;
+		var lbl_ypos = Vector2.Zero;
+		lbl_ypos.Y = -p.MeasureStringInPixels(new StringBuilder(label), "Debug", fsize - 0.1f).Y / btnSize.Y;
 
-		var lbl = new MySprite(SpriteType.TEXT, label, lblHeight, Vector2.One, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
-		var sprites = new List<MySprite>() { btnSpr, lbl };
-		var btn = new ActiveElement(page, sprites, btnSize, posN, p.TextureSize);
-
-		if (hoverColor != null)
-		{
-			btn.OnMouseIn = () =>
-			{
-				btn.TransformSprites(spr => { var s1 = spr; s1.Color = hoverColor; s1.Size = btnSize * 1.05f; return spr.Type == SpriteType.TEXTURE ? s1 : spr; });
-			};
-			btn.OnMouseOut = () =>
-			{
-				btn.TransformSprites(spr => spr.Type == SpriteType.TEXTURE ? btnSpr : spr);
-			};
-		}
-		return btn;
-	}
-
-	/** \brief Creates a button without scaling. */
-	//TODO: Lots of duplicate code between both CreateButon() ... refactor!
-	ActiveElement CreateButton(int page, string label, IMyTextSurface p, Vector2 btnSize, Vector2 posN, Color? hoverColor = null)
-	{
-		var textureSize = p.TextureSize;
-		var btnSpr = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0),
-						btnSize, Color.CornflowerBlue);
-		var lblHeight = Vector2.Zero;
-		// norm relative to parent widget...
-		if (btnSize.Y > 1)
-			lblHeight.Y = -p.MeasureStringInPixels(new StringBuilder(label), "Debug", 0.5f).Y / btnSize.Y;
-
-		var lbl = new MySprite(SpriteType.TEXT, label, lblHeight, Vector2.One, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
-		var sprites = new List<MySprite>() { btnSpr, lbl };
-		var btn = new ActiveElement(page, sprites, btnSize, posN);
-
-		if (hoverColor != null)
-		{
-			btn.OnMouseIn = () =>
-			{
-				btn.TransformSprites(spr => { var s1 = spr; s1.Color = hoverColor; s1.Size = btnSize * 1.05f; return spr.Type == SpriteType.TEXTURE ? s1 : spr; });
-			};
-			btn.OnMouseOut = () =>
-			{
-				btn.TransformSprites(spr => spr.Type == SpriteType.TEXTURE ? btnSpr : spr);
-			};
-		}
+		var btn = new ActiveElement(page, btnSize, posN);
+		btn.bkSprite0 = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0), btnSize, Color.CornflowerBlue);
+		btn.bkSprite1 = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0), btnSize, Color.Black);
+		btn.fgSprite  = new MySprite(SpriteType.TEXT, label, lbl_ypos, Vector2.One, Color.White, "Debug", TextAlignment.CENTER, fsize);
 		return btn;
 	}
 	
@@ -2359,8 +2333,8 @@ public class GuiHandler
 		offX += 55;
 		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkKhaki));
 		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkGray));
-		if (Toggle.C.Check("adaptive-mining"))
-			frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",     new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
+		//if (Toggle.C.Check("adaptive-mining"))
+		//	frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",     new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
 		offX += 55;
 		
 		offY += 40;
@@ -2374,8 +2348,8 @@ public class GuiHandler
 		offX += 55;
 		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkKhaki));
 		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(28, 28), Color.DarkGray));
-		if (Toggle.C.Check("adjust-entry-by-elevation"))
-			frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",     new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
+		//if (Toggle.C.Check("adjust-entry-by-elevation"))
+		//	frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",     new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
 		offX += 55;
 
 	}
@@ -2521,21 +2495,16 @@ public class GuiHandler
 			else if (t.State == ShaftState.Cancelled)
 				mainCol = Color.DarkSlateGray;
 
-			var btnSpr = new MySprite(SpriteType.TEXTURE, "Circle", new Vector2(0, 0), btnSize, mainCol);
-			var sprites = new List<MySprite>() { btnSpr };
-			var btn = new ActiveElement(0, sprites, btnSize, pos, viewPortSize);
-
 			var hoverColor = Color.Red;
+			
+			var btn = new ActiveElement(0, btnSize, pos);
+			btn.bkSprite0 = new MySprite(SpriteType.TEXTURE, "Circle", new Vector2(0, 0), btnSize, mainCol);
+			btn.bkSprite1 = new MySprite(SpriteType.TEXTURE, "Circle", new Vector2(0, 0), btnSize, hoverColor);
 
 			btn.OnHover = p => shaftTip.Data = $"id: {t.Id}, {t.State}";
 
-			btn.OnMouseIn = () =>
-			{
-				btn.TransformSprites(spr => { var s1 = spr; s1.Color = hoverColor; s1.Size = btnSize * 1.05f; return spr.Type == SpriteType.TEXTURE ? s1 : spr; });
-			};
 			btn.OnMouseOut = () =>
 			{
-				btn.TransformSprites(spr => spr.Type == SpriteType.TEXTURE ? btnSpr : spr);
 				shaftTip.Data = "Hover over shaft for more info,\n tap E to cancel it";
 			};
 
@@ -2561,12 +2530,17 @@ public class GuiHandler
 	{
 		public int  page    = 0;      ///< Page to which this element belongs. Negative values mean "all pages". 
 		public bool Visible = true;   ///< An invisible element does not interact with the user.
+		public bool bChecked;         ///< Is the checkbox checked (if checkbox).
 		//TODO: Should be private:
 		//private Vector2 Min;         ///< Upper left corner.
 		public Vector2 Min;           ///< Upper left corner.
 		private Vector2 Max;          ///< Lower right corner.
 		private Vector2 Center;       ///< Center coordinates
-		public List<MySprite> Sprites;///< The sprites visually representing the element.
+
+		/* The sprites visually representing the element. */
+		public MySprite bkSprite0;    ///< Background sprite.
+		public MySprite bkSprite1;    ///< Background sprite on mouse over.
+		public MySprite fgSprite;     ///< Foreground sprite.
 		public Vector2 SizePx;
 
 		/* Event handlers. */
@@ -2575,28 +2549,17 @@ public class GuiHandler
 		public Action<Vector2> OnHover { get; set; }
 		public Action<Vector2> OnClick { get; set; }
 		
-		private bool bHover { get; set; } ///< Is the mouse currently hovering above the element?
-	
-		/** \brief Creates an active element with the y axis scaled. */
-		public ActiveElement(int _p, List<MySprite> sprites, Vector2 sizeN, Vector2 posN, Vector2 deviceSize)
-		{
-			page = _p;
-			Sprites = sprites;
-			SizePx = sizeN;
-			Center = posN;
-			Min = Center - SizePx / 2f;
-			Max = Center + SizePx / 2f;
-		}
+		private bool bHover { get; set; }  ///< Is the mouse currently hovering above the element?
 
 		/** \brief Creates an active element in absolute coordinates. */
-		public ActiveElement(int _p, List<MySprite> sprites, Vector2 sizeN, Vector2 posN)
+		public ActiveElement(int _p, Vector2 sizeN, Vector2 posN)
 		{
 			page = _p;
-			Sprites = sprites;
 			SizePx = sizeN;
 			Center = posN;
 			Min = Center - SizePx / 2f;
 			Max = Center + SizePx / 2f;
+			bChecked = true;
 		}
 
 		/** 
@@ -2625,14 +2588,6 @@ public class GuiHandler
 			return res;
 		}
 
-		public void TransformSprites(Func<MySprite, MySprite> f)
-		{
-			for (int n = 0; n < Sprites.Count; n++)
-			{
-				Sprites[n] = f(Sprites[n]);
-			}
-		}
-
 		/** 
 		 * \brief Transforms (translate & scale) the sprites to the element's
 		 * coordinates, and returns the transformed sprites.
@@ -2640,14 +2595,19 @@ public class GuiHandler
 		 */
 		public IEnumerable<MySprite> GetSprites()
 		{
-			foreach (var x in Sprites)
-			{
-				var rect = SizePx;
-
-				var x1 = x;
-				x1.Position = Center + SizePx / 2f * x.Position;
-
-				yield return x1;
+			if (bHover) {
+				var retval = bkSprite1;
+				retval.Position = Center + SizePx / 2f * bkSprite1.Position;
+				yield return retval;
+			} else {
+				var retval = bkSprite0;
+				retval.Position = Center + SizePx / 2f * bkSprite0.Position;
+				yield return retval;
+			}
+			if (bChecked) {
+				var retval = fgSprite;
+				retval.Position = Center + SizePx / 2f * fgSprite.Position;
+				yield return retval;
 			}
 		}
 	}
