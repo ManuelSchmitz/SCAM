@@ -2500,102 +2500,100 @@ public class GuiHandler
 		const float fontHeight = 15; // [px] vertical distance between 2 lines
 		foreach (var su in _dispatcher.subordinates)
 		{
-			if (!su.Report.KeyValuePairs.IsDefault)
-			{
-				int offX = 0, startX = 45;
-				int interval = 75; ///< Stride between two columns.
+			int offX = 0, startX = 45;
+			int interval = 75; ///< Stride between two columns.
 
-				/* Before first row, render the table header. */
-				if (!madeHeader) {
+			/* Before first row, render the table header. */
+			if (!madeHeader) {
 					
-					/* System columns. */
-					offX += 55;
-					frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(110 - 4, 40), Color.Black));
-					frame.Add(new MySprite(SpriteType.TEXT, "Name\nState",     new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
-					offX += 55;
-
-					offX += 22;
-					frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX,      startY), new Vector2(44 - 4, 40), Color.Black));
-					frame.Add(new MySprite(SpriteType.TEXTURE, "IconEnergy",   new Vector2(startX + offX - 7, startY - 7), new Vector2(18, 18), Color.White));
-					frame.Add(new MySprite(SpriteType.TEXTURE, "IconHydrogen", new Vector2(startX + offX + 7, startY + 7), new Vector2(16, 16), Color.White));
-					offX += 22;
-
-					offX += 22;
-					frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(44 - 4, 40), Color.Black));
-					frame.Add(new MySprite(SpriteType.TEXTURE, "MyObjectBuilder_Ore/Stone",   new Vector2(startX + offX, startY), new Vector2(40, 40), Color.White));
-					offX += 22;
-
-					offX += 22;
-					frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(44 - 4, 40), Color.Black));
-					frame.Add(new MySprite(SpriteType.TEXTURE, "Arrow",   new Vector2(startX + offX, startY), new Vector2(40, 40), Color.White, "", TextAlignment.CENTER, (float)Math.PI));
-					offX += 22;
-
-					offX += 75;
-					frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(150 - 4, 40), Color.Black));
-					frame.Add(new MySprite(SpriteType.TEXT, "Settings\nDamage",     new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
-					offX += 75;
-
-					/* Dynamic columns. */
-					offX += interval / 2;
-					foreach (var kvp in su.Report.KeyValuePairs)
-					{
-						frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(interval - 5, 40), Color.Black));
-						frame.Add(new MySprite(SpriteType.TEXT, kvp.Item1, new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
-						offX += interval;
-					}
-					madeHeader = true;
-					offY += 40;
-				}
-
-				/* Row contents: 1 Row per subordinate */
-				offX = 0;
-
 				/* System columns. */
 				offX += 55;
-				frame.Add(new MySprite(SpriteType.TEXT, su.Report.name + "\n" + su.Report.state.ToString(), new Vector2(startX + offX, startY + offY), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
+				frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(110 - 4, 40), Color.Black));
+				frame.Add(new MySprite(SpriteType.TEXT, "Name\nState",     new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
 				offX += 55;
+
 				offX += 22;
-				frame.Add(new MySprite(SpriteType.TEXT,
-					(su.Report.f_bat * 100f).ToString("f0") + "%",
-					new Vector2(startX + offX, startY + offY), null, (su.Report.f_bat > su.Report.f_bat_min ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
-				frame.Add(new MySprite(SpriteType.TEXT,
-					(su.Report.f_fuel * 100f).ToString("f0") + "%",
-					new Vector2(startX + offX, startY + offY + fontHeight), null, (su.Report.f_fuel > su.Report.f_fuel_min ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
+				frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX,      startY), new Vector2(44 - 4, 40), Color.Black));
+				frame.Add(new MySprite(SpriteType.TEXTURE, "IconEnergy",   new Vector2(startX + offX - 7, startY - 7), new Vector2(18, 18), Color.White));
+				frame.Add(new MySprite(SpriteType.TEXTURE, "IconHydrogen", new Vector2(startX + offX + 7, startY + 7), new Vector2(16, 16), Color.White));
 				offX += 22;
+
 				offX += 22;
-				frame.Add(new MySprite(SpriteType.TEXT,
-					(su.Report.f_cargo * 100f).ToString("f0") + "%",
-					new Vector2(startX + offX, startY + offY), null, (su.Report.f_cargo <= su.Report.f_cargo_max ? Color.DarkKhaki : Color.DarkOrange), "Debug", TextAlignment.CENTER, 0.5f));
-				if (su.Report.bUnload)
-					frame.Add(new MySprite(SpriteType.TEXTURE, "Danger", new Vector2(startX + offX, startY + offY + 24), new Vector2(22, 22), Color.Red));
+				frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(44 - 4, 40), Color.Black));
+				frame.Add(new MySprite(SpriteType.TEXTURE, "MyObjectBuilder_Ore/Stone",   new Vector2(startX + offX, startY), new Vector2(40, 40), Color.White));
 				offX += 22;
+
 				offX += 22;
-				frame.Add(new MySprite(SpriteType.TEXT,
-					su.Report.t_shaft.ToString("f2") + " m",
-					new Vector2(startX + offX, startY + offY), null, (su.Report.t_shaft <= _stateWrapper.PState.maxDepth ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
-				frame.Add(new MySprite(SpriteType.TEXT,
-					"(" + su.Report.t_ore.ToString("f2") + " m)",
-					new Vector2(startX + offX, startY + offY + fontHeight), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
+				frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(44 - 4, 40), Color.Black));
+				frame.Add(new MySprite(SpriteType.TEXTURE, "Arrow",   new Vector2(startX + offX, startY), new Vector2(40, 40), Color.White, "", TextAlignment.CENTER, (float)Math.PI));
 				offX += 22;
+
 				offX += 75;
-				if (su.Report.bAdaptive)
-				frame.Add(new MySprite(SpriteType.TEXT,
-					"A",
-					new Vector2(startX + offX, startY + offY), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
-				frame.Add(new MySprite(SpriteType.TEXT,
-					su.Report.damage,
-					new Vector2(startX + offX, startY + offY + fontHeight), null, Color.DarkRed, "Debug", TextAlignment.CENTER, 0.5f));
+				frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(150 - 4, 40), Color.Black));
+				frame.Add(new MySprite(SpriteType.TEXT, "Settings\nDamage",     new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
 				offX += 75;
 
 				/* Dynamic columns. */
 				offX += interval / 2;
+				if (!su.Report.KeyValuePairs.IsDefault)
+					foreach (var kvp in su.Report.KeyValuePairs) {
+						frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(interval - 5, 40), Color.Black));
+						frame.Add(new MySprite(SpriteType.TEXT, kvp.Item1, new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
+						offX += interval;
+					}
+				madeHeader = true;
+				offY += 40;
+			}
+
+			/* Row contents: 1 Row per subordinate */
+			offX = 0;
+
+			/* System columns. */
+			offX += 55;
+			frame.Add(new MySprite(SpriteType.TEXT, su.Report.name + "\n" + su.Report.state.ToString(), new Vector2(startX + offX, startY + offY), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
+			offX += 55;
+			offX += 22;
+			frame.Add(new MySprite(SpriteType.TEXT,
+				(su.Report.f_bat * 100f).ToString("f0") + "%",
+				new Vector2(startX + offX, startY + offY), null, (su.Report.f_bat > su.Report.f_bat_min ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
+			frame.Add(new MySprite(SpriteType.TEXT,
+				(su.Report.f_fuel * 100f).ToString("f0") + "%",
+				new Vector2(startX + offX, startY + offY + fontHeight), null, (su.Report.f_fuel > su.Report.f_fuel_min ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
+			offX += 22;
+			offX += 22;
+			frame.Add(new MySprite(SpriteType.TEXT,
+				(su.Report.f_cargo * 100f).ToString("f0") + "%",
+				new Vector2(startX + offX, startY + offY), null, (su.Report.f_cargo <= su.Report.f_cargo_max ? Color.DarkKhaki : Color.DarkOrange), "Debug", TextAlignment.CENTER, 0.5f));
+			if (su.Report.bUnload)
+				frame.Add(new MySprite(SpriteType.TEXTURE, "Danger", new Vector2(startX + offX, startY + offY + 24), new Vector2(22, 22), Color.Red));
+			offX += 22;
+			offX += 22;
+			frame.Add(new MySprite(SpriteType.TEXT,
+				su.Report.t_shaft.ToString("f2") + " m",
+				new Vector2(startX + offX, startY + offY), null, (su.Report.t_shaft <= _stateWrapper.PState.maxDepth ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
+			frame.Add(new MySprite(SpriteType.TEXT,
+				"(" + su.Report.t_ore.ToString("f2") + " m)",
+				new Vector2(startX + offX, startY + offY + fontHeight), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
+			offX += 22;
+			offX += 75;
+			if (su.Report.bAdaptive)
+			frame.Add(new MySprite(SpriteType.TEXT,
+				"A",
+				new Vector2(startX + offX, startY + offY), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
+			frame.Add(new MySprite(SpriteType.TEXT,
+				su.Report.damage,
+				new Vector2(startX + offX, startY + offY + fontHeight), null, Color.DarkRed, "Debug", TextAlignment.CENTER, 0.5f));
+			offX += 75;
+
+			/* Dynamic columns. */
+			offX += interval / 2;
+			if (!su.Report.KeyValuePairs.IsDefault)
 				foreach (var kvp in su.Report.KeyValuePairs) {
 					frame.Add(new MySprite(SpriteType.TEXT, kvp.Item2, new Vector2(startX + offX, startY + offY), null,
 						Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
 					offX += interval;
 				}
-				offY += 40;
-			}
+			offY += 40;
 		}
 	}
 
