@@ -2055,42 +2055,42 @@ public class GuiHandler
 		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
 		controls.Add(bHalt);
 
-		var bIncDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 120), "+", 1.2f);
+		var bIncDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 220), "+", 1.2f);
 		bIncDepthLimit.OnClick = xy => {
 			_stateWrapper.PState.maxDepth += 5f;
 		};
 		AddTipToAe(bIncDepthLimit, "Increase depth limit by 5 m");
 		controls.Add(bIncDepthLimit);
 
-		var bDecDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 120), "-", 1.2f);
+		var bDecDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 220), "-", 1.2f);
 		bDecDepthLimit.OnClick = xy => {
 			_stateWrapper.PState.maxDepth = Math.Max(_stateWrapper.PState.leastDepth, _stateWrapper.PState.maxDepth - 5f);
 		};
 		AddTipToAe(bDecDepthLimit, "Decrease depth limit by 5 m");
 		controls.Add(bDecDepthLimit);
 
-		var bIncSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 160), "+", 1.2f);
+		var bIncSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 260), "+", 1.2f);
 		bIncSkipDepth.OnClick = xy => {
 			_stateWrapper.PState.skipDepth = Math.Min(_stateWrapper.PState.maxDepth, _stateWrapper.PState.skipDepth + 5f);
 		};
 		AddTipToAe(bIncSkipDepth, "Increase skip-depth by 5 m");
 		controls.Add(bIncSkipDepth);
 
-		var bDecSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 160), "-", 1.2f);
+		var bDecSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 260), "-", 1.2f);
 		bDecSkipDepth.OnClick = xy => {
 			_stateWrapper.PState.skipDepth = Math.Max(0f, _stateWrapper.PState.skipDepth - 5f);
 		};
 		AddTipToAe(bDecSkipDepth, "Decrease skip-depth by 5 m");
 		controls.Add(bDecSkipDepth);
 
-		var bIncLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 200), "+", 1.2f);
+		var bIncLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 300), "+", 1.2f);
 		bIncLeastDepth.OnClick = xy => {
 			_stateWrapper.PState.leastDepth = Math.Min(_stateWrapper.PState.maxDepth, _stateWrapper.PState.leastDepth + 5f);
 		};
 		AddTipToAe(bIncLeastDepth, "Increase least-depth by 5 m");
 		controls.Add(bIncLeastDepth);
 
-		var bDecLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 200), "-", 1.2f);
+		var bDecLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 300), "-", 1.2f);
 		bDecLeastDepth.OnClick = xy => {
 			_stateWrapper.PState.leastDepth = Math.Max(0f, _stateWrapper.PState.leastDepth - 5f);
 		};
@@ -2098,7 +2098,7 @@ public class GuiHandler
 		controls.Add(bDecLeastDepth);
 
 		{
-			var chkAdaptive = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,240));
+			var chkAdaptive = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,340));
 			chkAdaptive.bChecked = Toggle.C.Check("adaptive-mining");
 			chkAdaptive.OnClick = xy => {
 				chkAdaptive.bChecked = Toggle.C.Invert("adaptive-mining");
@@ -2108,7 +2108,7 @@ public class GuiHandler
 		}
 
 		{
-			var chkAdjEntry = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,280));
+			var chkAdjEntry = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,380));
 			chkAdjEntry.bChecked = Toggle.C.Check("adjust-entry-by-elevation");
 			chkAdjEntry.OnClick = xy => {
 				chkAdjEntry.bChecked = Toggle.C.Invert("adjust-entry-by-elevation");
@@ -2159,7 +2159,7 @@ public class GuiHandler
 	{
 		/* Determine the right Y-position for the text. */
 		var lbl_ypos = Vector2.Zero;
-		lbl_ypos.Y = -p.MeasureStringInPixels(new StringBuilder(label), "Debug", fsize - 0.1f).Y / btnSize.Y;
+		lbl_ypos.Y = -p.MeasureStringInPixels(new StringBuilder(label), "Debug", fsize + 0.2f).Y / btnSize.Y;
 
 		var btn = new ActiveElement(page, btnSize, posN);
 		btn.bkSprite0 = new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(0, 0), btnSize, Color.CornflowerBlue);
@@ -2275,7 +2275,7 @@ public class GuiHandler
 	 * \brief Renders the dispatcher parameter page.
 	 */
 	void DrawDispatcherParameters(MySpriteDrawFrame frame) {
-		int offY = 0, startY = 80;
+		int offY = 0, startY =180;
 		int offX = 0, startX = 65;
 
 		offX += 145;
