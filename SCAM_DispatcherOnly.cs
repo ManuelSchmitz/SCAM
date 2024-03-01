@@ -537,6 +537,8 @@ public class StateWrapper
 		PState.StaticDockOverride    = currentState.StaticDockOverride;
 		PState.LifetimeAcceptedTasks = currentState.LifetimeAcceptedTasks;
 		PState.airspaceLockRequests  = currentState.airspaceLockRequests;
+		/* Task Parameters */
+		PState.safetyDist            = currentState.safetyDist;
 		/* Job Parameters */
 		PState.maxDepth              = currentState.maxDepth;
 		PState.skipDepth             = currentState.skipDepth;
@@ -607,6 +609,9 @@ public class PersistentState
 	public Vector3D? miningPlaneNormal;
 	public Vector3D? corePoint;
 	public float? shaftRadius;
+
+	/* Task parameters. */
+	public float safetyDist;
 
 	/* Job parameters. */
 	public float maxDepth;
@@ -684,6 +689,9 @@ public class PersistentState
 		corePoint = ParseValue<Vector3D?>(values, "corePoint");
 		shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
+		/* Task Parameters. */
+		safetyDist = ParseValue<float>(values, "safetyDist");
+
 		/* Job parameters. */
 		maxDepth    = ParseValue<float>(values, "maxDepth");
 		skipDepth   = ParseValue<float>(values, "skipDepth");
@@ -715,6 +723,9 @@ public class PersistentState
 			"miningPlaneNormal=" + (miningPlaneNormal.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningPlaneNormal.Value) : ""),
 			"corePoint=" + (corePoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(corePoint.Value) : ""),
 			"shaftRadius=" + shaftRadius,
+
+			/* Task Parameters. */
+			"safetyDist=" + safetyDist,
 
 			/* Job parameters. */
 			"maxDepth="  + maxDepth,
@@ -1585,7 +1596,7 @@ public class Dispatcher
 	public bool AssignNewShaft(ref Vector3D? entry, ref Vector3D? getAbove, ref int id)
 	{
 		Log("CurrentTask.RequestShaft", E.LogLevel.Debug);
-		bool res = CurrentTask.RequestShaft(ref entry, ref getAbove, ref id, stateWrapper.PState.shaftRadius.Value * 2.0f * 1.5f);
+		bool res = CurrentTask.RequestShaft(ref entry, ref getAbove, ref id, stateWrapper.PState.shaftRadius.Value * 2.0f * stateWrapper.PState.safetyDist);
 		stateWrapper.PState.ShaftStates[id] = (byte)ShaftState.InProgress;
 		OnTaskUpdate?.Invoke(CurrentTask);
 		return res;
@@ -2076,6 +2087,20 @@ public class GuiHandler
 		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
 		controls.Add(bHalt);
 
+		var bIncSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 140), "+", 1.2f);
+		bIncSafetyDist.OnClick = xy => {
+			_stateWrapper.PState.safetyDist += 0.2f;
+		};
+		AddTipToAe(bIncSafetyDist, "Increase safety distance by 0.2 (multiple of the shaft diameter).");
+		controls.Add(bIncSafetyDist);
+
+		var bDecSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 140), "-", 1.2f);
+		bDecSafetyDist.OnClick = xy => {
+			_stateWrapper.PState.safetyDist = Math.Max(0, _stateWrapper.PState.safetyDist - 0.2f);
+		};
+		AddTipToAe(bDecSafetyDist, "Decrease safety distance by 0.2 (multiple of shaft diameter).");
+		controls.Add(bDecSafetyDist);
+
 		var bIncDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 220), "+", 1.2f);
 		bIncDepthLimit.OnClick = xy => {
 			_stateWrapper.PState.maxDepth += 5f;
@@ -2296,12 +2321,30 @@ public class GuiHandler
 	 * \brief Renders the dispatcher parameter page.
 	 */
 	void DrawDispatcherParameters(MySpriteDrawFrame frame) {
-		int offY = 0, startY =180;
+		int offY = 0, startY =100;
 		int offX = 0, startX = 65;
 
 		offX += 145;
+		frame.Add(new MySprite(SpriteType.TEXT, "Task Parameters", new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 145;
+
+		offY += 40;
+		offX  = 0;
+	
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXT, "Safety distance", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
+
+		offX += 55;
+		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.safetyDist.ToString("f1") + " D",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 55;
+
+		offY += 40;
+		offX  = 0;
+
+		offX += 145;
 		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",       new Vector2(startX + offX,      startY + offY    ), new Vector2(290 - 4, 30), Color.Black));
-		frame.Add(new MySprite(SpriteType.TEXT, "Task / Job Parameters", new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXT, "Job Parameters", new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 145;
 
 		offY += 40;
