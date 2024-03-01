@@ -472,12 +472,18 @@ void Ctor()
 	if (stateWrapper.PState.ShaftStates.Count > 0)
 	{
 		var cap = stateWrapper.PState.ShaftStates;
-		dispatcherService.CreateTask(stateWrapper.PState.shaftRadius.Value, stateWrapper.PState.corePoint.Value,
-				stateWrapper.PState.miningPlaneNormal.Value, stateWrapper.PState.MaxGenerations, stateWrapper.PState.CurrentTaskGroup);
+		dispatcherService.CreateTask(
+			stateWrapper.PState.shaftRadius.Value,
+			stateWrapper.PState.corePoint.Value,
+			stateWrapper.PState.miningPlaneNormal.Value,
+			stateWrapper.PState.MaxGenerations,
+			stateWrapper.PState.CurrentTaskGroup,
+			stateWrapper.PState.bDense_cur
+		);
+
+		/* Load the shaft states, e.g. in progress, planned, ... */
 		for (int n = 0; n < dispatcherService.CurrentTask.Shafts.Count; n++)
-		{
 			dispatcherService.CurrentTask.Shafts[n].State = (ShaftState)cap[n];
-		}
 		stateWrapper.PState.ShaftStates = dispatcherService.CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
 		E.Log($"Restored task from pstate, shaft count: {cap.Count}");
 	}
@@ -538,6 +544,7 @@ public class StateWrapper
 		PState.LifetimeAcceptedTasks = currentState.LifetimeAcceptedTasks;
 		PState.airspaceLockRequests  = currentState.airspaceLockRequests;
 		/* Task Parameters */
+		PState.bDense                = currentState.bDense;
 		PState.safetyDist            = currentState.safetyDist;
 		/* Job Parameters */
 		PState.maxDepth              = currentState.maxDepth;
@@ -611,6 +618,8 @@ public class PersistentState
 	public float? shaftRadius;
 
 	/* Task parameters. */
+	public bool  bDense;         ///< Dense / overlapping shaft layout? (future tasks)
+	public bool  bDense_cur;     ///< Dense / overlapping shaft layout? (current task)
 	public float safetyDist;
 
 	/* Job parameters. */
@@ -690,6 +699,8 @@ public class PersistentState
 		shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
 		/* Task Parameters. */
+		bDense     = ParseValue<bool> (values, "bDense");
+		bDense_cur = ParseValue<bool> (values, "bDense_cur");
 		safetyDist = ParseValue<float>(values, "safetyDist");
 
 		/* Job parameters. */
@@ -725,6 +736,8 @@ public class PersistentState
 			"shaftRadius=" + shaftRadius,
 
 			/* Task Parameters. */
+			"bDense=" + bDense,
+			"bDense_cur=" + bDense_cur,
 			"safetyDist=" + safetyDist,
 
 			/* Job parameters. */
@@ -922,7 +935,14 @@ public void GPStaskHandler(string[] cmdString)
 		var c = Variables.Get<string>("group-constraint");
 		if (!string.IsNullOrEmpty(c))
 		{
-			dispatcherService.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"), pos, n, Variables.Get<int>("max-generations"), c);
+			dispatcherService.CreateTask(
+				Variables.Get<float>("circular-pattern-shaft-radius"),
+				pos,
+				n,
+				Variables.Get<int>("max-generations"),
+				c,
+				stateWrapper.PState.bDense
+			);
 			dispatcherService.BroadcastStart(c);
 		}
 
@@ -1005,8 +1025,14 @@ public void RaycastTaskHandler(string[] cmdString)
 						if (!string.IsNullOrEmpty(c))
 						{
 							dispatcherService.BroadcastStart(c);
-							dispatcherService.CreateTask(Variables.Get<float>("circular-pattern-shaft-radius"),
-									castedSurfacePoint.Value - castedNormal.Value * 10, castedNormal.Value, Variables.Get<int>("max-generations"), c);
+							dispatcherService.CreateTask(
+								Variables.Get<float>("circular-pattern-shaft-radius"),
+								castedSurfacePoint.Value - castedNormal.Value * 10,
+								castedNormal.Value,
+								Variables.Get<int>("max-generations"),
+								c,
+								stateWrapper.PState.bDense
+							);
 						}
 						else
 							Log("To use this mode specify group-constraint value and make sure you have intended circular-pattern-shaft-radius");
@@ -1337,7 +1363,14 @@ public class Dispatcher
 				var sub = subordinates.First(s => s.Id == msg.Source);
 				Log("Got new mining task from agent " + sub.Report.name);
 				sub.ObtainedLock = LOCK_NAME_GeneralSection;
-				CreateTask(data.Item1, data.Item2, data.Item3, Variables.Get<int>("max-generations"), sub.Group);
+				CreateTask(
+					data.Item1,
+					data.Item2,
+					data.Item3,
+					Variables.Get<int>("max-generations"),
+					sub.Group,
+					stateWrapper.PState.bDense
+				);
 				BroadcastStart(sub.Group);
 			}
 
@@ -1465,7 +1498,14 @@ public class Dispatcher
 
 		public List<MiningShaft> Shafts; // List of of jobs (shafts).
 
-		public MiningTask(int maxGenerations, float shaftRadius, Vector3D coreP, Vector3D normal, string groupConstraint)
+		public MiningTask(
+			int maxGenerations,
+			float shaftRadius,
+			Vector3D coreP,
+			Vector3D normal,
+			string groupConstraint,
+			bool bDense
+		)
 		{
 			R = shaftRadius;
 			GroupConstraint = groupConstraint;
@@ -1475,7 +1515,8 @@ public class Dispatcher
 			planeYunit = Vector3D.Cross(planeXunit, normal);
 
 			/* Generate the todo list of jobs (shafts). */
-			var radInterval = R * 2f * 0.866f; // 2 cos(30) * R
+			var radInterval = R * 2f * 0.866f   // 2 cos(30) * R
+			                * (bDense ? 0.866f : 1f);
 			Shafts = new List<MiningShaft>(maxGenerations * 6 + 1);
 			Shafts.Add(new MiningShaft());
 			int id = 1;
@@ -1547,18 +1588,33 @@ public class Dispatcher
 		}
 	}
 
-	public void CreateTask(float r, Vector3D corePoint, Vector3D miningPlaneNormal, int maxGenerations, string groupConstraint)
+	public void CreateTask(
+		float r,
+		Vector3D corePoint,
+		Vector3D miningPlaneNormal,
+		int maxGenerations,
+		string groupConstraint,
+		bool bDense
+	)
 	{
-		CurrentTask = new MiningTask(maxGenerations, r, corePoint, miningPlaneNormal, groupConstraint);
+		CurrentTask = new MiningTask(
+			maxGenerations,
+			r,
+			corePoint,
+			miningPlaneNormal,
+			groupConstraint,
+			bDense
+		);
 		OnTaskUpdate?.Invoke(CurrentTask);
 
 		stateWrapper.ClearPersistentState();
-		stateWrapper.PState.corePoint = corePoint;
-		stateWrapper.PState.shaftRadius = r;
+		stateWrapper.PState.bDense_cur        = stateWrapper.PState.bDense;
+		stateWrapper.PState.corePoint         = corePoint;
+		stateWrapper.PState.shaftRadius       = r;
 		stateWrapper.PState.miningPlaneNormal = miningPlaneNormal;
-		stateWrapper.PState.MaxGenerations = maxGenerations;
-		stateWrapper.PState.ShaftStates = CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
-		stateWrapper.PState.CurrentTaskGroup = groupConstraint;
+		stateWrapper.PState.MaxGenerations    = maxGenerations;
+		stateWrapper.PState.ShaftStates       = CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
+		stateWrapper.PState.CurrentTaskGroup  = groupConstraint;
 
 		Log($"Creating task...");
 		Log(VectorOpsHelper.GetGPSString("min3r.task.P", corePoint, Color.Red));
@@ -2085,6 +2141,16 @@ public class GuiHandler
 		};
 		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
 		controls.Add(bHalt);
+		
+		{
+			var chkDense = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,100));
+			chkDense.bChecked = _stateWrapper.PState.bDense;
+			chkDense.OnClick = xy => {
+				chkDense.bChecked = (_stateWrapper.PState.bDense = !_stateWrapper.PState.bDense);
+			};
+			AddTipToAe(chkDense, "Toggle dense (overlapping) shafts for next task.");
+			controls.Add(chkDense);
+		}
 
 		var bIncSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 140), "+", 1.2f);
 		bIncSafetyDist.OnClick = xy => {
@@ -2095,7 +2161,7 @@ public class GuiHandler
 
 		var bDecSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 140), "-", 1.2f);
 		bDecSafetyDist.OnClick = xy => {
-			_stateWrapper.PState.safetyDist = Math.Max(0, _stateWrapper.PState.safetyDist - 0.2f);
+			_stateWrapper.PState.safetyDist = Math.Max(1f, _stateWrapper.PState.safetyDist - 0.2f);
 		};
 		AddTipToAe(bDecSafetyDist, "Decrease safety distance by 0.2 (multiple of shaft diameter).");
 		controls.Add(bDecSafetyDist);
@@ -2320,12 +2386,19 @@ public class GuiHandler
 	 * \brief Renders the dispatcher parameter page.
 	 */
 	void DrawDispatcherParameters(MySpriteDrawFrame frame) {
-		int offY = 0, startY =100;
+		int offY = 0, startY = 60;
 		int offX = 0, startX = 65;
 
 		offX += 145;
 		frame.Add(new MySprite(SpriteType.TEXT, "Task Parameters", new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 145;
+		
+		offY += 40;
+		offX  = 0;
+		
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXT, "Dense shaft layout", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
 
 		offY += 40;
 		offX  = 0;
@@ -2581,7 +2654,9 @@ public class GuiHandler
 	public void UpdateTaskSummary(Dispatcher d)
 	{
 		if (d?.CurrentTask != null)
-			taskSummary.Data = $"Kind: SpiralLayout\nShafts: {d.CurrentTask.Shafts.Count}\nRadius: {d.CurrentTask.R:f2}\n" +
+			taskSummary.Data = $"Kind: SpiralLayout"
+			 + (_stateWrapper.PState.bDense_cur ? ", dense" : "")
+			 + "\nShafts: {d.CurrentTask.Shafts.Count}\nRadius: {d.CurrentTask.R:f2}\n" +
 					$"Group: {d.CurrentTask.GroupConstraint}";
 	}
 
