@@ -1438,6 +1438,10 @@ public class Dispatcher
 
 
 	public MiningTask CurrentTask;
+
+	/**
+	 * \brief Resolves the task into job (shafts).
+	 */
 	public class MiningTask
 	{
 		public float R { get; private set; }
@@ -1494,24 +1498,41 @@ public class Dispatcher
 			sh.State = state;
 		}
 
-		public bool RequestShaft(ref Vector3D? entry, ref Vector3D? getAbove, ref int id)
+		/** 
+		 * \brief Returns a new job, and sets it to "in progres".
+		 * \param[out] entry Intersection of the shaft's axis with the mining plane.
+		 * \param[out] getAbove Intersection of the shaft's axis with the flight level's airspace lower boundary.
+		 * \param[out] id The shaft id.
+		 * \param[in] d_safty A minimum safety distance to shafts that are currently in progress.
+		 */
+		public bool RequestShaft(
+			ref Vector3D? entry,
+			ref Vector3D? getAbove,
+			ref int id,
+			float d_safety = 0
+		)
 		{
-			var sh = Shafts.FirstOrDefault(x => x.State == ShaftState.Planned);
-			if (sh != null)
-			{
-				entry = corePoint + planeXunit * sh.Point.X + planeYunit * sh.Point.Y;
-				getAbove = entry.Value - miningPlaneNormal * Variables.Get<float>("getAbove-altitude");
-				id = sh.Id;
-				sh.State = ShaftState.InProgress;
-				return true;
-			}
-			return false;
+			/* Find the first planned shaft. */
+			var sh = Shafts.FirstOrDefault(x => x.State == ShaftState.Planned
+			     &&  Shafts.All(other =>                     // All other shafts ...
+			            other.Id == x.Id                     // ... 
+			         || other.State != ShaftState.InProgress // ... must be either not in progress ...
+			         || (other.Point - x.Point).Length() >= d_safety )); // ... or have the proper safety distance.
+			if (sh == null)
+				return false; // No more shafts planned.
+
+			/* Transform the entry point into global coordinates. */
+			entry = corePoint + planeXunit * sh.Point.X + planeYunit * sh.Point.Y;
+			getAbove = entry.Value - miningPlaneNormal * Variables.Get<float>("getAbove-altitude");
+			id = sh.Id;
+			sh.State = ShaftState.InProgress;
+			return true;
 		}
 
 		public class MiningShaft
 		{
 			public ShaftState State = ShaftState.Planned;
-			public Vector2 Point;
+			public Vector2 Point; ///< [m] Point in the mining plane
 			public int Id;
 		}
 	}
@@ -1564,7 +1585,7 @@ public class Dispatcher
 	public bool AssignNewShaft(ref Vector3D? entry, ref Vector3D? getAbove, ref int id)
 	{
 		Log("CurrentTask.RequestShaft", E.LogLevel.Debug);
-		bool res = CurrentTask.RequestShaft(ref entry, ref getAbove, ref id);
+		bool res = CurrentTask.RequestShaft(ref entry, ref getAbove, ref id, stateWrapper.PState.shaftRadius.Value * 2.0f * 1.5f);
 		stateWrapper.PState.ShaftStates[id] = (byte)ShaftState.InProgress;
 		OnTaskUpdate?.Invoke(CurrentTask);
 		return res;
