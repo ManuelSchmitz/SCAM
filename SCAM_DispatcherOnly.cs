@@ -476,13 +476,14 @@ void Ctor()
 			stateWrapper.PState.shaftRadius.Value,
 			stateWrapper.PState.corePoint.Value,
 			stateWrapper.PState.miningPlaneNormal.Value,
+			stateWrapper.PState.layout_cur,
 			stateWrapper.PState.MaxGenerations,
 			stateWrapper.PState.CurrentTaskGroup,
 			stateWrapper.PState.bDense_cur
 		);
 
 		/* Load the shaft states, e.g. in progress, planned, ... */
-		for (int n = 0; n < dispatcherService.CurrentTask.Shafts.Count; n++)
+		for (int n = 0; n < Math.Min(dispatcherService.CurrentTask.Shafts.Count, cap.Count()); n++)
 			dispatcherService.CurrentTask.Shafts[n].State = (ShaftState)cap[n];
 		stateWrapper.PState.ShaftStates = dispatcherService.CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
 		E.Log($"Restored task from pstate, shaft count: {cap.Count}");
@@ -526,6 +527,14 @@ public enum MinerState : byte
 	ReturningHome        = 14, ///< Traveling from the point above the shaft to the base on a reserved flight level.
 	Docking              = 15  ///< Descending to the docking port through shared airspace. (docking final approach)
 }
+	
+
+/** \brief The layout of the mining task's shaft. */
+public enum TaskLayout : byte {
+	Circle  = 0, ///< Concentric circles, default.
+	Hexagon = 1  ///< Tesselated hexagon: Clean, leaves fewer residue.
+}
+
 
 public enum ShaftState { Planned, InProgress, Complete, Cancelled }
 
@@ -544,6 +553,7 @@ public class StateWrapper
 		PState.LifetimeAcceptedTasks = currentState.LifetimeAcceptedTasks;
 		PState.airspaceLockRequests  = currentState.airspaceLockRequests;
 		/* Task Parameters */
+		PState.layout                = currentState.layout;
 		PState.bDense                = currentState.bDense;
 		PState.safetyDist            = currentState.safetyDist;
 		/* Job Parameters */
@@ -618,6 +628,8 @@ public class PersistentState
 	public float? shaftRadius;
 
 	/* Task parameters. */
+	public TaskLayout layout;    ///< Layout of the shaft arrangement. (future tasks)
+	public TaskLayout layout_cur;///< Layout of the shaft arrangement. (current task)
 	public bool  bDense;         ///< Dense / overlapping shaft layout? (future tasks)
 	public bool  bDense_cur;     ///< Dense / overlapping shaft layout? (current task)
 	public float safetyDist;
@@ -672,9 +684,9 @@ public class PersistentState
 				var d = res.Split(':');
 				return (T)(object)d.Select(x => byte.Parse(x)).ToList();
 			}
-			else if (typeof(T) == typeof(MinerState))
+			else if (typeof(T) == typeof(TaskLayout))
 			{
-				return (T)Enum.Parse(typeof(MinerState), res);
+				return (T)Enum.Parse(typeof(TaskLayout), res);
 			}
 		}
 		return default(T);
@@ -699,14 +711,16 @@ public class PersistentState
 		shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
 		/* Task Parameters. */
-		bDense     = ParseValue<bool> (values, "bDense");
-		bDense_cur = ParseValue<bool> (values, "bDense_cur");
-		safetyDist = ParseValue<float>(values, "safetyDist");
+		layout     = ParseValue<TaskLayout> (values, "layout");
+		layout_cur = ParseValue<TaskLayout> (values, "layout_cur");
+		bDense     = ParseValue<bool>       (values, "bDense");
+		bDense_cur = ParseValue<bool>       (values, "bDense_cur");
+		safetyDist = ParseValue<float>      (values, "safetyDist");
 
 		/* Job parameters. */
-		maxDepth    = ParseValue<float>(values, "maxDepth");
-		skipDepth   = ParseValue<float>(values, "skipDepth");
-		leastDepth  = ParseValue<float>(values, "leastDepth");
+		maxDepth    = ParseValue<float>     (values, "maxDepth");
+		skipDepth   = ParseValue<float>     (values, "skipDepth");
+		leastDepth  = ParseValue<float>     (values, "leastDepth");
 		Toggle.C.Set("adaptive-mining",           ParseValue<bool>(values, "adaptiveMode"));
 		Toggle.C.Set("adjust-entry-by-elevation", ParseValue<bool>(values, "adjustAltitude"));
 		
@@ -741,6 +755,8 @@ public class PersistentState
 			"safetyDist=" + safetyDist,
 
 			/* Job parameters. */
+			"layout=" + layout,
+			"layout_cur=" + layout_cur,
 			"maxDepth="  + maxDepth,
 			"skipDepth=" + skipDepth,
 			"leastDepth=" + leastDepth,
@@ -770,11 +786,13 @@ public void Save()
 	stateWrapper.Save();
 }
 
+
 public Program()
 {
 	Runtime.UpdateFrequency = UpdateFrequency.Update1;
 	Ctor();
 }
+
 
 List<MyIGCMessage> uniMsgs = new List<MyIGCMessage>();
 void Main(string param, UpdateType updateType)
@@ -939,6 +957,7 @@ public void GPStaskHandler(string[] cmdString)
 				Variables.Get<float>("circular-pattern-shaft-radius"),
 				pos,
 				n,
+				stateWrapper.PState.layout,
 				Variables.Get<int>("max-generations"),
 				c,
 				stateWrapper.PState.bDense
@@ -1029,6 +1048,7 @@ public void RaycastTaskHandler(string[] cmdString)
 								Variables.Get<float>("circular-pattern-shaft-radius"),
 								castedSurfacePoint.Value - castedNormal.Value * 10,
 								castedNormal.Value,
+								stateWrapper.PState.layout,
 								Variables.Get<int>("max-generations"),
 								c,
 								stateWrapper.PState.bDense
@@ -1367,6 +1387,7 @@ public class Dispatcher
 					data.Item1,
 					data.Item2,
 					data.Item3,
+					stateWrapper.PState.layout,
 					Variables.Get<int>("max-generations"),
 					sub.Group,
 					stateWrapper.PState.bDense
@@ -1499,6 +1520,7 @@ public class Dispatcher
 		public List<MiningShaft> Shafts; // List of of jobs (shafts).
 
 		public MiningTask(
+			TaskLayout layout,
 			int maxGenerations,
 			float shaftRadius,
 			Vector3D coreP,
@@ -1515,18 +1537,41 @@ public class Dispatcher
 			planeYunit = Vector3D.Cross(planeXunit, normal);
 
 			/* Generate the todo list of jobs (shafts). */
-			var radInterval = R * 2f * 0.866f   // 2 cos(30) * R
-			                * (bDense ? 0.866f : 1f);
-			Shafts = new List<MiningShaft>(maxGenerations * 6 + 1);
-			Shafts.Add(new MiningShaft());
-			int id = 1;
-			for (int g = 1; g < maxGenerations; g++) // For each concentric circle ...
-			{
-				for (int i = 0; i < g * 6; i++) // For each shaft on the circle ...
+			if (layout == TaskLayout.Circle) {
+				var radInterval = R * 2f * 0.866f   // 2 cos(30) * R
+				                * (bDense ? 0.866f : 1f);
+				Shafts = new List<MiningShaft>(maxGenerations * 6 + 1); //TODO: Probably wrong size.
+				Shafts.Add(new MiningShaft());
+				int id = 1;
+				for (int g = 1; g < maxGenerations; g++) // For each concentric circle ...
 				{
-					double angle = 60f / 180f * Math.PI * i / g; // 6 * N circles per N diameter generation, i.e. generation
-					var p = new Vector2((float)Math.Cos(angle), (float)Math.Sin(angle)) * radInterval * g;
-					Shafts.Add(new MiningShaft() { Point = p, Id = id++ });
+					for (int i = 0; i < g * 6; i++) // For each shaft on the circle ...
+					{
+						double angle = 60f / 180f * Math.PI * i / g; // 6 * N circles per N diameter generation, i.e. generation
+						var p = new Vector2((float)Math.Cos(angle), (float)Math.Sin(angle)) * radInterval * g;
+						Shafts.Add(new MiningShaft() { Point = p, Id = id++ });
+					}
+				}
+			} else if (layout == TaskLayout.Hexagon) {
+				Shafts = new List<MiningShaft>(maxGenerations * 6 + 1); //TODO: Probably wrong size.
+				Shafts.Add(new MiningShaft());
+				int id = 1;
+				float d = R * 2f // [m] Distance between two shafts.
+				        * (bDense ? 0.866f : 1f);
+				Vector2[] _dir = new Vector2[] {
+					new Vector2(-0.50000f, 0.86603f), // 120 deg
+					new Vector2(-1.00000f, 0.00000f), // 180 deg
+					new Vector2(-0.50000f,-0.86603f), // 240 deg
+					new Vector2( 0.50000f,-0.86603f), // 300 deg
+					new Vector2( 1.00000f, 0.00000f), // 360 deg
+					new Vector2( 0.50000f, 0.86603f)  //  60 deg
+				};
+				for (int g = 1; g < maxGenerations; ++g) {
+					var p = new Vector2(d * g, 0f);
+					for (int i = 0; i < g * 6; ++i) {
+						Shafts.Add(new MiningShaft() { Point = p, Id = id++ });
+						p += _dir[i / g] * d;
+					}
 				}
 			}
 		}
@@ -1592,12 +1637,14 @@ public class Dispatcher
 		float r,
 		Vector3D corePoint,
 		Vector3D miningPlaneNormal,
+		TaskLayout layout,
 		int maxGenerations,
 		string groupConstraint,
 		bool bDense
 	)
 	{
 		CurrentTask = new MiningTask(
+			layout,
 			maxGenerations,
 			r,
 			corePoint,
@@ -1608,6 +1655,7 @@ public class Dispatcher
 		OnTaskUpdate?.Invoke(CurrentTask);
 
 		stateWrapper.ClearPersistentState();
+		stateWrapper.PState.layout_cur        = stateWrapper.PState.layout;
 		stateWrapper.PState.bDense_cur        = stateWrapper.PState.bDense;
 		stateWrapper.PState.corePoint         = corePoint;
 		stateWrapper.PState.shaftRadius       = r;
@@ -2142,6 +2190,14 @@ public class GuiHandler
 		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
 		controls.Add(bHalt);
 		
+		var bLayout = CreateButton(1, p, new Vector2(110, 30), new Vector2(300, 60), _stateWrapper.PState.layout.ToString(), 0.6f);
+		bLayout.OnClick = xy => {
+			_stateWrapper.PState.layout = (TaskLayout)(((byte)_stateWrapper.PState.layout + 1) % 2);
+			bLayout.fgSprite.Data = _stateWrapper.PState.layout.ToString();
+		};
+		AddTipToAe(bLayout, "Change the arrangement of the shafts for the next task.");
+		controls.Add(bLayout);
+
 		{
 			var chkDense = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,100));
 			chkDense.bChecked = _stateWrapper.PState.bDense;
@@ -2386,12 +2442,20 @@ public class GuiHandler
 	 * \brief Renders the dispatcher parameter page.
 	 */
 	void DrawDispatcherParameters(MySpriteDrawFrame frame) {
-		int offY = 0, startY = 60;
+		int offY = 0, startY = 20;
 		int offX = 0, startX = 65;
 
 		offX += 145;
-		frame.Add(new MySprite(SpriteType.TEXT, "Task Parameters", new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY + offY    ), new Vector2(290 - 4, 30), Color.Black));
+		frame.Add(new MySprite(SpriteType.TEXT, "Task Parameters", new Vector2(startX + offX, startY + offY - 9), null, Color.White, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 145;
+		
+		offY += 40;
+		offX  = 0;
+		
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXT, "Task layout",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
 		
 		offY += 40;
 		offX  = 0;
@@ -2408,15 +2472,15 @@ public class GuiHandler
 		offX += 90;
 
 		offX += 55;
-		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.safetyDist.ToString("f1") + " D",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.safetyDist.ToString("f1"),  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
 		offY += 40;
 		offX  = 0;
 
 		offX += 145;
-		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",       new Vector2(startX + offX,      startY + offY    ), new Vector2(290 - 4, 30), Color.Black));
-		frame.Add(new MySprite(SpriteType.TEXT, "Job Parameters", new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY + offY    ), new Vector2(290 - 4, 30), Color.Black));
+		frame.Add(new MySprite(SpriteType.TEXT, "Job Parameters",  new Vector2(startX + offX, startY + offY - 9), null, Color.White, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 145;
 
 		offY += 40;
@@ -2652,9 +2716,9 @@ public class GuiHandler
 	public void UpdateTaskSummary(Dispatcher d)
 	{
 		if (d?.CurrentTask != null)
-			taskSummary.Data = $"Kind: SpiralLayout"
+			taskSummary.Data = $"Layout: {_stateWrapper.PState.layout}"
 			 + (_stateWrapper.PState.bDense_cur ? ", dense" : "")
-			 + "\nShafts: {d.CurrentTask.Shafts.Count}\nRadius: {d.CurrentTask.R:f2}\n" +
+			 + $"\nShafts: {d.CurrentTask.Shafts.Count}\nRadius: {d.CurrentTask.R:f2}\n" +
 					$"Group: {d.CurrentTask.GroupConstraint}";
 	}
 
