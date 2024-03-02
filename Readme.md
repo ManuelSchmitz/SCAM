@@ -35,7 +35,7 @@ A job is shaft, processed by an individual agent. The dispatcher will usually as
    - TODO: shaft radius, agent group, location & orientation, #generations, max. depth, adaptive, skip-depth
 4. The dispatcher will start dispatching jobs to the agents.
 
-## Job Processing
+## Job Processing <a name="jobproc"/>
 
 An agent will drill down in three phases:
 1. To the `skip-depth`, without taking on stone/ore/ice. (*)
@@ -85,7 +85,31 @@ Sometimes you just want the mining drones to excavate a site.
 
 Set `skip-depth`, `least-depth` and `depth-limit` to the same value.
 
-### Adaptive Mining
+### Adaptive Mining <a name="adaptmining"/>
+
+TBD
+
+## Task and Job Parameters
+
+On the dispatcher, there are two groups of dispatching parameters:
+
+- **Task Parameters** are used when creating a new task. Parameters of the existing task cannot be changed.
+
+- **Job Parameters** are used whenever the dispatcher sends a new job to an agent. When the parameters are changed while a task is being processed, all *planned* jobs of that task are changed. This allows drilling a pilot shaft first, then adjusting the parameters for the remaining shafts.
+
+Both types of parameters can be managed on the GUI LCD. (since v0.10.0)
+
+![job and task GUI](JobTaskParams.png "Task and job parameters on the GUI screen")
+
+- The **Task layout** defines the shape of the mining area. Hexagonal shapes are more uniform.
+- Shafts can be packed more densely with the **dense shaft layout** option. This will leave less remainder material in the mining site ("more clean"). Good for excavation, but make sure to set the safety distance (see below) to at least `1.0`, or there will be collisions.
+- Shafts are generated in concentric "rings" around a center shaft. The number of rings is the **Size** parameter. If the value is `0`, then only the center shaft will be drilled. Usual values are between `3` and `8`.
+- **Depth limit** was formerly known as `depth-limit`. See section [Job processing](#jobproc) for explanation.
+- **Skip depth** was formerly known as `skip-depth`. See section [Job processing](#jobproc) for explanation.
+- **Least depth** has been introduced in v0.10.0. See section [Job processing](#jobproc) for explanation.
+- **Adaptive mining** is explained in its own [subsection](#adaptmining).
+- **Adjust entry altitude** was formerly known as `adjust-entry-by-elevation`. When the terrain is not perpendicular to the mining plane, some shafts begin a few meters lower. The controller can try to skip these, for faster processing.
+- **Safety distance** is the minimum distance between two active shafts. It is a multiple of the shaft diameter. For example, if the value is greater than `1`, two adjacent shafts may not be processed at the same time.
 
 ## Logging
 
