@@ -160,6 +160,7 @@ void StartOfTick(string arg)
 {
 	TickCount++;
 	Echo("Run count: " + TickCount);
+	Echo("Name: " + me.CubeGrid.CustomName);
 
 	/* If this is the first cycle, and the game engine has loaded
 	 * all the blocks, then we need to do some more initialisation. */
