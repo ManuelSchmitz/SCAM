@@ -2190,7 +2190,7 @@ public class GuiHandler
 		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
 		controls.Add(bHalt);
 		
-		var bLayout = CreateButton(1, p, new Vector2(110, 30), new Vector2(300, 60), _stateWrapper.PState.layout.ToString(), 0.6f);
+		var bLayout = CreateButton(1, p, new Vector2(110, 30), new Vector2(300, 55), _stateWrapper.PState.layout.ToString(), 0.6f);
 		bLayout.OnClick = xy => {
 			_stateWrapper.PState.layout = (TaskLayout)(((byte)_stateWrapper.PState.layout + 1) % 2);
 			bLayout.fgSprite.Data = _stateWrapper.PState.layout.ToString();
@@ -2199,7 +2199,7 @@ public class GuiHandler
 		controls.Add(bLayout);
 
 		{
-			var chkDense = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,100));
+			var chkDense = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,90));
 			chkDense.bChecked = _stateWrapper.PState.bDense;
 			chkDense.OnClick = xy => {
 				chkDense.bChecked = (_stateWrapper.PState.bDense = !_stateWrapper.PState.bDense);
@@ -2208,56 +2208,56 @@ public class GuiHandler
 			controls.Add(chkDense);
 		}
 
-		var bIncSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 140), "+", 1.2f);
+		var bIncSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 125), "+", 1.2f);
 		bIncSafetyDist.OnClick = xy => {
 			_stateWrapper.PState.safetyDist += 0.2f;
 		};
 		AddTipToAe(bIncSafetyDist, "Increase safety distance by 0.2 (multiple of the shaft diameter).");
 		controls.Add(bIncSafetyDist);
 
-		var bDecSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 140), "-", 1.2f);
+		var bDecSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 125), "-", 1.2f);
 		bDecSafetyDist.OnClick = xy => {
 			_stateWrapper.PState.safetyDist = Math.Max(1f, _stateWrapper.PState.safetyDist - 0.2f);
 		};
 		AddTipToAe(bDecSafetyDist, "Decrease safety distance by 0.2 (multiple of shaft diameter).");
 		controls.Add(bDecSafetyDist);
 
-		var bIncDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 220), "+", 1.2f);
+		var bIncDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 195), "+", 1.2f);
 		bIncDepthLimit.OnClick = xy => {
 			_stateWrapper.PState.maxDepth += 5f;
 		};
 		AddTipToAe(bIncDepthLimit, "Increase depth limit by 5 m");
 		controls.Add(bIncDepthLimit);
 
-		var bDecDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 220), "-", 1.2f);
+		var bDecDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 195), "-", 1.2f);
 		bDecDepthLimit.OnClick = xy => {
 			_stateWrapper.PState.maxDepth = Math.Max(_stateWrapper.PState.leastDepth, _stateWrapper.PState.maxDepth - 5f);
 		};
 		AddTipToAe(bDecDepthLimit, "Decrease depth limit by 5 m");
 		controls.Add(bDecDepthLimit);
 
-		var bIncSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 260), "+", 1.2f);
+		var bIncSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 230), "+", 1.2f);
 		bIncSkipDepth.OnClick = xy => {
 			_stateWrapper.PState.skipDepth = Math.Min(_stateWrapper.PState.maxDepth, _stateWrapper.PState.skipDepth + 5f);
 		};
 		AddTipToAe(bIncSkipDepth, "Increase skip-depth by 5 m");
 		controls.Add(bIncSkipDepth);
 
-		var bDecSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 260), "-", 1.2f);
+		var bDecSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 230), "-", 1.2f);
 		bDecSkipDepth.OnClick = xy => {
 			_stateWrapper.PState.skipDepth = Math.Max(0f, _stateWrapper.PState.skipDepth - 5f);
 		};
 		AddTipToAe(bDecSkipDepth, "Decrease skip-depth by 5 m");
 		controls.Add(bDecSkipDepth);
 
-		var bIncLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 300), "+", 1.2f);
+		var bIncLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 265), "+", 1.2f);
 		bIncLeastDepth.OnClick = xy => {
 			_stateWrapper.PState.leastDepth = Math.Min(_stateWrapper.PState.maxDepth, _stateWrapper.PState.leastDepth + 5f);
 		};
 		AddTipToAe(bIncLeastDepth, "Increase least-depth by 5 m");
 		controls.Add(bIncLeastDepth);
 
-		var bDecLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 300), "-", 1.2f);
+		var bDecLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 265), "-", 1.2f);
 		bDecLeastDepth.OnClick = xy => {
 			_stateWrapper.PState.leastDepth = Math.Max(0f, _stateWrapper.PState.leastDepth - 5f);
 		};
@@ -2265,7 +2265,7 @@ public class GuiHandler
 		controls.Add(bDecLeastDepth);
 
 		{
-			var chkAdaptive = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,340));
+			var chkAdaptive = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,300));
 			chkAdaptive.bChecked = Toggle.C.Check("adaptive-mining");
 			chkAdaptive.OnClick = xy => {
 				chkAdaptive.bChecked = Toggle.C.Invert("adaptive-mining");
@@ -2275,7 +2275,7 @@ public class GuiHandler
 		}
 
 		{
-			var chkAdjEntry = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,380));
+			var chkAdjEntry = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,335));
 			chkAdjEntry.bChecked = Toggle.C.Check("adjust-entry-by-elevation");
 			chkAdjEntry.OnClick = xy => {
 				chkAdjEntry.bChecked = Toggle.C.Invert("adjust-entry-by-elevation");
@@ -2450,21 +2450,21 @@ public class GuiHandler
 		frame.Add(new MySprite(SpriteType.TEXT, "Task Parameters", new Vector2(startX + offX, startY + offY - 9), null, Color.White, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 145;
 		
-		offY += 40;
+		offY += 35;
 		offX  = 0;
 		
 		offX += 90;
 		frame.Add(new MySprite(SpriteType.TEXT, "Task layout",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 		
-		offY += 40;
+		offY += 35;
 		offX  = 0;
 		
 		offX += 90;
 		frame.Add(new MySprite(SpriteType.TEXT, "Dense shaft layout", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 
-		offY += 40;
+		offY += 35;
 		offX  = 0;
 	
 		offX += 90;
@@ -2475,7 +2475,7 @@ public class GuiHandler
 		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.safetyDist.ToString("f1"),  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
-		offY += 40;
+		offY += 35;
 		offX  = 0;
 
 		offX += 145;
@@ -2483,7 +2483,7 @@ public class GuiHandler
 		frame.Add(new MySprite(SpriteType.TEXT, "Job Parameters",  new Vector2(startX + offX, startY + offY - 9), null, Color.White, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 145;
 
-		offY += 40;
+		offY += 35;
 		offX  = 0;
 
 		offX += 90;
@@ -2496,7 +2496,7 @@ public class GuiHandler
 		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.maxDepth.ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
-		offY += 40;
+		offY += 35;
 		offX  = 0;
 
 		offX += 90;
@@ -2509,7 +2509,7 @@ public class GuiHandler
 		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.skipDepth.ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
-		offY += 40;
+		offY += 35;
 		offX  = 0;
 
 		offX += 90;
@@ -2522,7 +2522,7 @@ public class GuiHandler
 		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.leastDepth.ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
-		offY += 40;
+		offY += 35;
 		offX  = 0;
 
 		offX += 90;
@@ -2537,7 +2537,7 @@ public class GuiHandler
 		//	frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",     new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
 		offX += 55;
 		
-		offY += 40;
+		offY += 35;
 		offX  = 0;
 
 		offX += 90;
