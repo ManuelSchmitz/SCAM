@@ -555,11 +555,11 @@ public class StateWrapper
 		/* Task Parameters */
 		PState.layout                = currentState.layout;
 		PState.bDense                = currentState.bDense;
-		PState.safetyDist            = currentState.safetyDist;
 		/* Job Parameters */
 		PState.maxDepth              = currentState.maxDepth;
 		PState.skipDepth             = currentState.skipDepth;
 		PState.leastDepth            = currentState.leastDepth;
+		PState.safetyDist            = currentState.safetyDist;
 	}
 
 	Action<string> stateSaver;
@@ -632,12 +632,12 @@ public class PersistentState
 	public TaskLayout layout_cur;///< Layout of the shaft arrangement. (current task)
 	public bool  bDense;         ///< Dense / overlapping shaft layout? (future tasks)
 	public bool  bDense_cur;     ///< Dense / overlapping shaft layout? (current task)
-	public float safetyDist;
 
 	/* Job parameters. */
 	public float maxDepth;
 	public float skipDepth;
 	public float leastDepth;
+	public float safetyDist;
 
 	public List<byte> ShaftStates = new List<byte>();
 	public int MaxGenerations;
@@ -715,7 +715,6 @@ public class PersistentState
 		layout_cur = ParseValue<TaskLayout> (values, "layout_cur");
 		bDense     = ParseValue<bool>       (values, "bDense");
 		bDense_cur = ParseValue<bool>       (values, "bDense_cur");
-		safetyDist = ParseValue<float>      (values, "safetyDist");
 
 		/* Job parameters. */
 		maxDepth    = ParseValue<float>     (values, "maxDepth");
@@ -723,6 +722,7 @@ public class PersistentState
 		leastDepth  = ParseValue<float>     (values, "leastDepth");
 		Toggle.C.Set("adaptive-mining",           ParseValue<bool>(values, "adaptiveMode"));
 		Toggle.C.Set("adjust-entry-by-elevation", ParseValue<bool>(values, "adjustAltitude"));
+		safetyDist = ParseValue<float>      (values, "safetyDist");
 		
 		MaxGenerations = ParseValue<int>(values, "MaxGenerations");
 		CurrentTaskGroup = ParseValue<string>(values, "CurrentTaskGroup");
@@ -750,18 +750,18 @@ public class PersistentState
 			"shaftRadius=" + shaftRadius,
 
 			/* Task Parameters. */
-			"bDense=" + bDense,
-			"bDense_cur=" + bDense_cur,
-			"safetyDist=" + safetyDist,
-
-			/* Job parameters. */
 			"layout=" + layout,
 			"layout_cur=" + layout_cur,
+			"bDense=" + bDense,
+			"bDense_cur=" + bDense_cur,
+
+			/* Job parameters. */
 			"maxDepth="  + maxDepth,
 			"skipDepth=" + skipDepth,
 			"leastDepth=" + leastDepth,
 			"adaptiveMode=" + Toggle.C.Check("adaptive-mining"),
 			"adjustAltitude=" + Toggle.C.Check("adjust-entry-by-elevation"),
+			"safetyDist=" + safetyDist,
 
 			"MaxGenerations=" + MaxGenerations,
 			"CurrentTaskGroup=" + CurrentTaskGroup,
@@ -2208,19 +2208,19 @@ public class GuiHandler
 			controls.Add(chkDense);
 		}
 
-		var bIncSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 125), "+", 1.2f);
-		bIncSafetyDist.OnClick = xy => {
-			_stateWrapper.PState.safetyDist += 0.2f;
-		};
-		AddTipToAe(bIncSafetyDist, "Increase safety distance by 0.2 (multiple of the shaft diameter).");
-		controls.Add(bIncSafetyDist);
+//		var bIncSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 125), "+", 1.2f);
+//		bIncSafetyDist.OnClick = xy => {
+//			_stateWrapper.PState.safetyDist += 0.2f;
+//		};
+//		AddTipToAe(bIncSafetyDist, "Increase safety distance by 0.2 (multiple of the shaft diameter).");
+//		controls.Add(bIncSafetyDist);
 
-		var bDecSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 125), "-", 1.2f);
-		bDecSafetyDist.OnClick = xy => {
-			_stateWrapper.PState.safetyDist = Math.Max(1f, _stateWrapper.PState.safetyDist - 0.2f);
-		};
-		AddTipToAe(bDecSafetyDist, "Decrease safety distance by 0.2 (multiple of shaft diameter).");
-		controls.Add(bDecSafetyDist);
+//		var bDecSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 125), "-", 1.2f);
+//		bDecSafetyDist.OnClick = xy => {
+//			_stateWrapper.PState.safetyDist = Math.Max(1f, _stateWrapper.PState.safetyDist - 0.2f);
+//		};
+//		AddTipToAe(bDecSafetyDist, "Decrease safety distance by 0.2 (multiple of shaft diameter).");
+//		controls.Add(bDecSafetyDist);
 
 		var bIncDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 195), "+", 1.2f);
 		bIncDepthLimit.OnClick = xy => {
@@ -2283,6 +2283,20 @@ public class GuiHandler
 			AddTipToAe(chkAdjEntry, "Toggle automatic entry point adjustment");
 			controls.Add(chkAdjEntry);
 		}
+		
+		var bIncSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 370), "+", 1.2f);
+		bIncSafetyDist.OnClick = xy => {
+			_stateWrapper.PState.safetyDist += 0.2f;
+		};
+		AddTipToAe(bIncSafetyDist, "Increase safety distance by 0.2 (multiple of the shaft diameter).");
+		controls.Add(bIncSafetyDist);
+
+		var bDecSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 370), "-", 1.2f);
+		bDecSafetyDist.OnClick = xy => {
+			_stateWrapper.PState.safetyDist = Math.Max(1f, _stateWrapper.PState.safetyDist - 0.2f);
+		};
+		AddTipToAe(bDecSafetyDist, "Decrease safety distance by 0.2 (multiple of shaft diameter).");
+		controls.Add(bDecSafetyDist);
 
 		shaftTip = new MySprite(SpriteType.TEXT, "", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y * 0.9f),
 			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
@@ -2467,13 +2481,13 @@ public class GuiHandler
 		offY += 35;
 		offX  = 0;
 	
-		offX += 90;
-		frame.Add(new MySprite(SpriteType.TEXT, "Safety distance", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
-		offX += 90;
+//		offX += 90;
+//		frame.Add(new MySprite(SpriteType.TEXT, "Safety distance", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+//		offX += 90;
 
-		offX += 55;
-		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.safetyDist.ToString("f1"),  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
-		offX += 55;
+//		offX += 55;
+//		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.safetyDist.ToString("f1"),  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+//		offX += 55;
 
 		offY += 35;
 		offX  = 0;
@@ -2530,13 +2544,6 @@ public class GuiHandler
 		frame.Add(new MySprite(SpriteType.TEXT, "Adaptive mining", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 	
-		offX += 55;
-		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkKhaki));
-		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkGray));
-		//if (Toggle.C.Check("adaptive-mining"))
-		//	frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",     new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
-		offX += 55;
-		
 		offY += 35;
 		offX  = 0;
 
@@ -2544,12 +2551,16 @@ public class GuiHandler
 		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",       new Vector2(startX + offX,      startY + offY    ), new Vector2(180 - 4, 30), Color.Black));
 		frame.Add(new MySprite(SpriteType.TEXT, "Adjust entry altitude", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
+		
+		offY += 35;
+		offX  = 0;
+		
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXT, "Safety distance", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
 
 		offX += 55;
-		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(30, 30), Color.DarkKhaki));
-		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX,      startY + offY    ), new Vector2(28, 28), Color.DarkGray));
-		//if (Toggle.C.Check("adjust-entry-by-elevation"))
-		//	frame.Add(new MySprite(SpriteType.TEXTURE, "Cross",     new Vector2(startX + offX,      startY + offY    ), new Vector2(26, 26), Color.DarkKhaki));
+		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.safetyDist.ToString("f1"),  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
 	}
