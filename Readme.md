@@ -5,13 +5,14 @@
 
 (Sorry, did not have the time to write a tutorial yet.)
 
-## Updating from v0.9.68 {update}
+## Updating from v0.9.68 <a name="update"/>
 
 1. Recall all agents.
 2. Remove the following commands from your startup scripts (Custom Data of the PBs). They are not supported any more,
 	- `command:set-value:depth-limit` - Now set on the LCD screen menu.
 	- `command:set-value:skip-depth` - Now set on the LCD screen menu.
 	- `command:set-role` - Now determined by the script. (Separate scripts for agent and dispatcher.)
+	- `command:set-value:max-generations` - Now set on the LCD screen menu.
 3. Copy dispatcher script to the dispatcher and recompile.
 4. Copy the agent script to all agents and recompile.
 
@@ -36,7 +37,7 @@ A job is shaft, processed by an individual agent. The dispatcher will usually as
 
 ## Job Processing
 
-An agent will drill down in two steps:
+An agent will drill down in three phases:
 1. To the `skip-depth`, without taking on stone/ore/ice. (*)
 2. Further to `least-depth`, picking up stone/ore/ice. 
 3. On to `depth-limit`, but only if there is ore or ice.

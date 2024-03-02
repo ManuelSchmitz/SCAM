@@ -48,7 +48,6 @@ static string LOCK_NAME_BaseSection = "base";         ///< Airspace above the ba
 static class Variables
 {
 	static Dictionary<string, object> v = new Dictionary<string, object> {
-		{ "max-generations", new Variable<int> { value = 7, parser = s => int.Parse(s) } },
 		{ "circular-pattern-shaft-radius", new Variable<float> { value = 3.6f, parser = s => float.Parse(s) } },
 		{ "echelon-offset", new Variable<float> { value = 12f, parser = s => float.Parse(s) } },
 		{ "getAbove-altitude", new Variable<float> { value = 20, parser = s => float.Parse(s) } },
@@ -477,7 +476,7 @@ void Ctor()
 			stateWrapper.PState.corePoint.Value,
 			stateWrapper.PState.miningPlaneNormal.Value,
 			stateWrapper.PState.layout_cur,
-			stateWrapper.PState.MaxGenerations,
+			stateWrapper.PState.maxGen_cur,
 			stateWrapper.PState.CurrentTaskGroup,
 			stateWrapper.PState.bDense_cur
 		);
@@ -555,6 +554,7 @@ public class StateWrapper
 		/* Task Parameters */
 		PState.layout                = currentState.layout;
 		PState.bDense                = currentState.bDense;
+		PState.maxGen                = currentState.maxGen;
 		/* Job Parameters */
 		PState.maxDepth              = currentState.maxDepth;
 		PState.skipDepth             = currentState.skipDepth;
@@ -632,6 +632,8 @@ public class PersistentState
 	public TaskLayout layout_cur;///< Layout of the shaft arrangement. (current task)
 	public bool  bDense;         ///< Dense / overlapping shaft layout? (future tasks)
 	public bool  bDense_cur;     ///< Dense / overlapping shaft layout? (current task)
+	public int   maxGen;         ///< Size of the layout. (future tasks)
+	public int   maxGen_cur;     ///< Size of the layout. (current task)
 
 	/* Job parameters. */
 	public float maxDepth;
@@ -640,7 +642,6 @@ public class PersistentState
 	public float safetyDist;
 
 	public List<byte> ShaftStates = new List<byte>();
-	public int MaxGenerations;
 	public string CurrentTaskGroup;
 
 	// banned directions?
@@ -715,6 +716,8 @@ public class PersistentState
 		layout_cur = ParseValue<TaskLayout> (values, "layout_cur");
 		bDense     = ParseValue<bool>       (values, "bDense");
 		bDense_cur = ParseValue<bool>       (values, "bDense_cur");
+		maxGen     = ParseValue<int>        (values, "maxGen");
+		maxGen_cur = ParseValue<int>        (values, "maxGen_cur");
 
 		/* Job parameters. */
 		maxDepth    = ParseValue<float>     (values, "maxDepth");
@@ -724,7 +727,6 @@ public class PersistentState
 		Toggle.C.Set("adjust-entry-by-elevation", ParseValue<bool>(values, "adjustAltitude"));
 		safetyDist = ParseValue<float>      (values, "safetyDist");
 		
-		MaxGenerations = ParseValue<int>(values, "MaxGenerations");
 		CurrentTaskGroup = ParseValue<string>(values, "CurrentTaskGroup");
 
 		ShaftStates = ParseValue<List<byte>>(values, "ShaftStates") ?? new List<byte>();
@@ -754,6 +756,8 @@ public class PersistentState
 			"layout_cur=" + layout_cur,
 			"bDense=" + bDense,
 			"bDense_cur=" + bDense_cur,
+			"maxGen=" + maxGen,
+			"maxGen_cur=" + maxGen_cur,
 
 			/* Job parameters. */
 			"maxDepth="  + maxDepth,
@@ -763,7 +767,6 @@ public class PersistentState
 			"adjustAltitude=" + Toggle.C.Check("adjust-entry-by-elevation"),
 			"safetyDist=" + safetyDist,
 
-			"MaxGenerations=" + MaxGenerations,
 			"CurrentTaskGroup=" + CurrentTaskGroup,
 			"ShaftStates=" + string.Join(":", ShaftStates),
 		};
@@ -958,7 +961,7 @@ public void GPStaskHandler(string[] cmdString)
 				pos,
 				n,
 				stateWrapper.PState.layout,
-				Variables.Get<int>("max-generations"),
+				stateWrapper.PState.maxGen,
 				c,
 				stateWrapper.PState.bDense
 			);
@@ -1049,7 +1052,7 @@ public void RaycastTaskHandler(string[] cmdString)
 								castedSurfacePoint.Value - castedNormal.Value * 10,
 								castedNormal.Value,
 								stateWrapper.PState.layout,
-								Variables.Get<int>("max-generations"),
+								stateWrapper.PState.maxGen,
 								c,
 								stateWrapper.PState.bDense
 							);
@@ -1388,7 +1391,7 @@ public class Dispatcher
 					data.Item2,
 					data.Item3,
 					stateWrapper.PState.layout,
-					Variables.Get<int>("max-generations"),
+					stateWrapper.PState.maxGen,
 					sub.Group,
 					stateWrapper.PState.bDense
 				);
@@ -1657,10 +1660,10 @@ public class Dispatcher
 		stateWrapper.ClearPersistentState();
 		stateWrapper.PState.layout_cur        = stateWrapper.PState.layout;
 		stateWrapper.PState.bDense_cur        = stateWrapper.PState.bDense;
+		stateWrapper.PState.maxGen_cur        = stateWrapper.PState.maxGen;
 		stateWrapper.PState.corePoint         = corePoint;
 		stateWrapper.PState.shaftRadius       = r;
 		stateWrapper.PState.miningPlaneNormal = miningPlaneNormal;
-		stateWrapper.PState.MaxGenerations    = maxGenerations;
 		stateWrapper.PState.ShaftStates       = CurrentTask.Shafts.Select(x => (byte)x.State).ToList();
 		stateWrapper.PState.CurrentTaskGroup  = groupConstraint;
 
@@ -2208,19 +2211,19 @@ public class GuiHandler
 			controls.Add(chkDense);
 		}
 
-//		var bIncSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 125), "+", 1.2f);
-//		bIncSafetyDist.OnClick = xy => {
-//			_stateWrapper.PState.safetyDist += 0.2f;
-//		};
-//		AddTipToAe(bIncSafetyDist, "Increase safety distance by 0.2 (multiple of the shaft diameter).");
-//		controls.Add(bIncSafetyDist);
+		var bIncMaxGen = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 125), "+", 1.2f);
+		bIncMaxGen.OnClick = xy => {
+			++_stateWrapper.PState.maxGen;
+		};
+		AddTipToAe(bIncMaxGen, "Increase size of next task. (0 is single shaft only)");
+		controls.Add(bIncMaxGen);
 
-//		var bDecSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 125), "-", 1.2f);
-//		bDecSafetyDist.OnClick = xy => {
-//			_stateWrapper.PState.safetyDist = Math.Max(1f, _stateWrapper.PState.safetyDist - 0.2f);
-//		};
-//		AddTipToAe(bDecSafetyDist, "Decrease safety distance by 0.2 (multiple of shaft diameter).");
-//		controls.Add(bDecSafetyDist);
+		var bDecMaxGen = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 125), "-", 1.2f);
+		bDecMaxGen.OnClick = xy => {
+			_stateWrapper.PState.maxGen = Math.Max(0, --_stateWrapper.PState.maxGen);
+		};
+		AddTipToAe(bDecMaxGen, "Decrease size of next task. (0 is single shaft only)");
+		controls.Add(bDecMaxGen);
 
 		var bIncDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 195), "+", 1.2f);
 		bIncDepthLimit.OnClick = xy => {
@@ -2481,13 +2484,13 @@ public class GuiHandler
 		offY += 35;
 		offX  = 0;
 	
-//		offX += 90;
-//		frame.Add(new MySprite(SpriteType.TEXT, "Safety distance", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
-//		offX += 90;
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXT, "Size (# shaft rings)", new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
 
-//		offX += 55;
-//		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.safetyDist.ToString("f1"),  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
-//		offX += 55;
+		offX += 55;
+		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.maxGen.ToString(),  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 55;
 
 		offY += 35;
 		offX  = 0;
