@@ -1843,10 +1843,11 @@ public class MinerController
 
 			} else if (state == MinerState.Drilling) {
 
-				/* Update some repoting stuff. */
+				/* Update some reporting stuff. */
 				currentDepth = (float)(c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length();
 				E.Echo($"Depth: current: {currentDepth:f1} skip: {c.pState.skipDepth:f1}");
 				E.Echo($"Depth: least: {c.pState.leastDepth:f1} max: {c.pState.maxDepth:f1}");
+				E.Echo($"Cargo: {c.cargoFullness_cached:f2} / " + Variables.Get<float>("cargo-full-factor").ToString("f2"));
 						
 				if (currentDepth > c.pState.maxDepth) {
 					GetOutTheShaft(); // We have reached max depth, job complete.

@@ -2116,7 +2116,8 @@ GuiHandler guiH;
 public class GuiHandler
 {
 	Vector2 mOffset;
-	List<ActiveElement> controls = new List<ActiveElement>();
+	List<ActiveElement> controls   = new List<ActiveElement>();
+	List<ActiveElement> recallBtns = new List<ActiveElement>(); ///< Buttons for recalling individual agents.
 	Dispatcher _dispatcher;
 	StateWrapper _stateWrapper;
 	Vector2 viewPortSize;
@@ -2192,7 +2193,21 @@ public class GuiHandler
 		};
 		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
 		controls.Add(bHalt);
-		
+
+		/* Butons for recalling individual drones. */
+		for (int i = 0; i < 8; ++i) {
+			var bRec = CreateButton(-1, p, new Vector2(30, 30), new Vector2(25, 85 + i * 40), "-", 1.2f);
+			int idx = i;
+			bRec.OnClick = xy => {
+				//TODO: Recall the idx'th subordinate.
+				//if (dispatcher.subordinates.Count())
+			};
+			AddTipToAe(bRec, "Recalls that individual agent only.");
+			recallBtns.Add(bRec);
+		}
+
+		/* Buttons for the Task/Job parameters page. */
+
 		var bLayout = CreateButton(1, p, new Vector2(110, 30), new Vector2(300, 55), _stateWrapper.PState.layout.ToString(), 0.6f);
 		bLayout.OnClick = xy => {
 			_stateWrapper.PState.layout = (TaskLayout)(((byte)_stateWrapper.PState.layout + 1) % 2);
@@ -2381,6 +2396,14 @@ public class GuiHandler
 		}
 		var cursP = mOffset + panel.TextureSize / 2;
 
+		/* Enable/disable buttons for controlling individual drones. */
+		for (int i = 0; i < 8; ++i)
+			//TODO: Take into account multiple pages of agents.
+			recallBtns[i].Visible = (current_page == 0
+			                      && i < _dispatcher.subordinates.Count()
+														&& _dispatcher.subordinates[i].Report.state != MinerState.Disabled
+														&& _dispatcher.subordinates[i].Report.state != MinerState.Idle);
+
 		/* Update the GUI screen contents.*/
 
 		using (var frame = panel.DrawFrame())
@@ -2389,7 +2412,7 @@ public class GuiHandler
 			if (current_page == 0)
 				DrawReportRepeater(frame);
 
-			foreach (var ae in controls.Union(shaftControls).Where(x => x.Visible && (x.page == current_page || x.page < 0)))
+			foreach (var ae in controls.Union(shaftControls).Union(recallBtns).Where(x => x.Visible && (x.page == current_page || x.page < 0)))
 			{
 				if (ae.CheckHover(cursP))
 				{
@@ -2399,7 +2422,7 @@ public class GuiHandler
 			}
 
 			/* Render the active elements. */
-			foreach (var ae in controls.Union(shaftControls).Where(x => x.Visible && (x.page == current_page || x.page < 0)))
+			foreach (var ae in controls.Union(shaftControls).Union(recallBtns).Where(x => x.Visible && (x.page == current_page || x.page < 0)))
 				frame.AddRange(ae.GetSprites());
 
 			if (current_page == 0)
