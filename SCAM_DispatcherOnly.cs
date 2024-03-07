@@ -1490,10 +1490,22 @@ public class Dispatcher
 		});
 	}
 
+	/** \brief Recalls all subordinates. */
 	public void Recall()
 	{
 		IGC.SendBroadcastMessage("miners.command", "command:force-finish");
 		Log($"Broadcasting Recall");
+	}
+
+	/** 
+	 * \brief Recalls the n'th subordinate.
+	 * \details If the subordinate does not exist, then this method will have
+	 * no effect.
+	 */
+	public void Recall(int n)
+	{
+		if (n >= 0 && n < subordinates.Count())
+			IGC.SendUnicastMessage(subordinates[n].Id, "command", "force-finish");
 	}
 
 	public void PurgeLocks()
@@ -2199,8 +2211,7 @@ public class GuiHandler
 			var bRec = CreateButton(-1, p, new Vector2(30, 30), new Vector2(25, 85 + i * 40), "-", 1.2f);
 			int idx = i;
 			bRec.OnClick = xy => {
-				//TODO: Recall the idx'th subordinate.
-				//if (dispatcher.subordinates.Count())
+				dispatcher.Recall(idx);
 			};
 			AddTipToAe(bRec, "Recalls that individual agent only.");
 			recallBtns.Add(bRec);
