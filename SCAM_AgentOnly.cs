@@ -306,6 +306,7 @@ void Ctor()
 					"create-task-raycast", (parts) => RaycastTaskHandler(parts)
 				},
 				{
+					//TODO: Rename "recall".
 					"force-finish", (parts) => minerController?.FinishAndDockHandler()
 				},
 				{
@@ -513,6 +514,7 @@ public class PersistentState
 	public int LifetimeWentToMaintenance = 0;
 	public float LifetimeOreAmount = 0;
 	public float LifetimeYield = 0;
+	public bool bRecalled; ///< Has the agent been oredered to return to base?
 
 	// cleared by specific command
 	public Vector3D? StaticDockOverride { get; set; }
@@ -594,6 +596,7 @@ public class PersistentState
 			LifetimeWentToMaintenance = ParseValue<int>(values, "LifetimeWentToMaintenance");
 			LifetimeOreAmount = ParseValue<float>(values, "LifetimeOreAmount");
 			LifetimeYield = ParseValue<float>(values, "LifetimeYield");
+			bRecalled     = ParseValue<bool> (values, "bRecalled");
 
 			StaticDockOverride = ParseValue<Vector3D?>(values, "StaticDockOverride");
 			MinerState = ParseValue<MinerState>(values, "MinerState");
@@ -639,6 +642,7 @@ public class PersistentState
 			"LifetimeWentToMaintenance=" + LifetimeWentToMaintenance,
 			"LifetimeOreAmount=" + LifetimeOreAmount,
 			"LifetimeYield=" + LifetimeYield,
+			"bRecalled=" + bRecalled,
 			"StaticDockOverride=" + (StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(StaticDockOverride.Value) : ""),
 			"MinerState=" + MinerState,
 			"miningPlaneNormal=" + (miningPlaneNormal.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningPlaneNormal.Value) : ""),
@@ -1460,6 +1464,7 @@ public class MinerController
 		}
 	}
 
+	/** \brief Processes the "force-finish" command.                           */
 	public void FinishAndDockHandler()
 	{
 		if (docker.Status == MyShipConnectorStatus.Connected)
@@ -1471,6 +1476,7 @@ public class MinerController
 		}
 		else
 		{
+			pState.bRecalled = true;
 			drills.ForEach(dr => dr.Enabled = false);
 			//ReleaseLock(LOCK_NAME_GeneralSection);
 			WaitedSection = "";
@@ -2132,6 +2138,17 @@ public class MinerController
 					return;
 				}
 
+				/* If recalled, go to "Disabled" mode. */
+				if (c.pState.bRecalled) {
+					c.SetState(MinerState.Disabled);
+					c.pState.bRecalled = false;
+					AccountUnload();
+					c.pState.LifetimeOperationTime += (int)(DateTime.Now - SessionStartedAt).TotalSeconds;
+					c.stateWrapper.Save();
+					c.CurrentJob = null; //TODO: Tell the dispatcher that the job will not be completed.
+					return;
+				}
+
 				/* Unload and return to work. */
 				c.EnterSharedSpace(LOCK_NAME_BaseSection, mc =>
 				{
@@ -2196,6 +2213,7 @@ public class MinerController
 					else
 					{
 						c.SetState(MinerState.Disabled);
+						c.pState.bRecalled = false;
 						AccountUnload();
 
 						c.pState.LifetimeOperationTime += (int)(DateTime.Now - SessionStartedAt).TotalSeconds;
@@ -2771,7 +2789,8 @@ class Scheduler
 APckUnit coreUnit;
 public class APckUnit
 {
-	public IMyShipConnector docker; ///< Agent's docking port.
+	public PersistentState pState;   ///< Persistent state of the agent.
+	public IMyShipConnector docker;  ///< Agent's docking port.
 	public List<IMyWarhead> wh;
 
 	IMyRadioAntenna antenna;
@@ -2813,6 +2832,7 @@ public class APckUnit
 
 	public APckUnit(PersistentState ps, IMyGridTerminalSystem gts, IMyIntergridCommunicationSystem igc, Func<string, TargetTelemetry> gtt)
 	{
+		pState = ps;
 		_gts = gts;
 		_getTV = gtt;
 		_igc = igc;
@@ -2938,7 +2958,9 @@ public class APckUnit
 		{
 			CurrentBH = fsm.GetCurrentBeh();
 			if (antenna != null)
-				antenna.CustomName = $"{G.CubeGrid.CustomName}> {fsm.GetCurrent().St} / {tPtr?.Value?.Name}";
+				antenna.CustomName = $"{G.CubeGrid.CustomName}"
+				                   + (pState.bRecalled ? " [recalled]" : "")
+				                   + $"> {fsm.GetCurrent().St} / {tPtr?.Value?.Name}";
 		}
 	}
 
