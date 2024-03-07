@@ -1477,6 +1477,10 @@ public class MinerController
 		else
 		{
 			pState.bRecalled = true;
+
+			if (pState.MinerState == MinerState.Takeoff)
+				return;
+
 			drills.ForEach(dr => dr.Enabled = false);
 			//ReleaseLock(LOCK_NAME_GeneralSection);
 			WaitedSection = "";
@@ -1949,9 +1953,23 @@ public class MinerController
 				if (!CurrentWpReached(1.0f))
 					return; // Not reached the point above the docking port yet. Keep flying.
 
+				/* If received recall order while taking off, keep the lock and land again. */
+				//TODO: ATC has probably re-assigned the docking port already.
+				//      Have the dispatcher keep the docking port reserved, until the airspace lock is returned after takeoff.
+				//if (c.pState.bRecalled) {
+				//	return;
+				//}
+
 				/* Release the "general" or "base" airspace lock, if held. */
 				if (c.ObtainedLock != null)
 					c.ReleaseLock(c.ObtainedLock);
+
+				//TODO: This is a quick fix, because we need ATC to assign a new docking port.
+				//      Fix this, see above.
+				if (c.pState.bRecalled) {
+					c.ArrangeDocking();
+					return;
+				}
 
 				/* Lay in a course to above the shaft. */
 				c.CommandAutoPillock("command:create-wp:Name=xy,Ng=Forward,AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':',';')
