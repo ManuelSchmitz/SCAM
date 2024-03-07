@@ -1478,7 +1478,8 @@ public class MinerController
 		{
 			pState.bRecalled = true;
 
-			if (pState.MinerState == MinerState.Takeoff)
+			if (  pState.MinerState == MinerState.Takeoff
+			   || pState.MinerState == MinerState.ReturningToShaft)
 				return;
 
 			drills.ForEach(dr => dr.Enabled = false);
@@ -1979,6 +1980,25 @@ public class MinerController
 				return;
 
 			} else if (state == MinerState.ReturningToShaft) {
+
+				/* Have we been ordered back to base? */
+				if (c.pState.bRecalled) {
+
+					/* Have we already asked for a lock "mining-site"? If yes, cancel the request. */
+					if (c.WaitingForLock) {
+						c.BroadcastToChannel("miners", "common-airspace-ask-for-lock:");
+						c.WaitingForLock = false;
+						c.waitedActions.Clear();
+					}
+
+					/* Ask ATC for a free dockingport. */
+					c.ArrangeDocking();
+
+					/* Stop movement, don't keep flying to the mining site. */
+					//TODO: In the meantime, APck keeps flying us towards the mining site. 
+					//      Instead, we should bring the drone to a halt immediately.
+					return;
+				}
 
 				if (!CurrentWpReached(1.0f))
 					return; // Not reached the point above the shaft yet. Keep flying.

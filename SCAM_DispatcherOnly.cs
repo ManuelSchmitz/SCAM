@@ -1123,16 +1123,30 @@ public class Dispatcher
 	 * \brief Enqueues a request from an agent for an airspace lock.
 	 * \details The lock must be currently in use by another agent. When the other
 	 * agent releases that lock (cooperatively!), it is granted to the applicant.
+	 * If a request exists for the applicant it is updated. Requesting an empty
+	 * string cancels a request.
 	 * \param[in] src The ID of the applicants PB. It is used to send the answer via IGC.
 	 * \param[in] lockName The name of the requested lock.
 	 */
 	private void EnqueueLockRequest(long src, string lockName)
 	{
-		if (!stateWrapper.PState.airspaceLockRequests.Any(s => s.id == src))
+		int idx = stateWrapper.PState.airspaceLockRequests.FindIndex(s => s.id == src);
+		if (idx < 0) {
 			stateWrapper.PState.airspaceLockRequests.Add(new LockRequest(src, lockName));
-		//else
-			; //TODO: Update existing lock request with new lockName
-		Log("Airspace permission request added to requests queue: " + GetSubordinateName(src) + " / " + lockName, E.LogLevel.Debug);
+			Log("Airspace permission request added to requests queue: " + GetSubordinateName(src) + " / " + lockName, E.LogLevel.Debug);
+			return;
+		}
+
+		/* Update an existing request. */
+		if (lockName == "") {
+			/* Request cancelled. */
+			stateWrapper.PState.airspaceLockRequests.RemoveAt(idx);
+			Log("Airspace permission request by " + GetSubordinateName(src) + " was cancelled.");
+		} else {
+			stateWrapper.PState.airspaceLockRequests.RemoveAt(idx);
+			stateWrapper.PState.airspaceLockRequests.Add(new LockRequest(src, lockName));
+			Log("Airspace permission request by " + GetSubordinateName(src) + " was changed: " + lockName);
+		}
 	}
 
 	/**
