@@ -521,7 +521,7 @@ public enum MinerState : byte
 	AscendingInShaft      = 9, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
 	ChangingShaft        = 10,
 	Maintenance          = 11,
-	ForceFinish          = 12,
+	//ForceFinish          = 12, (deprecated, now replaced by bRecalled)
 	Takeoff              = 13, ///< Ascending from docking port, through shared airspace, into assigned flight level.
 	ReturningHome        = 14, ///< Traveling from the point above the shaft to the base on a reserved flight level.
 	Docking              = 15  ///< Descending to the docking port through shared airspace. (docking final approach)
@@ -1198,7 +1198,6 @@ public class Dispatcher
 					else
 						continue;
 				case MinerState.WaitingForDocking:  //TODO: How to handle this case?
-				case MinerState.ForceFinish:        // Maybe a MAYDAY or recall. No experiments.
 				default:                            // Something went wrong. No experiments. //TODO: Better log an error message!
 					return false;
 				case MinerState.ReturningToShaft:

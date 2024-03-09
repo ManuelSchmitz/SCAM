@@ -41,7 +41,6 @@ static bool MoreRejectDampening = true;
 static string LOCK_NAME_GeneralSection     = "general";
 static string LOCK_NAME_MiningSection      = "mining-site";///< Airspace above the mining site.
 static string LOCK_NAME_BaseSection        = "base";       ///< Airspace above the base.
-static string LOCK_NAME_ForceFinishSection = "force-finish";
 
 static IMyProgrammableBlock me; ///< Reference to the programmable block on which this script is running. (same as "Me", but available in all scopes)
 
@@ -441,7 +440,7 @@ public enum MinerState : byte
 	AscendingInShaft      = 9, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
 	ChangingShaft        = 10,
 	Maintenance          = 11,
-	ForceFinish          = 12,
+	//ForceFinish          = 12, (deprecated, now replaced by bRecalled)
 	Takeoff              = 13, ///< Ascending from docking port, through shared airspace, into assigned flight level.
 	ReturningHome        = 14, ///< Traveling from the point above the shaft to the base on a reserved flight level.
 	Docking              = 15  ///< Descending to the docking port through shared airspace. (docking final approach)
@@ -753,7 +752,6 @@ void Main(string param, UpdateType updateType)
 	}
 
 	E.Echo($"Version: {Ver}");
-	E.Echo("Recalled: " + stateWrapper.PState.bRecalled.ToString());//TODO: Remove, just for debugging
 			
 	minerController.Handle(uniMsgs);
 	E.Echo("Min3r state: " + minerController.GetState());
@@ -1440,16 +1438,14 @@ public class MinerController
 	 */
 	public void ArrangeDocking()
 	{
-		bool finishSession = GetState() == MinerState.ForceFinish;
 		if (pState.StaticDockOverride.HasValue)
 		{
-			if (TryUsingStaticDock(finishSession))
+			if (TryUsingStaticDock(false)) //TODO: Call with "true", if bRecall set???
 			{
 				// Static docking, we are safe at own echelon
 				if (!WholeAirspaceLocking)
 					ReleaseLock(ObtainedLock);
-				if (!finishSession)
-					SetState(MinerState.Docking);
+				SetState(MinerState.Docking);
 			}
 		}
 		else
@@ -1478,35 +1474,7 @@ public class MinerController
 			SetState(MinerState.Disabled);
 		}
 		else
-		{
 			pState.bRecalled = true;
-
-			if (  pState.MinerState == MinerState.Takeoff
-			   || pState.MinerState == MinerState.ReturningToShaft
-				 || pState.MinerState == MinerState.GoingToEntry
-				 || pState.MinerState == MinerState.Drilling)
-				return;
-
-		//	drills.ForEach(dr => dr.Enabled = false);
-		//	//ReleaseLock(LOCK_NAME_GeneralSection);
-		//	WaitedSection = "";
-		//	waitedActions.Clear();
-		//	EnterSharedSpace(LOCK_NAME_ForceFinishSection, (mc) =>
-		//	{
-		//		if (pState.MinerState == MinerState.ForceFinish || pState.MinerState == MinerState.Docking || docker.Status == MyShipConnectorStatus.Connected)
-		//		{
-		//			SetState(MinerState.ForceFinish);
-		//			Log("Started force-finish callback during docking in progress!");
-		//			ReleaseLock(LOCK_NAME_ForceFinishSection);
-		//			return;
-		//		}
-
-		//		SetState(MinerState.ForceFinish);
-				// TODO: redo ffs... Handle state for WaitingForDock requires job
-		//		CurrentJob = CurrentJob ?? new MiningJob(this);
-		//		ArrangeDocking();
-		//	});
-		}
 	}
 
 	public bool TryResumeFromDock()
@@ -1610,7 +1578,7 @@ public class MinerController
 
 	bool CheckBatteriesAndIntegrity(float desiredBatteryLevel, float desiredGasLevel)
 	{
-		allFunctionalBlocks.ForEach(x => TagDamagedTerminalBlocks(x, GetMyTerminalBlockHealth(x), PrevState != MinerState.ForceFinish));
+		allFunctionalBlocks.ForEach(x => TagDamagedTerminalBlocks(x, GetMyTerminalBlockHealth(x), true)); //TODO: Call with "false", when bRecall is set?
 		if (allFunctionalBlocks.Any(b => !b.IsFunctional)) {
 			if (antenna != null)
 				antenna.CustomName = antenna.CubeGrid.CustomName + "> Damaged. Fix me asap!";
@@ -2091,52 +2059,16 @@ public class MinerController
 				if (!dv.Position.HasValue)
 					return; // We have not yet received a position information for the docking port.
 						
-				if (c.PrevState == MinerState.ForceFinish)
-				{
-					Vector3D dockingTransEntryPt;
-					if (c.pState.getAbovePt.HasValue)
-					{
-						dockingTransEntryPt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
-					}
-					else // assuming we didn't mine and just want to RTB
-					{
-						var dockPosDiff = dv.Position.Value - c.docker.GetPosition();
-						var n = dv.OrientationUnit.Value.Backward;
-						var altDiff = Vector3D.ProjectOnVector(ref dockPosDiff, ref n);
-						dockingTransEntryPt = c.AddEchelonOffset(c.docker.GetPosition() + altDiff, n);
-					}
-
-					// releasing that when we leave mining area zone
-					//c.EnterSharedSpace("general", mc =>
-					//{
-					// getAboveShaft, then follow up with:
-					// ForceFinish.dock-echelon - vertical offset in assigned docks' local coordinates, then follow up with:
-					// DockingFinal behavior
-					Vector3D r_aboveDock = c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward)
-					                     - dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude");
-					c.CommandAutoPillock("command:create-wp:Name=ForceFinish.getAbovePt,SpeedLimit=" + Variables.Get<float>("speed-clear") + ",Ng=Forward:" +
-							VectorOpsHelper.V3DtoBroadcastString(dockingTransEntryPt)
-					+ ":command:create-wp:Name=ForceFinish.dock-echelon,Ng=Forward,TransformChannel=docking:"
-					+ VectorOpsHelper.V3DtoBroadcastString(Vector3D.Transform(r_aboveDock, MatrixD.Invert(dv.OrientationUnit.Value)))
-					+ ":command:pillock-mode:DockingFinal");
-
-					c.SetState(MinerState.ForceFinish);
-					//});
-				}
-				else
-				{
-					/* Normal return home to base. */
+				/* Lay in a course to above the shaft. */
+				Vector3D r_aboveDock = c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward)
+				                     - dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude");
 							
-					/* Lay in a course to above the shaft. */
-					Vector3D r_aboveDock = c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward)
-					                     - dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude");
-							
-					//TODO: Set AimNormal to direction of docking port, not mining plane.
-					c.CommandAutoPillock("command:create-wp:Name=xy,Ng=Forward,AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':',';')
-						                + ":" + VectorOpsHelper.V3DtoBroadcastString(r_aboveDock));
-					c.pState.currentWp = r_aboveDock;
-					c.SetState(MinerState.ReturningHome);
-				}
+				//TODO: Set AimNormal to direction of docking port, not mining plane.
+				c.CommandAutoPillock("command:create-wp:Name=xy,Ng=Forward,AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':',';')
+					                + ":" + VectorOpsHelper.V3DtoBroadcastString(r_aboveDock));
+				c.pState.currentWp = r_aboveDock;
+				c.SetState(MinerState.ReturningHome);
+
 			}
 
 			if (state == MinerState.Docking) {
@@ -2242,62 +2174,6 @@ public class MinerController
 				}
 			}
 
-			if (state == MinerState.ForceFinish)
-			{
-				if (c.docker.Status == MyShipConnectorStatus.Connected)
-				{
-					if (!c.DockingHandled)
-					{
-						c.DockingHandled = true;
-						E.DebugLog("ForceFinish docking handled");
-
-						c.CommandAutoPillock("command:pillock-mode:Disabled");
-
-						c.remCon.DampenersOverride = false;
-						c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
-						c.docker.OtherConnector.CustomData = "";
-						c.InvalidateDockingDto?.Invoke();
-						c.tanks.ForEach(b => b.Stockpile = true);
-
-						c.ObtainedLock = LOCK_NAME_ForceFinishSection; // facepalm
-						c.ReleaseLock(LOCK_NAME_ForceFinishSection);
-						c.ObtainedLock = LOCK_NAME_GeneralSection; // facepalm
-						c.ReleaseLock(LOCK_NAME_GeneralSection);
-					}
-
-					if (c.bUnloading = !CargoFlush())
-					{
-						E.Echo("ForceFinish: still have items");
-					}
-					else
-					{
-						c.SetState(MinerState.Disabled);
-						c.pState.bRecalled = false;
-						c.embeddedUnit?.UpdateHUD();
-						AccountUnload();
-
-						c.pState.LifetimeOperationTime += (int)(DateTime.Now - SessionStartedAt).TotalSeconds;
-						c.stateWrapper.Save();
-
-						// CurrentJob is recreated at command:mine or ResumeFromDock
-						c.CurrentJob = null;
-						// probably it's better to clear state only explicitly or when creating new mining task
-						// in this case a worker can ResumeFromDock via command:mine
-						/*
-						c.CurrentJob = null;
-						MaxFoundOreDepth = null;
-						MinFoundOreDepth = null;
-						*/
-					}
-				}
-				else
-				{
-					if (c.DockingHandled)
-						c.DockingHandled = false;
-					if (c.pState.StaticDockOverride.HasValue)
-						c.docker.Connect();
-				}
-			}
 		}
 
 		/** \brief Unloads all cargo, returns true on success. */
