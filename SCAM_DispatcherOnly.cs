@@ -930,59 +930,58 @@ int iCount;
 
 public void GPStaskHandler(string[] cmdString)
 {
-	// add Lone role local disp
-	if (dispatcherService != null)
+	/* Can only start task when all agents are at base. */
+	if (dispatcherService.subordinates.Any(s => s.Report.state != MinerState.Disabled && s.Report.state != MinerState.Idle)) {
+		E.Log("Cannot start new task: All agents must be in Idle or Disabled state.");
+		return;
+	}
+
+	var vdtoArr = cmdString.Skip(2).ToArray();
+	var pos = new Vector3D(double.Parse(vdtoArr[0]), double.Parse(vdtoArr[1]), double.Parse(vdtoArr[2]));
+	Vector3D n;
+	if (vdtoArr.Length > 3)
 	{
-		var vdtoArr = cmdString.Skip(2).ToArray();
-		var pos = new Vector3D(double.Parse(vdtoArr[0]), double.Parse(vdtoArr[1]), double.Parse(vdtoArr[2]));
-		Vector3D n;
-		if (vdtoArr.Length > 3)
+		n = Vector3D.Normalize(pos - new Vector3D(double.Parse(vdtoArr[3]), double.Parse(vdtoArr[4]), double.Parse(vdtoArr[5])));
+	}
+	else
+	{
+		if (guiSeat == null)
 		{
-			n = Vector3D.Normalize(pos - new Vector3D(double.Parse(vdtoArr[3]), double.Parse(vdtoArr[4]), double.Parse(vdtoArr[5])));
+			E.Log("WARNING: the normal was not supplied and there is no Control Station available to check if we are in gravity");
+			n = -dockHost.GetFirstNormal();
+			E.Log("Using 'first dock connector Backward' as a normal");
 		}
 		else
 		{
-			if (guiSeat == null)
+			Vector3D pCent;
+			if (guiSeat.TryGetPlanetPosition(out pCent))
 			{
-				E.Log("WARNING: the normal was not supplied and there is no Control Station available to check if we are in gravity");
-				n = -dockHost.GetFirstNormal();
-				E.Log("Using 'first dock connector Backward' as a normal");
+				n = Vector3D.Normalize(pCent - pos);
+				E.Log("Using mining-center-to-planet-center direction as a normal because we are in gravity");
 			}
 			else
 			{
-				Vector3D pCent;
-				if (guiSeat.TryGetPlanetPosition(out pCent))
-				{
-					n = Vector3D.Normalize(pCent - pos);
-					E.Log("Using mining-center-to-planet-center direction as a normal because we are in gravity");
-				}
-				else
-				{
-					n = -dockHost.GetFirstNormal();
-					E.Log("Using 'first dock connector Backward' as a normal");
-				}
+				n = -dockHost.GetFirstNormal();
+				E.Log("Using 'first dock connector Backward' as a normal");
 			}
 		}
-		var c = Variables.Get<string>("group-constraint");
-		if (!string.IsNullOrEmpty(c))
-		{
-			dispatcherService.CreateTask(
-				Variables.Get<float>("circular-pattern-shaft-radius"),
-				pos,
-				n,
-				stateWrapper.PState.layout,
-				stateWrapper.PState.maxGen,
-				c,
-				stateWrapper.PState.bDense
-			);
-			dispatcherService.BroadcastStart(c);
-		}
-
-		else
-			E.Log("To use this mode specify group-constraint value and make sure you have intended circular-pattern-shaft-radius");
+	}
+	var c = Variables.Get<string>("group-constraint");
+	if (!string.IsNullOrEmpty(c))
+	{
+		dispatcherService.CreateTask(
+			Variables.Get<float>("circular-pattern-shaft-radius"),
+			pos,
+			n,
+			stateWrapper.PState.layout,
+			stateWrapper.PState.maxGen,
+			c,
+			stateWrapper.PState.bDense
+		);
+		dispatcherService.BroadcastStart(c);
 	}
 	else
-		E.Log("GPStaskHandler is intended for Dispatcher role");
+		E.Log("To use this mode specify group-constraint value and make sure you have intended circular-pattern-shaft-radius");
 }
 
 List<IMyCameraBlock> cameras = new List<IMyCameraBlock>();
@@ -1056,6 +1055,12 @@ public void RaycastTaskHandler(string[] cmdString)
 						var c = Variables.Get<string>("group-constraint");
 						if (!string.IsNullOrEmpty(c))
 						{
+							/* Can only start task when all agents are at base. */
+							if (dispatcherService.subordinates.Any(s => s.Report.state != MinerState.Disabled && s.Report.state != MinerState.Idle)) {
+								E.Log("Cannot start new task: All agents must be in Idle or Disabled state.");
+								return;
+							}
+
 							dispatcherService.BroadcastStart(c);
 							dispatcherService.CreateTask(
 								Variables.Get<float>("circular-pattern-shaft-radius"),
@@ -1406,6 +1411,12 @@ public class Dispatcher
 			//Log("Dispatcher has received private message from " + msg.Source);
 			if (msg.Tag == "create-task")
 			{
+				/* Can only start task when all other agents are at base. */
+				if (subordinates.Any(s => s.Id != msg.Source && s.Report.state != MinerState.Disabled && s.Report.state != MinerState.Idle)) {
+					Log("Cannot start new task: All agents must be in Idle or Disabled state.");
+					continue;
+				}
+
 				var data = (MyTuple<float, Vector3D, Vector3D>)msg.Data;
 
 				var sub = subordinates.First(s => s.Id == msg.Source);
