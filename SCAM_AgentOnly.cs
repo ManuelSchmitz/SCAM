@@ -1435,6 +1435,8 @@ public class MinerController
 	 * \details To be called when the agent is above the shaft, at the intersection
 	 * with its flight level. It has already been decided that the agent is going
 	 * home (not changing shafts).
+	 * \warning Only call, when the agent is on its flight level, or holds the
+	 * local airspace lock!
 	 */
 	public void ArrangeDocking()
 	{

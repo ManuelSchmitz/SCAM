@@ -1197,9 +1197,9 @@ public class Dispatcher
 						return false;
 					else
 						continue;
-				case MinerState.WaitingForDocking:  //TODO: How to handle this case?
 				default:                            // Something went wrong. No experiments. //TODO: Better log an error message!
 					return false;
+				case MinerState.WaitingForDocking:  // Agent is loitering on its flight plane, or reversing course because recalled.
 				case MinerState.ReturningToShaft:
 				case MinerState.ReturningHome:
 
