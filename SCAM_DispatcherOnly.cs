@@ -1334,10 +1334,12 @@ public class Dispatcher
 		while (minerHandshakeChannel.HasPendingMessage)
 		{
 			var msg = minerHandshakeChannel.AcceptMessage();
-			if (!(msg.Data is MyTuple<string,MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, MyTuple<bool, float, float>, ImmutableArray<MyTuple<string, string>>>, string>))
+			if (!(msg.Data is MyTuple<string,MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, MyTuple<bool, bool, float, float>, ImmutableArray<MyTuple<string, string>>>, string>)) {
+				Log("Ignoring handshake broadcast with malformed transponder data.", E.LogLevel.Warning);
 				continue; // Corrupt/malformed message. (Or wrong s/w version on agent.)
+			}
 				
-			var data = (MyTuple<string,MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, MyTuple<bool, float, float>, ImmutableArray<MyTuple<string, string>>>, string>)msg.Data;
+			var data = (MyTuple<string,MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, MyTuple<bool, bool, float, float>, ImmutableArray<MyTuple<string, string>>>, string>)msg.Data;
 			if (data.Item3 != Ver) {
 				Log($"Ignoring handshake broadcast by {data.Item2.Item1.Item2}: Wrong s/w version {data.Item3} (vs {Ver}).", E.LogLevel.Warning);
 				continue;
@@ -1385,7 +1387,7 @@ public class Dispatcher
 			var sub = subordinates.FirstOrDefault(s => s.Id == msg.Source);
 			if (sub == null)
 				continue; // None of our subordinates.
-			var data = (MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, MyTuple<bool, float, float>, ImmutableArray<MyTuple<string, string>>>)msg.Data;
+			var data = (MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, MyTuple<bool, bool, float, float>, ImmutableArray<MyTuple<string, string>>>)msg.Data;
 			sub.Report.UpdateFromIgc(data);
 		}
 
@@ -2656,7 +2658,7 @@ public class GuiHandler
 
 				offX += 75;
 				frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY), new Vector2(150 - 4, 40), Color.Black));
-				frame.Add(new MySprite(SpriteType.TEXT, "Settings\nDamage",     new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
+				frame.Add(new MySprite(SpriteType.TEXT, "Flags\nDamage",     new Vector2(startX + offX, startY - 16), null, Color.White, "Debug", TextAlignment.CENTER, 0.5f));
 				offX += 75;
 
 				/* Dynamic columns. */
@@ -2702,9 +2704,13 @@ public class GuiHandler
 				new Vector2(startX + offX, startY + offY + fontHeight), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
 			offX += 22;
 			offX += 75;
+			List<string> s_flags = new List<string>();
 			if (su.Report.bAdaptive)
+				s_flags.Add("A");
+			if (su.Report.bRecalled)
+				s_flags.Add("R");
 			frame.Add(new MySprite(SpriteType.TEXT,
-				"A",
+				string.Join(" ", s_flags),
 				new Vector2(startX + offX, startY + offY), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
 			frame.Add(new MySprite(SpriteType.TEXT,
 				su.Report.damage,
@@ -2898,6 +2904,7 @@ public class TransponderMsg
 	public float      f_cargo;    ///< [-] Cargo fullness in [0;1].
 	public float      f_cargo_max;///< [-] Threshold for returning to base.
 	public bool       bAdaptive;  ///< Is the adaptive mode active?
+	public bool       bRecalled;  ///< Has the agent been recalled?
 	public float      t_shaft;    ///< [m] Current depth in shaft.
 	public float      t_ore;      ///< [m] Depth at which ore has been found.
 	public bool       bUnload;    ///< Is the agent unloading cargo?
@@ -2908,7 +2915,7 @@ public class TransponderMsg
 		MyTuple<MatrixD, Vector3D>,  // WM, v
 		MyTuple<byte, string, bool>, // state, damage, bUnload
 		ImmutableArray<float>,       // f_bat, f_bat_min, f_fuel, f_fuel_min, f_cargo, f_cargo_max
-		MyTuple<bool, float, float>, // bAdaptive, t_shaft, t_ore
+		MyTuple<bool, bool, float, float>, // bAdaptive, bRecalled, t_shaft, t_ore
 		ImmutableArray<MyTuple<string, string>>
 	> dto)
 	{
@@ -2926,8 +2933,9 @@ public class TransponderMsg
 		f_cargo       = dto.Item4[4];
 		f_cargo_max   = dto.Item4[5];
 		bAdaptive     = dto.Item5.Item1;
-		t_shaft       = dto.Item5.Item2;
-		t_ore         = dto.Item5.Item3;
+		bRecalled     = dto.Item5.Item2;
+		t_shaft       = dto.Item5.Item3;
+		t_ore         = dto.Item5.Item4;
 		KeyValuePairs = dto.Item6;
 	}
 
@@ -2937,11 +2945,11 @@ public class TransponderMsg
 	//	MyTuple<MatrixD, Vector3D>,  // WM, v
 	//	MyTuple<byte, string, bool>, // state, damage, bUnload
 	//	ImmutableArray<float>,       // f_bat, f_bat_min, f_fuel, f_fuel_min, f_cargo, f_cargo_max
-	//	MyTuple<bool, float, float>, // bAdaptive, t_shaft, t_ore
+	//	MyTuple<bool, bool, float, float>, // bAdaptive, bRecalled, t_shaft, t_ore
 	//	ImmutableArray<MyTuple<string, string>>
 	//> ToIgc()
 	//{
-	//	var dto = new MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, Vector4, ImmutableArray<MyTuple<string, string>>>();
+	//	var dto = new MyTuple<MyTuple<long, string>, MyTuple<MatrixD, Vector3D>, MyTuple<byte, string, bool>, ImmutableArray<float>, MyTuple<bool, bool, float, float>, ImmutableArray<MyTuple<string, string>>>();
 	//	dto.Item1.Item1 = Id;
 	//	dto.Item1.Item2 = name;
 	//	dto.Item2.Item1 = WM;
@@ -2958,8 +2966,9 @@ public class TransponderMsg
 	//	arr.Add(f_cargo_max);
 	//	dto.Item4 = arr.ToImmutableArray();
 	//	dto.Item5.Item1 = bAdaptive;
-	//	dto.Item5.Item2 = t_shaft;
-	//	dto.Item5.Item3 = t_ore;
+	//	dto.Item5.Item2 = bRecalled;
+	//	dto.Item5.Item3 = t_shaft;
+	//	dto.Item5.Item4 = t_ore;
 	//	dto.Item6 = KeyValuePairs;
 	//	return dto;
 	//}
