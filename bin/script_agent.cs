@@ -2,8 +2,13 @@
  * R e a d m e
  * -----------
  * 
- * In this file you can include any instructions or other comments you want to have injected onto the 
- * top of your final script. You can safely delete this file if you do not want any such comments.
+ * Project Page on Steam: https://steamcommunity.com/sharedfiles/filedetails/?id=2572154209
+ * 
+ * IMPORTANT:
+ * For the most recent version, install the Steam Workshop version forst. Then, update the
+ * scipts as described on the Github page.
+ * 
+ * Instructions on Github: https://github.com/ManuelSchmitz/SCAM/tree/main
  */
 
 const string Ver = "0.10.0"; // Must be the same on dispatcher and agents.

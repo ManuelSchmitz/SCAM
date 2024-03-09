@@ -108,7 +108,7 @@ Both types of parameters can be managed on the GUI LCD. (since v0.10.0)
 - **Skip depth** was formerly known as `skip-depth`. See section [Job processing](#jobproc) for explanation.
 - **Least depth** has been introduced in v0.10.0. See section [Job processing](#jobproc) for explanation.
 - **Adaptive mining** is explained in its own [subsection](#adaptmining).
-- **Adjust entry altitude** was formerly known as `adjust-entry-by-elevation`. When the terrain is not perpendicular to the mining plane, some shafts begin a few meters lower. The controller can try to skip these, for faster processing.
+- **Adjust entry altitude** was formerly known as `adjust-entry-by-elevation`. When the terrain is not perpendicular to the mining plane, some shafts begin a few meters lower. The agent can try to skip these, for faster processing.
 - **Safety distance** is the minimum distance between two active shafts. It is a multiple of the shaft diameter. For example, if the value is greater than `1`, two adjacent shafts may not be processed at the same time.
 
 ## Recalling Agents

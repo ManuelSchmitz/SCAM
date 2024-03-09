@@ -2,8 +2,13 @@
  * R e a d m e
  * -----------
  * 
- * In this file you can include any instructions or other comments you want to have injected onto the 
- * top of your final script. You can safely delete this file if you do not want any such comments.
+ * Project Page on Steam: https://steamcommunity.com/sharedfiles/filedetails/?id=2572154209
+ * 
+ * IMPORTANT:
+ * For the most recent version, install the Steam Workshop version forst. Then, update the
+ * scipts as described on the Github page.
+ * 
+ * Instructions on Github: https://github.com/ManuelSchmitz/SCAM/tree/main
  */
 
 const string Ver = "0.10.0"; // Must be the same on dispatcher and agents.
@@ -409,7 +414,7 @@ VectorOpsHelper.V3DtoBroadcastString(corePoint.Value):""),"shaftRadius="+shaftRa
 string.Join("\n",pairs);Log("Serialised persistent state: "+s,E.LogLevel.Debug);return s;}public override string ToString(){
 return Serialize();}}void Save(){stateWrapper.Save();}Program(){Runtime.UpdateFrequency=UpdateFrequency.Update1;Ctor();}List<
 MyIGCMessage>uniMsgs=new List<MyIGCMessage>();int _cycle_counter=0;void Main(string param,UpdateType updateType){_cycle_counter=(++
-_cycle_counter%5);if(_cycle_counter!=0)return;uniMsgs.Clear();while(IGC.UnicastListener.HasPendingMessage){uniMsgs.Add(IGC.
+_cycle_counter%4);if(_cycle_counter!=0)return;uniMsgs.Clear();while(IGC.UnicastListener.HasPendingMessage){uniMsgs.Add(IGC.
 UnicastListener.AcceptMessage());}var commandChannel=IGC.RegisterBroadcastListener("miners.command");if(commandChannel.
 HasPendingMessage){var msg=commandChannel.AcceptMessage();param=msg.Data.ToString();Log("Got miners.command: "+param);}TickCount++;Echo(
 "Run count: "+TickCount);StartOfTick(param);foreach(var m in uniMsgs){if(m.Tag=="apck.ntv.update"){var igcDto=(MyTuple<MyTuple<string
