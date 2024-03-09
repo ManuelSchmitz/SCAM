@@ -2428,7 +2428,8 @@ public class GuiHandler
 			recallBtns[i].Visible = (current_page == 0
 			                      && i < _dispatcher.subordinates.Count()
 														&& _dispatcher.subordinates[i].Report.state != MinerState.Disabled
-														&& _dispatcher.subordinates[i].Report.state != MinerState.Idle);
+														&& _dispatcher.subordinates[i].Report.state != MinerState.Idle
+														&& !_dispatcher.subordinates[i].Report.bRecalled);
 
 		/* Update the GUI screen contents.*/
 
