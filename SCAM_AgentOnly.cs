@@ -1483,28 +1483,29 @@ public class MinerController
 
 			if (  pState.MinerState == MinerState.Takeoff
 			   || pState.MinerState == MinerState.ReturningToShaft
-				 || pState.MinerState == MinerState.GoingToEntry)
+				 || pState.MinerState == MinerState.GoingToEntry
+				 || pState.MinerState == MinerState.Drilling)
 				return;
 
-			drills.ForEach(dr => dr.Enabled = false);
-			//ReleaseLock(LOCK_NAME_GeneralSection);
-			WaitedSection = "";
-			waitedActions.Clear();
-			EnterSharedSpace(LOCK_NAME_ForceFinishSection, (mc) =>
-			{
-				if (pState.MinerState == MinerState.ForceFinish || pState.MinerState == MinerState.Docking || docker.Status == MyShipConnectorStatus.Connected)
-				{
-					SetState(MinerState.ForceFinish);
-					Log("Started force-finish callback during docking in progress!");
-					ReleaseLock(LOCK_NAME_ForceFinishSection);
-					return;
-				}
+		//	drills.ForEach(dr => dr.Enabled = false);
+		//	//ReleaseLock(LOCK_NAME_GeneralSection);
+		//	WaitedSection = "";
+		//	waitedActions.Clear();
+		//	EnterSharedSpace(LOCK_NAME_ForceFinishSection, (mc) =>
+		//	{
+		//		if (pState.MinerState == MinerState.ForceFinish || pState.MinerState == MinerState.Docking || docker.Status == MyShipConnectorStatus.Connected)
+		//		{
+		//			SetState(MinerState.ForceFinish);
+		//			Log("Started force-finish callback during docking in progress!");
+		//			ReleaseLock(LOCK_NAME_ForceFinishSection);
+		//			return;
+		//		}
 
-				SetState(MinerState.ForceFinish);
+		//		SetState(MinerState.ForceFinish);
 				// TODO: redo ffs... Handle state for WaitingForDock requires job
-				CurrentJob = CurrentJob ?? new MiningJob(this);
-				ArrangeDocking();
-			});
+		//		CurrentJob = CurrentJob ?? new MiningJob(this);
+		//		ArrangeDocking();
+		//	});
 		}
 	}
 
@@ -1873,6 +1874,11 @@ public class MinerController
 				E.Echo($"Depth: current: {currentDepth:f1} skip: {c.pState.skipDepth:f1}");
 				E.Echo($"Depth: least: {c.pState.leastDepth:f1} max: {c.pState.maxDepth:f1}");
 				E.Echo($"Cargo: {c.cargoFullness_cached:f2} / " + Variables.Get<float>("cargo-full-factor").ToString("f2"));
+
+				if (c.pState.bRecalled) {
+					GetOutTheShaft(); // We have been ordered back to base.
+					return;
+				}
 						
 				if (currentDepth > c.pState.maxDepth) {
 					GetOutTheShaft(); // We have reached max depth, job complete.
@@ -1880,8 +1886,8 @@ public class MinerController
 				}
 
 				if (!c.CheckBatteriesAndIntegrityThrottled(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor"))) {
-					GetOutTheShaft(); // We need to return to base for maintenance reasons. //TODO: Prioritise with ATC, because we may run out of gas or power.
-					return;                                                                 //TODO: Emit MAYDAY if docking port is damaged or we cannot make it back to base for other reasons.
+					GetOutTheShaft(); // We need to return to base for maintenance reasons. 
+					return;          //TODO: Emit MAYDAY if docking port is damaged or we cannot make it back to base for other reasons.
 				}
 
 				if (c.CargoIsFull()) {
@@ -1929,7 +1935,7 @@ public class MinerController
 					return; // We have not reached the top of the shaft yet.
 						
 				// kinda expensive
-				if (c.CargoIsFull() || !c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
+				if (c.pState.bRecalled || c.CargoIsFull() || !c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor")))
 				{
 					// we reached cargo limit
 					c.EnterSharedSpace(LOCK_NAME_MiningSection, mc =>
@@ -2336,6 +2342,12 @@ public class MinerController
 			return false;
 		}
 
+		
+		/** 
+		 * \brief To be called while in the MinerState.Drilling state. 
+		 * \details Puts the agent in MinerState.AscendingInShaft and lets it
+		 * carefully move towards the top of the shaft.
+		 */
 		void GetOutTheShaft()
 		{
 			currentDepth = 0;
@@ -2343,7 +2355,7 @@ public class MinerController
 
 			var depth = Math.Min(8, (c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length());
 			var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
-			c.CommandAutoPillock("command:create-wp:Name=WaitingForLockInShaft,Ng=Forward" +
+			c.CommandAutoPillock("command:create-wp:Name=AscendingInShaft,Ng=Forward" +
 				",AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';') +
 				",UpNormal=1;0;0,SpeedLimit=" + Variables.Get<float>("speed-clear") +
 					":" + VectorOpsHelper.V3DtoBroadcastString(pt));
