@@ -2183,6 +2183,7 @@ public class MinerController
 				if (c.pState.bRecalled) {
 					c.SetState(MinerState.Disabled);
 					c.pState.bRecalled = false;
+					c.embeddedUnit?.UpdateHUD();
 					AccountUnload();
 					c.pState.LifetimeOperationTime += (int)(DateTime.Now - SessionStartedAt).TotalSeconds;
 					c.stateWrapper.Save();
@@ -2255,6 +2256,7 @@ public class MinerController
 					{
 						c.SetState(MinerState.Disabled);
 						c.pState.bRecalled = false;
+						c.embeddedUnit?.UpdateHUD();
 						AccountUnload();
 
 						c.pState.LifetimeOperationTime += (int)(DateTime.Now - SessionStartedAt).TotalSeconds;
@@ -2998,11 +3000,17 @@ public class APckUnit
 		if (fsm.TrySetState(s))
 		{
 			CurrentBH = fsm.GetCurrentBeh();
-			if (antenna != null)
-				antenna.CustomName = $"{G.CubeGrid.CustomName}"
-				                   + (pState.bRecalled ? " [recalled]" : "")
-				                   + $"> {fsm.GetCurrent().St} / {tPtr?.Value?.Name}";
+			UpdateHUD();
 		}
+	}
+
+	/** \brief Updates the name of the antenna, which is shown in the HUD. */
+	public void UpdateHUD()
+	{
+		if (antenna != null)
+			antenna.CustomName = $"{G.CubeGrid.CustomName}"
+			                   + (pState.bRecalled ? " [recalled]" : "")
+			                   + $"> {fsm.GetCurrent().St} / {tPtr?.Value?.Name}";
 	}
 
 	public void BindBeh(ApckState st, PcBehavior b)
