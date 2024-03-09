@@ -111,6 +111,18 @@ Both types of parameters can be managed on the GUI LCD. (since v0.10.0)
 - **Adjust entry altitude** was formerly known as `adjust-entry-by-elevation`. When the terrain is not perpendicular to the mining plane, some shafts begin a few meters lower. The controller can try to skip these, for faster processing.
 - **Safety distance** is the minimum distance between two active shafts. It is a multiple of the shaft diameter. For example, if the value is greater than `1`, two adjacent shafts may not be processed at the same time.
 
+## Recalling Agents
+
+An agent can be called back to base with the `force-finish` command. The agent will return to base, unload, and assume the `Disabled` state.
+
+The recall command can be issued in four different ways:
+- Executing `command:force-finish` on the agent's PB.
+- Clicking the recall button in the GUI screen, next to the agent in the list.
+- Executing `command:global:command:force-finish` on the dispatcher's PB. This will recall all agents.
+- Clicking the recall button in the GUI bottom ribbon will recall all agents.
+
+A recall flag `R` will show up on the GUI screen for the recalled agent.
+
 ## Logging
 
 ### Dispatcher
@@ -271,6 +283,8 @@ There are two more airspace locks, "general" and "force-finish", which have lega
 
 - Broadcasted from the agent on channel `miners`.
 - Asks for takeoff permission to an airspace section.
+- A new request will replace an existing one. (Cancel the old request in favour of the new one.)
+- Not naming a section will cancel any requests. (e.g. sending the empty string)
 - The dispatcher can grant the permission/lock by sending an unicast `miners` message with a `common-airspace-lock-granted` payload.
 
 #### `common-airspace-lock-released` (ATC)
