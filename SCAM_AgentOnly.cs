@@ -1482,7 +1482,8 @@ public class MinerController
 			pState.bRecalled = true;
 
 			if (  pState.MinerState == MinerState.Takeoff
-			   || pState.MinerState == MinerState.ReturningToShaft)
+			   || pState.MinerState == MinerState.ReturningToShaft
+				 || pState.MinerState == MinerState.GoingToEntry)
 				return;
 
 			drills.ForEach(dr => dr.Enabled = false);
@@ -1837,6 +1838,16 @@ public class MinerController
 		public void HandleState(MinerState state)
 		{
 			if (state == MinerState.GoingToEntry) {
+
+				/* Have we been ordered back to base? */
+				if (c.pState.bRecalled) {
+					c.SetState(MinerState.GoingToUnload);
+					c.drills.ForEach(d => d.Enabled = false);
+					var pt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
+					c.CommandAutoPillock("command:create-wp:Name=GoingToUnload,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
+					c.pState.currentWp = pt;
+					return;
+				}
 
 				if (!CurrentWpReached(0.5f))
 					return; // We are not there yet. Keep descending.
