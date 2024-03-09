@@ -798,8 +798,18 @@ public Program()
 
 
 List<MyIGCMessage> uniMsgs = new List<MyIGCMessage>();
+int _cycle_counter = 0;
+
+
 void Main(string param, UpdateType updateType)
 {
+	/* Execute only every 5th cycle. 
+	 * We need at least this frequency for the mouse
+	 * cursor to move smoothly on the GUI screen. */
+	_cycle_counter = (++_cycle_counter % 5);
+	if (_cycle_counter != 0)
+		return;
+
 	/* Fetch all new unicast messages since the last cycle. */
 	uniMsgs.Clear();
 	while (IGC.UnicastListener.HasPendingMessage)
