@@ -13,8 +13,8 @@
 	- `command:set-value:skip-depth` - Now set on the LCD screen menu.
 	- `command:set-role` - Now determined by the script. (Separate scripts for agent and dispatcher.)
 	- `command:set-value:max-generations` - Now set on the LCD screen menu.
-3. Copy dispatcher script to the dispatcher and recompile.
-4. Copy the agent script to all agents and recompile.
+3. Copy the [dispatcher script](bin/script_dispatcher.cs) to the dispatcher and recompile.
+4. Copy the [agent script](bin/script_agent.cs) to all agents and recompile.
 
 ## Definitions
 
