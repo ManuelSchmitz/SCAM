@@ -526,6 +526,10 @@ public class PersistentState
 	public Vector3D? corePoint;
 	public float? shaftRadius;
 
+	/* Airspace geometry. */
+	public Vector3D n_FL; ///< Assigned Flight level normal vector.
+	public Vector3D p_FL; ///< Point on the assigned flight level.
+
 	/* Job parameters. */
 	public float maxDepth;
 	public float skipDepth;
@@ -564,6 +568,11 @@ public class PersistentState
 				return (T)(object)float.Parse(res);
 			else if (typeof(T) == typeof(long?))
 				return (T)(object)long.Parse(res);
+			else if (typeof(T) == typeof(Vector3D))
+			{
+				var d = res.Split(':');
+				return (T)(object)new Vector3D(double.Parse(d[0]), double.Parse(d[1]), double.Parse(d[2]));
+			}
 			else if (typeof(T) == typeof(Vector3D?))
 			{
 				var d = res.Split(':');
@@ -604,6 +613,10 @@ public class PersistentState
 			miningEntryPoint = ParseValue<Vector3D?>(values, "miningEntryPoint");
 			corePoint = ParseValue<Vector3D?>(values, "corePoint");
 			shaftRadius = ParseValue<float?>(values, "shaftRadius");
+	
+			/* Airspace geometry. */
+			n_FL       = ParseValue<Vector3D>(values, "n_FL");
+			p_FL       = ParseValue<Vector3D>(values, "p_FL");
 
 			/* Job parameters. */
 			maxDepth   = ParseValue<float>(values, "maxDepth");
@@ -649,6 +662,10 @@ public class PersistentState
 			"miningEntryPoint=" + (miningEntryPoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningEntryPoint.Value) : ""),
 			"corePoint=" + (corePoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(corePoint.Value) : ""),
 			"shaftRadius=" + shaftRadius,
+	
+			/* Airspace geometry. */
+			"n_FL=" + VectorOpsHelper.V3DtoBroadcastString(n_FL),
+			"p_FL=" + VectorOpsHelper.V3DtoBroadcastString(p_FL),
 			
 			/* Job parameters. */
 			"maxDepth=" + maxDepth,
@@ -1187,7 +1204,9 @@ public class MinerController
 					Log("Ignoring granted lock with malformed data.");
 					continue;
 				}
-				var data = (MyTuple<string, Vector3D, Vector3D>)msg.Data; 
+				var data = (MyTuple<string, Vector3D, Vector3D>)msg.Data;
+				pState.p_FL = data.Item2;
+				pState.n_FL = data.Item3;
 
 				if (!string.IsNullOrEmpty(ObtainedLock) && (ObtainedLock != data.Item1)) {
 					//ReleaseLock(ObtainedLock);
