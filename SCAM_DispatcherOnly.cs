@@ -942,7 +942,7 @@ public void GPStaskHandler(string[] cmdString)
 		if (guiSeat == null)
 		{
 			E.Log("WARNING: the normal was not supplied and there is no Control Station available to check if we are in gravity");
-			n = -dockHost.GetFirstNormal();
+			n = -dockHost.GetNormal();
 			E.Log("Using 'first dock connector Backward' as a normal");
 		}
 		else
@@ -955,7 +955,7 @@ public void GPStaskHandler(string[] cmdString)
 			}
 			else
 			{
-				n = -dockHost.GetFirstNormal();
+				n = -dockHost.GetNormal();
 				E.Log("Using 'first dock connector Backward' as a normal");
 			}
 		}
@@ -2026,6 +2026,7 @@ public class DockHost
 	Dispatcher             dispatcher;
 	List<IMyShipConnector> ports;      ///< All managed docking ports.
 	Dictionary<IMyShipConnector, Vector3D> pPositions = new Dictionary<IMyShipConnector, Vector3D>(); // Positions of `ports`.
+	Vector3D               p_base;     ///< Location of the highest connector.
 
 	/**
 	 * \brief Detects all available docking ports for the dispatcher.
@@ -2059,9 +2060,8 @@ public class DockHost
 		ports.ForEach(x => pPositions.Add(x, x.GetPosition()));
 		
 		/* Identify the "highest" docking port, as base point for the get-above altitude. */
-		Vector3D _o = ports.First().GetPosition();
-		ports.ForEach(port => _o = (Vector3D.Dot(_n, port.GetPosition() - _o) > 0 ? port.GetPosition() : _o));
-		//TODO: Store _o
+		p_base = ports.First().GetPosition();
+		ports.ForEach(port => p_base = (Vector3D.Dot(_n, port.GetPosition() - p_base) > 0 ? port.GetPosition() : p_base));
 	}
 
 	public void Handle(IMyIntergridCommunicationSystem i, int t)
@@ -2174,7 +2174,11 @@ public class DockHost
 	Queue<long> dockRequests = new Queue<long>(); ///< Requesting agent's PB handles.
 	Queue<long> depRequests = new Queue<long>();  ///< Requesting agent's PB handles.
 
-	public Vector3D GetFirstNormal()
+	/**
+	 * \brief Returns the unit direction vector pointing away from the
+	 * connectors.
+	 */
+	public Vector3D GetNormal()
 	{
 		return ports.First().WorldMatrix.Forward;
 	}
