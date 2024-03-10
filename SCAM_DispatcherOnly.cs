@@ -31,7 +31,7 @@ static double Dt = 1 / 60f;
 static float MAX_SP = 104.38f;
 const float G = 9.81f;
 const string DockHostTag = "docka-min3r";
-bool ClearDocksOnReload = false;
+const bool   ClearDocksOnReload = false;  ///< Clear assignment between agents and docking ports.
 const string logLevel = "Notice"; // Verbosity of log: "Debug", "Notice", "Warning" or "Critical".
 
 static float StoppingPowerQuotient = 0.5f;
@@ -459,14 +459,8 @@ void Ctor()
 	/* Create the main dispatcher object. */
 	dispatcherService = new Dispatcher(IGC, stateWrapper);
 
-	/* Find all assigned docking ports ("docka-min3r"). */
-	var dockingPoints = new List<IMyShipConnector>();
-	GridTerminalSystem.GetBlocksOfType(dockingPoints, c => c.IsSameConstructAs(Me) && c.CustomName.Contains(DockHostTag));
-	if (ClearDocksOnReload)
-		dockingPoints.ForEach(d => d.CustomData = "");
-
 	/* Create a docking port manager. */
-	dockHost = new DockHost(dispatcherService, dockingPoints, GridTerminalSystem);
+	dockHost = new DockHost(Me, dispatcherService, GridTerminalSystem);
 
 	if (stateWrapper.PState.ShaftStates.Count > 0)
 	{
@@ -1684,6 +1678,9 @@ public class Dispatcher
 		}
 	}
 
+	/**
+	 * \note Call only when all agents are docked!
+	 */
 	public void CreateTask(
 		float r,
 		Vector3D corePoint,
@@ -2022,19 +2019,49 @@ static class UserCtrlTest
 DockHost dockHost;
 
 /**
- * \brief Docking port manager. (dispatcher only)
+ * \brief Docking port manager.
  */
 public class DockHost
 {
 	Dispatcher             dispatcher;
-	List<IMyShipConnector> ports;
+	List<IMyShipConnector> ports;      ///< All managed docking ports.
 	Dictionary<IMyShipConnector, Vector3D> pPositions = new Dictionary<IMyShipConnector, Vector3D>(); // Positions of `ports`.
 
-	public DockHost(Dispatcher disp, List<IMyShipConnector> docks, IMyGridTerminalSystem gts)
+	/**
+	 * \brief Detects all available docking ports for the dispatcher.
+	 * \param[in] me The programmable block of the dispatcher.
+	 */
+	public DockHost(IMyProgrammableBlock me, Dispatcher disp, IMyGridTerminalSystem gts)
 	{
 		dispatcher = disp;
-		ports = docks;
+	
+		/* Find all assigned docking ports ("docka-min3r"). */
+		ports = new List<IMyShipConnector>();
+		gts.GetBlocksOfType(ports, c => c.IsSameConstructAs(me) && c.CustomName.Contains(DockHostTag));
+		if (ports.Count == 0) {
+			E.Log($"Error: No available docking ports. (Name must contain {DockHostTag}.)", E.LogLevel.Critical);
+			return;
+		}
+
+		/* Verify that all docking ports are colinear. */
+		Vector3D _n = ports.First().WorldMatrix.Forward; // Direction of docking ports.
+		if (ports.Any(p => Math.Abs(Vector3.Dot(p.WorldMatrix.Forward, _n) - 1) > 1e-4)) {
+			E.Log("Error: Docking ports are not colinear.", E.LogLevel.Critical);
+			ports.Clear();
+			return;
+		}
+		 
+		/* Clear docks, if so requested. */
+		if (ClearDocksOnReload)
+			ports.ForEach(d => d.CustomData = "");
+
+		/* Cache the docking port's positions. */
 		ports.ForEach(x => pPositions.Add(x, x.GetPosition()));
+		
+		/* Identify the "highest" docking port, as base point for the get-above altitude. */
+		Vector3D _o = ports.First().GetPosition();
+		ports.ForEach(port => _o = (Vector3D.Dot(_n, port.GetPosition() - _o) > 0 ? port.GetPosition() : _o));
+		//TODO: Store _o
 	}
 
 	public void Handle(IMyIntergridCommunicationSystem i, int t)
