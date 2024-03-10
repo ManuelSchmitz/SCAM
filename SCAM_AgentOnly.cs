@@ -1181,22 +1181,25 @@ public class MinerController
 				Variables.Set(parts[0], parts[1]);
 			}
 
-			if (msg.Data.ToString().Contains("common-airspace-lock-granted"))
+			if (msg.Tag == "miners")
 			{
-				var grantedSection = msg.Data.ToString().Split(':')[1];
-
-				if (!string.IsNullOrEmpty(ObtainedLock) && (ObtainedLock != grantedSection))
-				{
-					//ReleaseLock(ObtainedLock);
-					Log($"{grantedSection} common-airspace-lock hides current ObtainedLock {ObtainedLock}!");
+				if (!(msg.Data is MyTuple<string, Vector3D, Vector3D>)) {
+					Log("Ignoring granted lock with malformed data.");
+					continue;
 				}
-				ObtainedLock = grantedSection;
-				Log(grantedSection + " common-airspace-lock-granted");
+				var data = (MyTuple<string, Vector3D, Vector3D>)msg.Data; 
+
+				if (!string.IsNullOrEmpty(ObtainedLock) && (ObtainedLock != data.Item1)) {
+					//ReleaseLock(ObtainedLock);
+					Log($"{data.Item1} common-airspace-lock hides current ObtainedLock {ObtainedLock}!");
+				}
+				ObtainedLock = data.Item1;
+				Log(data.Item1 + " common-airspace-lock-granted");
 
 				// can fly!
 				// ("general" also covers "mining-site")
-				if (   WaitedSection == grantedSection
-					|| (WaitedSection == LOCK_NAME_MiningSection && grantedSection == LOCK_NAME_GeneralSection))
+				if (   WaitedSection == data.Item1
+					|| (WaitedSection == LOCK_NAME_MiningSection && data.Item1 == LOCK_NAME_GeneralSection))
 					Dispatch();
 			}
 

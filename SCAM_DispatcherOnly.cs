@@ -457,10 +457,7 @@ void Ctor()
 		);
 
 	/* Create the main dispatcher object. */
-	dispatcherService = new Dispatcher(IGC, stateWrapper);
-
-	/* Create a docking port manager. */
-	dockHost = new DockHost(Me, dispatcherService, GridTerminalSystem);
+	dispatcherService = new Dispatcher(Me, GridTerminalSystem, IGC, stateWrapper);
 
 	if (stateWrapper.PState.ShaftStates.Count > 0)
 	{
@@ -843,15 +840,15 @@ void Main(string param, UpdateType updateType)
 		}
 		else if (m.Tag == "apck.depart.complete")
 		{
-			dockHost?.DepartComplete(m.Source.ToString());
+			dispatcherService.dockHost.DepartComplete(m.Source.ToString());
 		}
 		else if (m.Tag == "apck.depart.request") //TODO: Never used???
 		{
-			dockHost.RequestDocking(m.Source, (Vector3D)m.Data, true);
+			dispatcherService.dockHost.RequestDocking(m.Source, (Vector3D)m.Data, true);
 		}
 		else if (m.Tag == "apck.docking.request")
 		{
-			dockHost.RequestDocking(m.Source, (Vector3D)m.Data);
+			dispatcherService.dockHost.RequestDocking(m.Source, (Vector3D)m.Data);
 		}
 		//else if (m.Tag == "apck.depart.complete") //TODO: Never executed, because same condition is already above.
 		//{
@@ -884,7 +881,9 @@ void Main(string param, UpdateType updateType)
 
 	/* Update the GUI. */
 	guiH?.UpdateTaskSummary(dispatcherService);
-	dockHost.Handle(IGC, TickCount);
+
+	/* Handle docking port related stuff. */
+	dispatcherService.dockHost.Handle(IGC, TickCount);
 
 	if (rawPanel != null)
 	{
@@ -942,7 +941,7 @@ public void GPStaskHandler(string[] cmdString)
 		if (guiSeat == null)
 		{
 			E.Log("WARNING: the normal was not supplied and there is no Control Station available to check if we are in gravity");
-			n = -dockHost.GetNormal();
+			n = -dispatcherService.dockHost.GetNormal();
 			E.Log("Using 'first dock connector Backward' as a normal");
 		}
 		else
@@ -955,7 +954,7 @@ public void GPStaskHandler(string[] cmdString)
 			}
 			else
 			{
-				n = -dockHost.GetNormal();
+				n = -dispatcherService.dockHost.GetNormal();
 				E.Log("Using 'first dock connector Backward' as a normal");
 			}
 		}
@@ -1095,6 +1094,7 @@ Dispatcher dispatcherService;
  */
 public class Dispatcher
 {
+	public DockHost          dockHost; ///< Docking port manager for ATC duties.
 	public List<Subordinate> subordinates = new List<Subordinate>();
 
 	public Action<MiningTask> OnTaskUpdate;
@@ -1103,7 +1103,7 @@ public class Dispatcher
 	{
 		public long Id;               ///< Handle of the agent's programmable block.
 		public string ObtainedLock;
-		public float Echelon;
+		public float Echelon;         ///< [m]
 		public string Group;
 		public TransponderMsg Report; ///< Last received transponder status (position, velocity, ...).
 	}
@@ -1122,10 +1122,18 @@ public class Dispatcher
 
 	StateWrapper stateWrapper;
 
-	public Dispatcher(IMyIntergridCommunicationSystem igc, StateWrapper stateWrapper)
+	public Dispatcher(
+		IMyProgrammableBlock me,
+		IMyGridTerminalSystem gts,
+		IMyIntergridCommunicationSystem igc,
+		StateWrapper stateWrapper
+	)
 	{
 		IGC = igc;
 		this.stateWrapper = stateWrapper;
+		
+		/* Create a docking port manager. */
+		dockHost = new DockHost(me, this, gts);
 	}
 
 	/**
@@ -1308,8 +1316,20 @@ public class Dispatcher
 		 * Grant immediately to the applicant.             */
 		var cand = stateWrapper.PState.airspaceLockRequests[pref];
 		stateWrapper.PState.airspaceLockRequests.RemoveAt(pref);
-		subordinates.First(s => s.Id == cand.id).ObtainedLock = cand.lockName;
-		IGC.SendUnicastMessage(cand.id, "miners", "common-airspace-lock-granted:" + cand.lockName);
+		
+		var sub = subordinates.First(s => s.Id == cand.id);
+		sub.ObtainedLock = cand.lockName;
+
+		Vector3D _n = dockHost.GetNormal();
+		var data = new MyTuple<string, Vector3D, Vector3D>(
+			cand.lockName,        // granted lock
+			dockHost.p_base       // point on the flight level
+			+ _n * Variables.Get<float>("getAbove-altitude")
+			+ _n * sub.Echelon,
+			_n                    // normal vector of the flight level
+		);
+
+		IGC.SendUnicastMessage(cand.id, "miners", data);
 		Log(cand.lockName + " granted to " + GetSubordinateName(cand.id), E.LogLevel.Debug);
 	}
 
@@ -2016,8 +2036,6 @@ static class UserCtrlTest
 }
 
 
-DockHost dockHost;
-
 /**
  * \brief Docking port manager.
  */
@@ -2026,7 +2044,7 @@ public class DockHost
 	Dispatcher             dispatcher;
 	List<IMyShipConnector> ports;      ///< All managed docking ports.
 	Dictionary<IMyShipConnector, Vector3D> pPositions = new Dictionary<IMyShipConnector, Vector3D>(); // Positions of `ports`.
-	Vector3D               p_base;     ///< Location of the highest connector.
+	public Vector3D        p_base;     ///< Location of the highest connector.
 
 	/**
 	 * \brief Detects all available docking ports for the dispatcher.

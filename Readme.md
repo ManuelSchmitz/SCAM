@@ -238,7 +238,7 @@ There are two more airspace locks, "general" and "force-finish", which have lega
 #### `miners` (ATC)
 
 - Sent from the dispatcher to the agent in response to a `common-airspace-ask-for-lock` broadcast, granting an airspace lock.
-- The payload shall contain `common-airspace-lock-granted:<section>`.
+- The payload shall contain the granted section's name, a point on the agent's flight level and the normal vector of the flight level. (This defines the individual flight level plane for the agent.).
 
 #### `miners.handshake.reply` (Dispatching)
 
