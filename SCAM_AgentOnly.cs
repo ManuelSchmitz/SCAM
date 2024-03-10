@@ -1985,9 +1985,20 @@ public class MinerController
 				}
 
 				/* Lay in a course to above the shaft. */
-				c.CommandAutoPillock("command:create-wp:Name=xy,Ng=Forward,AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':',';')
-                                          + ":" + VectorOpsHelper.V3DtoBroadcastString(c.AddEchelonOffset(c.pState.getAbovePt.Value)));
-				c.pState.currentWp = c.AddEchelonOffset(c.pState.getAbovePt.Value);
+
+				/* Calculate the intersection of the shaft
+				 * axis with the assigned flight level. */
+				double e = Vector3D.Dot(c.GetMiningPlaneNormal(), c.pState.n_FL);
+				//TODO: Can the mining plane be orthogonal to the flight levels?
+				//      Then is e == 0.
+				double d = Vector3D.Dot(c.pState.p_FL - c.pState.miningEntryPoint.Value, c.pState.n_FL) / e;
+				var aboveShaft = c.pState.miningEntryPoint.Value
+				               + c.GetMiningPlaneNormal() * d;
+
+				c.CommandAutoPillock("command:create-wp:Name=xy,Ng=Forward,AimNormal=" 
+				    + VectorOpsHelper.V3DtoBroadcastString( c.GetMiningPlaneNormal() ).Replace(':',';')
+				    + ":" + VectorOpsHelper.V3DtoBroadcastString(aboveShaft));
+				c.pState.currentWp = aboveShaft;
 				c.SetState(MinerState.ReturningToShaft);
 				return;
 
