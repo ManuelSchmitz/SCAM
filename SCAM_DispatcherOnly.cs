@@ -1469,7 +1469,7 @@ public class Dispatcher
 
 		foreach (var s in subordinates)
 		{
-			E.Echo(s.Id + ": echelon = " + s.Echelon + " lock: " + s.ObtainedLock);
+			E.Echo(s.Report.name + ": F/L=" + s.Echelon + ", LCK: " + s.ObtainedLock);
 		}
 	}
 

@@ -2349,8 +2349,9 @@ public class MinerController
 			/* Construct point above docking port: To the position of the docking port, add
 			 * (a) the echelon offset (optional) and
 			 * (b) the get-above altitude.                                                   */
-			var aboveDock = c.AddEchelonOffset(otherConnector.WorldMatrix.Translation, otherConnector.WorldMatrix.Backward)
-                                - otherConnector.WorldMatrix.Backward * Variables.Get<float>("getAbove-altitude");
+			var aboveDock = c.AddEchelonOffset(otherConnector.WorldMatrix.Translation, 
+			                                   otherConnector.WorldMatrix.Backward)
+                    + otherConnector.WorldMatrix.Forward * Variables.Get<float>("getAbove-altitude");
 
 			var seq = "[command:pillock-mode:Disabled],[command:create-wp:Name=Dock.Echelon,Ng=Forward:"
 						+ VectorOpsHelper.V3DtoBroadcastString(aboveDock) + "]";
