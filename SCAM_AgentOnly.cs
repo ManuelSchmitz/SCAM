@@ -2368,12 +2368,16 @@ public class MinerController
 
 		void HandleUnload(IMyShipConnector otherConnector)
 		{
-			/* Construct point above docking port: To the position of the docking port, add
-			 * (a) the echelon offset (optional) and
-			 * (b) the get-above altitude.                                                   */
-			var aboveDock = c.AddEchelonOffset(otherConnector.WorldMatrix.Translation, 
-			                                   otherConnector.WorldMatrix.Backward)
-                    + otherConnector.WorldMatrix.Forward * Variables.Get<float>("getAbove-altitude");
+			/* Calculate the intersection of the docking
+			 * port axis with the assigned flight level. */
+			double e = Vector3D.Dot(otherConnector.WorldMatrix.Forward, c.pState.n_FL);
+			if (Math.Abs(e) < 1e-5) {
+				//TODO: Docking axis and flight level are parallel! What to do?
+				E.Echo("Error: Docking axis and flight level are parallel. Cannot compute flight plan.");
+			}
+			double d = Vector3D.Dot(c.pState.p_FL - otherConnector.WorldMatrix.Translation, c.pState.n_FL) / e; 
+			var aboveDock = otherConnector.WorldMatrix.Translation
+			              + otherConnector.WorldMatrix.Forward * d;
 
 			var seq = "[command:pillock-mode:Disabled],[command:create-wp:Name=Dock.Echelon,Ng=Forward:"
 						+ VectorOpsHelper.V3DtoBroadcastString(aboveDock) + "]";

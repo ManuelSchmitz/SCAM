@@ -1313,7 +1313,10 @@ public class Dispatcher
 			return; // No lock granteable.
 			
 		/* Requested lock is not held by any other agent.
-		 * Grant immediately to the applicant.             */
+		 * Grant immediately to the applicant.
+		 *
+		 * Also, make sure the agent knows its flight level,
+		 * because it is entering controlled airspace.     */
 		var cand = stateWrapper.PState.airspaceLockRequests[pref];
 		stateWrapper.PState.airspaceLockRequests.RemoveAt(pref);
 		
