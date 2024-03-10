@@ -1826,6 +1826,19 @@ public class MinerController
 		}
 
 		/**
+		 * \brief Calculates the intersection of the shaft axis with the flight
+		 * level.
+		 */
+		public Vector3D CalcShaftAbovePoint()
+		{
+			double e = Vector3D.Dot(c.GetMiningPlaneNormal(), c.pState.n_FL);
+			//TODO: Can the mining plane be orthogonal to the flight levels?
+			//      Then is e == 0.
+			double d = Vector3D.Dot(c.pState.p_FL - c.pState.miningEntryPoint.Value, c.pState.n_FL) / e;
+			return c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * d;
+		}
+
+		/**
 		 * \brief Processes the agent's state transitions.
 		 */
 		public void HandleState(MinerState state)
@@ -1836,7 +1849,7 @@ public class MinerController
 				if (c.pState.bRecalled) {
 					c.SetState(MinerState.GoingToUnload);
 					c.drills.ForEach(d => d.Enabled = false);
-					var pt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
+					var pt = CalcShaftAbovePoint();
 					c.CommandAutoPillock("command:create-wp:Name=GoingToUnload,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
 					c.pState.currentWp = pt;
 					return;
@@ -1934,7 +1947,7 @@ public class MinerController
 					{
 						mc.SetState(MinerState.GoingToUnload);
 						mc.drills.ForEach(d => d.Enabled = false);
-						var pt = c.AddEchelonOffset(c.pState.getAbovePt.Value);
+						var pt = CalcShaftAbovePoint();
 						mc.CommandAutoPillock("command:create-wp:Name=GoingToUnload,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
 						c.pState.currentWp = pt;
 					});
@@ -1988,13 +2001,7 @@ public class MinerController
 
 				/* Calculate the intersection of the shaft
 				 * axis with the assigned flight level. */
-				double e = Vector3D.Dot(c.GetMiningPlaneNormal(), c.pState.n_FL);
-				//TODO: Can the mining plane be orthogonal to the flight levels?
-				//      Then is e == 0.
-				double d = Vector3D.Dot(c.pState.p_FL - c.pState.miningEntryPoint.Value, c.pState.n_FL) / e;
-				var aboveShaft = c.pState.miningEntryPoint.Value
-				               + c.GetMiningPlaneNormal() * d;
-
+				var aboveShaft = CalcShaftAbovePoint();
 				c.CommandAutoPillock("command:create-wp:Name=xy,Ng=Forward,AimNormal=" 
 				    + VectorOpsHelper.V3DtoBroadcastString( c.GetMiningPlaneNormal() ).Replace(':',';')
 				    + ":" + VectorOpsHelper.V3DtoBroadcastString(aboveShaft));
