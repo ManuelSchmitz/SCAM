@@ -15,6 +15,7 @@
 	- `command:set-value:max-generations` - Now set on the LCD screen menu.
 	- `command:static-dock` - Has been removed along with the `Lone` role.
 	- `command:static-dock-gps` - Has been removed along with the `Lone` role.
+	- `command:set-value:getAbove-altitude` (Agent) - Value now controlled centrally by the dispatcher, and distributed to the agents automatically.
 3. Copy the [dispatcher script](bin/script_dispatcher.cs) to the dispatcher and recompile.
 4. Copy the [agent script](bin/script_agent.cs) to all agents and recompile.
 

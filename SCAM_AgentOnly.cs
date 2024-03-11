@@ -60,7 +60,6 @@ static class Variables
 {
 	static Dictionary<string, object> v = new Dictionary<string, object> {
 		{ "circular-pattern-shaft-radius", new Variable<float> { value = 3.6f, parser = s => float.Parse(s) } },
-		{ "getAbove-altitude", new Variable<float> { value = 20, parser = s => float.Parse(s) } },
 		{ "ct-raycast-range", new Variable<float> { value = 1000, parser = s => float.Parse(s) } },
 		{ "preferred-container", new Variable<string> { value = "", parser = s => s } },
 		{ "group-constraint", new Variable<string> { value = "general", parser = s => s } },
