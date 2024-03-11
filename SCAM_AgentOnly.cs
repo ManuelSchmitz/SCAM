@@ -1754,6 +1754,24 @@ public class MinerController
 		}
 
 		/**
+		 * \brief Calculates the intersection of the docking port axis with the
+		 * flight level.
+		 * \param[in] r_D A point on the docking port axis, e.g. the center of the
+		 * docking connector.
+		 * \param[in] n_D The unit normal vector pointing away from the connector.
+		 */
+		public Vector3D CalcDockAbovePoint(Vector3D r_D, Vector3D n_D)
+		{
+			double e = Vector3D.Dot(n_D, c.pState.n_FL);
+			if (Math.Abs(e) < 1e-5) {
+				//TODO: Docking axis and flight level are parallel! What to do?
+				E.Echo("Error: Docking axis and flight level are parallel. Cannot compute flight plan.");
+			}
+			double d = Vector3D.Dot(c.pState.p_FL - r_D, c.pState.n_FL) / e; 
+			return r_D + n_D * d;
+		}
+
+		/**
 		 * \brief Processes the agent's state transitions.
 		 */
 		public void HandleState(MinerState state)
@@ -2001,14 +2019,7 @@ public class MinerController
 
 					/* Calculate the intersection of the docking port
 					 * axis with the assigned flight level.           */
-					double e = Vector3D.Dot(dv.OrientationUnit.Value.Forward, c.pState.n_FL);
-					if (Math.Abs(e) < 1e-5) {
-						//TODO: Docking axis and flight level are parallel! What to do?
-						E.Echo("Error: Docking axis and flight level are parallel. Cannot compute flight plan.");
-					}
-					double d = Vector3D.Dot(c.pState.p_FL - dv.Position.Value, c.pState.n_FL) / e;
-					var r_aboveDock = dv.Position.Value
-					                + dv.OrientationUnit.Value.Forward * d;
+					var r_aboveDock = CalcDockAbovePoint(dv.Position.Value, dv.OrientationUnit.Value.Forward);
 
 					/* Command the final approach to the AP. */
 					c.CommandAutoPillock("command:create-wp:Name=DynamicDock.echelon,Ng=Forward,AimNormal="
@@ -2027,9 +2038,8 @@ public class MinerController
 				if (!dv.Position.HasValue)
 					return; // We have not yet received a position information for the docking port.
 						
-				/* Lay in a course to above the shaft. */
-				Vector3D r_aboveDock = c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward)
-				                     - dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude");
+				/* Lay in a course to above the docking port. */
+				var r_aboveDock = CalcDockAbovePoint(dv.Position.Value, dv.OrientationUnit.Value.Forward);
 							
 				//TODO: Set AimNormal to direction of docking port, not mining plane.
 				c.CommandAutoPillock("command:create-wp:Name=xy,Ng=Forward,AimNormal=" + VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':',';')
@@ -2312,14 +2322,7 @@ public class MinerController
 		{
 			/* Calculate the intersection of the docking
 			 * port axis with the assigned flight level. */
-			double e = Vector3D.Dot(otherConnector.WorldMatrix.Forward, c.pState.n_FL);
-			if (Math.Abs(e) < 1e-5) {
-				//TODO: Docking axis and flight level are parallel! What to do?
-				E.Echo("Error: Docking axis and flight level are parallel. Cannot compute flight plan.");
-			}
-			double d = Vector3D.Dot(c.pState.p_FL - otherConnector.WorldMatrix.Translation, c.pState.n_FL) / e; 
-			var aboveDock = otherConnector.WorldMatrix.Translation
-			              + otherConnector.WorldMatrix.Forward * d;
+			var aboveDock = CalcDockAbovePoint(otherConnector.WorldMatrix.Translation, otherConnector.WorldMatrix.Forward);
 
 			var seq = "[command:pillock-mode:Disabled],[command:create-wp:Name=Dock.Echelon,Ng=Forward:"
 						+ VectorOpsHelper.V3DtoBroadcastString(aboveDock) + "]";
