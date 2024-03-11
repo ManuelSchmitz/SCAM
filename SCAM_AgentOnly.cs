@@ -1370,15 +1370,6 @@ public class MinerController
 		return pt;
 	}
 
-	public Vector3D AddEchelonOffset(Vector3D pt, Vector3D normal)
-	{
-		if (Echelon.HasValue)
-		{
-			return pt - normal * Echelon.Value;
-		}
-		return pt;
-	}
-
 	/**
 	 * \brief Plan the agent's way home.
 	 * \details To be called when the agent is above the shaft, at the intersection
