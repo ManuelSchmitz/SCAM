@@ -60,7 +60,6 @@ static class Variables
 {
 	static Dictionary<string, object> v = new Dictionary<string, object> {
 		{ "circular-pattern-shaft-radius", new Variable<float> { value = 3.6f, parser = s => float.Parse(s) } },
-		{ "echelon-offset", new Variable<float> { value = 12f, parser = s => float.Parse(s) } },
 		{ "getAbove-altitude", new Variable<float> { value = 20, parser = s => float.Parse(s) } },
 		{ "ct-raycast-range", new Variable<float> { value = 1000, parser = s => float.Parse(s) } },
 		{ "preferred-container", new Variable<string> { value = "", parser = s => s } },
@@ -309,7 +308,7 @@ void Ctor()
 					"force-finish", (parts) => minerController?.FinishAndDockHandler()
 				},
 				{
-					"static-dock", (parts) => minerController?.SetStaticDockOverrideHandler(parts)
+					"static-dock", (parts) => Log("command:static-dock is deprecated.")
 				},
 				{
 					"set-state", (parts) => minerController?.TrySetState(parts[2])
@@ -324,14 +323,7 @@ void Ctor()
 					"save", (parts) => stateWrapper?.Save()
 				},
 				{
-					"static-dock-gps", (parts) => {
-							if ((minerController != null) && (minerController.fwReferenceBlock != null))
-							{
-								minerController.fwReferenceBlock.CustomData = "GPS:static-dock:" +
-									(stateWrapper.PState.StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(
-										stateWrapper.PState.StaticDockOverride.Value) : "-") + ":";
-							}
-						}
+					"static-dock-gps", (parts) => Log("command:static-dock-gps is deprecated.")
 				},
 				{
 					"dispatch", (parts) => minerController?.Dispatch()
@@ -462,7 +454,6 @@ public class StateWrapper
 	{
 		var currentState = PState;
 		PState = new PersistentState();
-		PState.StaticDockOverride = currentState.StaticDockOverride;
 		PState.LifetimeAcceptedTasks = currentState.LifetimeAcceptedTasks;
 		PState.LifetimeOperationTime = currentState.LifetimeOperationTime;
 		PState.LifetimeWentToMaintenance = currentState.LifetimeWentToMaintenance;
@@ -514,9 +505,6 @@ public class PersistentState
 	public float LifetimeOreAmount = 0;
 	public float LifetimeYield = 0;
 	public bool bRecalled; ///< Has the agent been oredered to return to base?
-
-	// cleared by specific command
-	public Vector3D? StaticDockOverride { get; set; }
 
 	// cleared by clear-storage-state (task-dependent)
 	public MinerState MinerState = MinerState.Idle;
@@ -606,7 +594,6 @@ public class PersistentState
 			LifetimeYield = ParseValue<float>(values, "LifetimeYield");
 			bRecalled     = ParseValue<bool> (values, "bRecalled");
 
-			StaticDockOverride = ParseValue<Vector3D?>(values, "StaticDockOverride");
 			MinerState = ParseValue<MinerState>(values, "MinerState");
 			miningPlaneNormal = ParseValue<Vector3D?>(values, "miningPlaneNormal");
 			getAbovePt = ParseValue<Vector3D?>(values, "getAbovePt");
@@ -655,7 +642,6 @@ public class PersistentState
 			"LifetimeOreAmount=" + LifetimeOreAmount,
 			"LifetimeYield=" + LifetimeYield,
 			"bRecalled=" + bRecalled,
-			"StaticDockOverride=" + (StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(StaticDockOverride.Value) : ""),
 			"MinerState=" + MinerState,
 			"miningPlaneNormal=" + (miningPlaneNormal.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningPlaneNormal.Value) : ""),
 			"getAbovePt=" + (getAbovePt.HasValue ? VectorOpsHelper.V3DtoBroadcastString(getAbovePt.Value) : ""),
@@ -772,7 +758,6 @@ void Main(string param, UpdateType updateType)
 			
 	minerController.Handle(uniMsgs);
 	E.Echo("Min3r state: " + minerController.GetState());
-	E.Echo("Static dock override: " + (stateWrapper.PState.StaticDockOverride.HasValue ? "ON" : "OFF"));
 	E.Echo("Dispatcher: " + minerController.DispatcherId);
 	E.Echo("Echelon: " + minerController.Echelon);
 	E.Echo("HoldingLock: " + minerController.ObtainedLock);
@@ -1377,14 +1362,6 @@ public class MinerController
 		}
 	}
 
-	public void SetStaticDockOverrideHandler(string[] cmdString)
-	{
-		if ((cmdString.Length > 2) && (cmdString[2] == "clear"))
-			pState.StaticDockOverride = null;
-		else
-			pState.StaticDockOverride = fwReferenceBlock.WorldMatrix.Translation;
-	}
-
 	public Vector3D AddEchelonOffset(Vector3D pt)
 	{
 		if (Echelon.HasValue)
@@ -1403,55 +1380,6 @@ public class MinerController
 		return pt;
 	}
 
-	public bool TryUsingStaticDock(bool generateApproachWp)
-	{
-		if (pState.StaticDockOverride.HasValue)
-		{
-			string dFinal = "command:create-wp:Name=StaticDock,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pState.StaticDockOverride.Value);
-
-			if (!WholeAirspaceLocking)
-				ReleaseLock(LOCK_NAME_GeneralSection);
-
-			if (Echelon.HasValue)
-			{
-				dFinal = "command:create-wp:Name=StaticDock.echelon,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(AddEchelonOffset(pState.StaticDockOverride.Value))
-					+ ":" + dFinal;
-			}
-
-			if (generateApproachWp)
-			{
-				if (pState.getAbovePt.HasValue)
-					CommandAutoPillock("command:create-wp:Name=StaticDock.getAbovePt,Ng=Forward,SpeedLimit=" + Variables.Get<float>("speed-clear")
-						+ ":" + VectorOpsHelper.V3DtoBroadcastString(
-						AddEchelonOffset(pState.getAbovePt.Value)) + ":" + dFinal);
-				else
-				{
-					/*
-					double elevaton;
-					remCon.TryGetPlanetElevation(MyPlanetElevation.Surface, out elevaton);
-					*/
-					// elevation below surface is Abs
-					var dockP = pState.StaticDockOverride.Value;
-					Vector3D plCenter;
-					remCon.TryGetPlanetPosition(out plCenter);
-					var dockAlt = dockP - plCenter;
-					var myAlt = (fwReferenceBlock.GetPosition() - plCenter);
-					var plNorm = Vector3D.Normalize(myAlt);
-					var alt = dockAlt.Length() > myAlt.Length() ? dockAlt : myAlt;
-					var approachP = plCenter + plNorm * (alt.Length() + 100f);
-					CommandAutoPillock("command:create-wp:Name=StaticDock.approachP,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(approachP) + ":" + dFinal);
-				}
-			}
-			else
-			{
-				CommandAutoPillock(dFinal);
-			}
-
-			return true;
-		}
-		return false;
-	}
-
 	/**
 	 * \brief Plan the agent's way home.
 	 * \details To be called when the agent is above the shaft, at the intersection
@@ -1462,29 +1390,16 @@ public class MinerController
 	 */
 	public void ArrangeDocking()
 	{
-		if (pState.StaticDockOverride.HasValue)
-		{
-			if (TryUsingStaticDock(false)) //TODO: Call with "true", if bRecall set???
-			{
-				// Static docking, we are safe at own echelon
-				if (!WholeAirspaceLocking)
-					ReleaseLock(ObtainedLock);
-				SetState(MinerState.Docking);
-			}
-		}
-		else
-		{
-			if (DispatcherId.HasValue)
-			{
-				// Multi-agent mode, dynamic docking, respect shared space
-				// Release lock as we are safe at own echelon while sitting on WaitingForDocking
-				if (!WholeAirspaceLocking)
-					ReleaseLock(ObtainedLock);
-				InvalidateDockingDto?.Invoke();
-				IGC.SendUnicastMessage(DispatcherId.Value, "apck.docking.request", docker.GetPosition());
-				SetState(MinerState.WaitingForDocking);
-			}
-		}
+		if (!DispatcherId.HasValue)
+			return;
+		
+		// Multi-agent mode, dynamic docking, respect shared space
+		// Release lock as we are safe at own echelon while sitting on WaitingForDocking
+		if (!WholeAirspaceLocking)
+			ReleaseLock(ObtainedLock);
+		InvalidateDockingDto?.Invoke();
+		IGC.SendUnicastMessage(DispatcherId.Value, "apck.docking.request", docker.GetPosition());
+		SetState(MinerState.WaitingForDocking);
 	}
 
 	/** \brief Processes the "force-finish" command.                           */
@@ -2118,8 +2033,6 @@ public class MinerController
 				if (c.docker.Status != MyShipConnectorStatus.Connected) {
 					if (c.DockingHandled)
 						c.DockingHandled = false;
-					if (c.pState.StaticDockOverride.HasValue)
-						c.docker.Connect();
 					return;
 				}
 

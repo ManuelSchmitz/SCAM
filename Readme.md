@@ -13,6 +13,8 @@
 	- `command:set-value:skip-depth` - Now set on the LCD screen menu.
 	- `command:set-role` - Now determined by the script. (Separate scripts for agent and dispatcher.)
 	- `command:set-value:max-generations` - Now set on the LCD screen menu.
+	- `command:static-dock` - Has been removed along with the `Lone` role.
+	- `command:static-dock-gps` - Has been removed along with the `Lone` role.
 3. Copy the [dispatcher script](bin/script_dispatcher.cs) to the dispatcher and recompile.
 4. Copy the [agent script](bin/script_agent.cs) to all agents and recompile.
 
@@ -188,6 +190,13 @@ mining site, or near the base. Agents must aquire a local airspace lock for that
 Base and mining site must not overlap, or there will be undefined behaviour.
 
 There are two more airspace locks, "general" and "force-finish", which have legacy or special functionalities.
+
+### Docking
+
+Another specific task of ATC is the assignment of docking ports. Agents will request a docking port, and the dispatcher will assign a free port for landing.
+
+TBD: What happens whan all docking ports are busy?
+TBD: Naming of ports
 
 ## Protocol Messages
 
