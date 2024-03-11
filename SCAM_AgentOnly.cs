@@ -1998,8 +1998,19 @@ public class MinerController
 				c.EnterSharedSpace(LOCK_NAME_BaseSection, mc =>
 				{
 					TargetTelemetry dv = c.ntv("docking");
-					Vector3D r_aboveDock = c.AddEchelonOffset(dv.Position.Value, dv.OrientationUnit.Value.Backward)
-					                     - dv.OrientationUnit.Value.Backward * Variables.Get<float>("getAbove-altitude");
+
+					/* Calculate the intersection of the docking port
+					 * axis with the assigned flight level.           */
+					double e = Vector3D.Dot(dv.OrientationUnit.Value.Forward, c.pState.n_FL);
+					if (Math.Abs(e) < 1e-5) {
+						//TODO: Docking axis and flight level are parallel! What to do?
+						E.Echo("Error: Docking axis and flight level are parallel. Cannot compute flight plan.");
+					}
+					double d = Vector3D.Dot(c.pState.p_FL - dv.Position.Value, c.pState.n_FL) / e;
+					var r_aboveDock = dv.Position.Value
+					                + dv.OrientationUnit.Value.Forward * d;
+
+					/* Command the final approach to the AP. */
 					c.CommandAutoPillock("command:create-wp:Name=DynamicDock.echelon,Ng=Forward,AimNormal="
 					+ VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')
 					+ ",TransformChannel=docking:"
