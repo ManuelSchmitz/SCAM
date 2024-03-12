@@ -1392,21 +1392,12 @@ public class Dispatcher
 			sb.Report.UpdateFromIgc(data.Item2);
 
 			IGC.SendUnicastMessage(msg.Source, "miners.handshake.reply", IGC.Me);
-			IGC.SendUnicastMessage(msg.Source, "miners.echelon", sb.Echelon);
 
 			/* If there is a task, inform the new agent about the normal vector. */
 			if (stateWrapper.PState.miningPlaneNormal.HasValue)
 			{
 				IGC.SendUnicastMessage(msg.Source, "miners.normal", stateWrapper.PState.miningPlaneNormal.Value);
 			}
-			var vals = new string[] { "getAbove-altitude" };
-			Scheduler.C.After(500).RunCmd(() => {
-				foreach (var v in vals)
-				{
-					Log($"Propagating set-value:'{v}' to " + sb.Report.name, E.LogLevel.Debug);
-					IGC.SendUnicastMessage(msg.Source, "set-value", $"{v}:{Variables.Get<float>(v)}");
-				}
-			});
 		}
 
 		/* Process agent's status reports. */
