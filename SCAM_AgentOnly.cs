@@ -429,7 +429,7 @@ public enum MinerState : byte
 	Docked                = 7, ///< Docked to base. Fuel tanks are no stockpile, and batteries on recharge.
 	ReturningToShaft      = 8, ///< Traveling from base to point above shaft on a reserved flight level.
 	AscendingInShaft      = 9, ///< Slowly ascending in the shaft after drilling. Waiting for permission to enter airspace above shaft.
-	ChangingShaft        = 10,
+	ChangingShaft        = 10, ///< Ascending from the shaft, through shafed airspace, into assigned flight level.
 	Maintenance          = 11,
 	//ForceFinish          = 12, (deprecated, now replaced by bRecalled)
 	Takeoff              = 13, ///< Ascending from docking port, through shared airspace, into assigned flight level.
@@ -1673,9 +1673,11 @@ public class MinerController
 				{
 					x.SetState(MinerState.ChangingShaft);
 					x.drills.ForEach(d => d.Enabled = false);
+
+					/* We may not have been assigned a flight level at
+					 * this point. Simply start 15 m above the shaft.  */
 					var depth = -15;
-					var pt = x.AddEchelonOffset(c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth);
-					//x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
+					var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
 					var entryBeh = $"command:create-wp:Name=ChangingShaft,Ng=Forward,UpNormal=1;0;0," +
 						$"AimNormal={VectorOpsHelper.V3DtoBroadcastString(c.GetMiningPlaneNormal()).Replace(':', ';')}" +
 						$":{VectorOpsHelper.V3DtoBroadcastString(pt)}";
@@ -1685,11 +1687,17 @@ public class MinerController
 			});
 		}
 
+		/**
+		 * \brief To be called when the job is done, and the agent has ascended
+		 * back to the top of the shaft.
+		 * \details Will request a new job from the dispatcher.
+		 */
 		public void SkipShaft()
 		{
 			if (c.pState.CurrentJobMaxShaftYield < prevTickValCount + currentShaftValTotal - preShaftValTotal)
 				c.pState.CurrentJobMaxShaftYield = prevTickValCount + currentShaftValTotal - preShaftValTotal;
 
+			/* If no ore found on the job, tell the dispatcher "the direction is bad". */
 			if (Toggle.C.Check("adaptive-mining"))
 			{
 				// can CurrentJobMaxShaftYield be zero?
@@ -1703,21 +1711,15 @@ public class MinerController
 			AccountChangeShaft();
 			lastFoundOreDepth = null;
 
-			var depth = -15;
-			var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
-
-			// WaitingForLockInShaft -> ChangingShaft
-
-			//c.SetState(State.WaitingForDispatch);
-
+			/* Wait for a new job, then go into the ChangingShaft state. */
+			var pt = CalcShaftAbovePoint(); // Remember the point above the old shaft.
 			c.UnicastToDispatcher("shaft-complete-request-new", c.pState.CurrentShaftId.Value);
-
 			c.WaitForDispatch("", mc => {
 				c.EnterSharedSpace(LOCK_NAME_MiningSection, x =>
 				{
 					x.SetState(MinerState.ChangingShaft);
 					x.drills.ForEach(d => d.Enabled = false);
-					x.CommandAutoPillock("command:create-wp:Name=ChangingShaft,Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
+					x.CommandAutoPillock("command:create-wp:Name=ChangingShaft (Ascent),Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
 					c.pState.currentWp = pt;
 				});
 			});
@@ -1876,25 +1878,20 @@ public class MinerController
 					});
 				}
 				else
-				{
-					// we reached depth limit
+					/* Current job is done, request a new one. */
 					SkipShaft();
-				}
 
 			} else if (state == MinerState.ChangingShaft) {
 
 				// triggered 15m above old mining entry
-				if (CurrentWpReached(0.5f))
-				{
-					var depth = -15;
-					var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
-					c.AddEchelonOffset(pt);
-					c.CommandAutoPillock("command:create-wp:Name=GoingToEntry (ChangingShaft),Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
-					c.pState.currentWp = pt;
-					//c.SetState(State.GoingToEntry);
-					c.SetState(MinerState.ReturningToShaft);
-					/* Keep the "mining-site" lock! */
-				}
+				if (!CurrentWpReached(0.5f))
+					return; // Not reached the point above the shaft yet. Keep flying.
+				
+				var pt = CalcShaftAbovePoint();
+				c.CommandAutoPillock("command:create-wp:Name=ChangingShaft (Traverse),Ng=Forward:" + VectorOpsHelper.V3DtoBroadcastString(pt));
+				c.pState.currentWp = pt;
+				c.SetState(MinerState.ReturningToShaft);
+				c.ReleaseLock(c.ObtainedLock);
 			}
 
 			if (state == MinerState.Takeoff)
