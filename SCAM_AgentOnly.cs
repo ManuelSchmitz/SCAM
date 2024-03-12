@@ -22,7 +22,6 @@ class Program : MyGridProgram {
 #region mdk preserve
 const string Ver = "0.10.0"; // Must be the same on dispatcher and agents.
 
-static bool WholeAirspaceLocking = false;
 static long DbgIgc = 0;
 //static long DbgIgc = 76932813351402441; // pertam
 //static long DbgIgc = 141426525525683227; // space
@@ -758,7 +757,6 @@ void Main(string param, UpdateType updateType)
 	minerController.Handle(uniMsgs);
 	E.Echo("Min3r state: " + minerController.GetState());
 	E.Echo("Dispatcher: " + minerController.DispatcherId);
-	E.Echo("Echelon: " + minerController.Echelon);
 	E.Echo("HoldingLock: " + minerController.ObtainedLock);
 	E.Echo("WaitedSection: " + minerController.WaitedSection);
 	E.Echo($"Estimated shaft radius: {Variables.Get<float>("circular-pattern-shaft-radius"):f2}");
@@ -904,7 +902,6 @@ public class MinerController
 	public MiningJob CurrentJob { get; private set; }
 
 	public long? DispatcherId;
-	public float? Echelon;              ///< [m] Additional vertical distance from the docking port and mining plane. 
 	public string ObtainedLock = "";
 	public string WaitedSection = "";
 	public bool WaitingForLock;
@@ -1145,12 +1142,6 @@ public class MinerController
 				DispatcherId = msg.Source;
 			}
 
-			if (msg.Tag == "miners.echelon")
-			{
-				Log("Was assigned an echelon of " + msg.Data);
-				Echelon = (float)msg.Data;
-			}
-
 			if (msg.Tag == "miners.normal")
 			{
 				var normal = (Vector3D)msg.Data;
@@ -1361,15 +1352,6 @@ public class MinerController
 		}
 	}
 
-	public Vector3D AddEchelonOffset(Vector3D pt)
-	{
-		if (Echelon.HasValue)
-		{
-			return pt - GetMiningPlaneNormal() * Echelon.Value;
-		}
-		return pt;
-	}
-
 	/**
 	 * \brief Plan the agent's way home.
 	 * \details To be called when the agent is above the shaft, at the intersection
@@ -1385,8 +1367,7 @@ public class MinerController
 		
 		// Multi-agent mode, dynamic docking, respect shared space
 		// Release lock as we are safe at own echelon while sitting on WaitingForDocking
-		if (!WholeAirspaceLocking)
-			ReleaseLock(ObtainedLock);
+		ReleaseLock(ObtainedLock);
 		InvalidateDockingDto?.Invoke();
 		IGC.SendUnicastMessage(DispatcherId.Value, "apck.docking.request", docker.GetPosition());
 		SetState(MinerState.WaitingForDocking);

@@ -22,7 +22,6 @@ class Program : MyGridProgram {
 #region mdk preserve
 const string Ver = "0.10.0"; // Must be the same on dispatcher and agents.
 
-//static bool WholeAirspaceLocking = false;
 static long DbgIgc = 0;
 //static long DbgIgc = 76932813351402441; // pertam
 //static long DbgIgc = 141426525525683227; // space
