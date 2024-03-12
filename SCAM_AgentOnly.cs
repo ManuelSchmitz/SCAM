@@ -1064,7 +1064,7 @@ public class MinerController
 		report.f_cargo_max = Variables.Get<float>("cargo-full-factor");
 		report.bAdaptive   = Toggle.C.Check("adaptive-mining");
 		report.bRecalled   = pState.bRecalled;
-		report.t_shaft     = CurrentJob != null ? CurrentJob.currentDepth : 0f;
+		report.t_shaft     = CurrentJob != null ? CurrentJob.GetCurrentDepth() : 0f;
 		report.t_ore       = CurrentJob != null ? CurrentJob.lastFoundOreDepth.GetValueOrDefault(0f) : 0f;
 		report.bUnload     = bUnloading;
 		report.name        = me.CubeGrid.CustomName;
@@ -1215,7 +1215,7 @@ public class MinerController
 				report.f_cargo_max = Variables.Get<float>("cargo-full-factor");
 				report.bAdaptive   = Toggle.C.Check("adaptive-mining");
 				report.bRecalled   = pState.bRecalled;
-				report.t_shaft     = CurrentJob != null ? CurrentJob.currentDepth : 0f;
+				report.t_shaft     = CurrentJob != null ? CurrentJob.GetCurrentDepth() : 0f;
 				report.t_ore       = CurrentJob != null ? CurrentJob.lastFoundOreDepth.GetValueOrDefault(0f) : 0f;
 				report.bUnload     = bUnloading;
 				report.name        = me.CubeGrid.CustomName;
@@ -1784,7 +1784,7 @@ public class MinerController
 			} else if (state == MinerState.Drilling) {
 
 				/* Update some reporting stuff. */
-				currentDepth = (float)(c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length();
+				float currentDepth = GetCurrentDepth();
 				E.Echo($"Depth: current: {currentDepth:f1} skip: {c.pState.skipDepth:f1}");
 				E.Echo($"Depth: least: {c.pState.leastDepth:f1} max: {c.pState.maxDepth:f1}");
 				E.Echo($"Cargo: {c.cargoFullness_cached:f2} / " + Variables.Get<float>("cargo-full-factor").ToString("f2"));
@@ -2173,7 +2173,6 @@ public class MinerController
 		 */
 		void GetOutTheShaft()
 		{
-			currentDepth = 0;
 			c.SetState(MinerState.AscendingInShaft);
 
 			var depth = Math.Min(8, (c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value).Length());
@@ -2212,7 +2211,6 @@ public class MinerController
 			return sb.ToString();
 		}
 
-		public float currentDepth;        ///< Last recorded depth inside the shaft.
 		public float SessionOreMined;
 		public DateTime SessionStartedAt;
 
@@ -2239,6 +2237,21 @@ public class MinerController
 			{
 				c.pState.maxFoundOreDepth = value;
 			}
+		}
+
+		/**
+		 * \brief Returns the current depth in the shaft.
+		 * \details Negative value, if above the shaft.
+		 */
+		public float GetCurrentDepth()
+		{
+			if (   c.pState.MinerState == MinerState.Drilling
+			    || c.pState.MinerState == MinerState.GoingToEntry
+					|| c.pState.MinerState == MinerState.GoingToUnload
+					|| c.pState.MinerState == MinerState.AscendingInShaft
+					|| c.pState.MinerState == MinerState.ChangingShaft)
+				return (float)Vector3D.Dot(c.fwReferenceBlock.WorldMatrix.Translation - c.pState.miningEntryPoint.Value, c.pState.miningPlaneNormal.Value);
+			return 0f; // Agent is not in the shaft axis.
 		}
 
 		public float GetShaftYield()
