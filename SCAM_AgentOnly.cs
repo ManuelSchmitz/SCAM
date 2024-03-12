@@ -1486,6 +1486,9 @@ public class MinerController
 		return true;
 	}
 
+	/**
+	 * \brief Returns true, iff no damage, fueled and sufficient battery charge.
+	 */
 	bool CheckBatteriesAndIntegrity(float desiredBatteryLevel, float desiredGasLevel)
 	{
 		allFunctionalBlocks.ForEach(x => TagDamagedTerminalBlocks(x, GetMyTerminalBlockHealth(x), true)); //TODO: Call with "false", when bRecall is set?
@@ -2058,8 +2061,8 @@ public class MinerController
 					return;
 				}
 						
-				// Docking => Maintenance => Disabled => Docking
-				if (!c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-low-factor"), Variables.Get<float>("gas-low-factor"))) {
+				/* Wait until repaired, recharged and refuled. */
+				if (!c.CheckBatteriesAndIntegrity(1f, 1f)) {
 					/* We need to remain docked for maintenance. */
 					c.SetState(MinerState.Maintenance);
 					c.pState.LifetimeWentToMaintenance++;

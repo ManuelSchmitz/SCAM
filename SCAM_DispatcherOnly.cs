@@ -2745,10 +2745,10 @@ public class GuiHandler
 			offX += 55;
 			offX += 22;
 			frame.Add(new MySprite(SpriteType.TEXT,
-				(su.Report.f_bat * 100f).ToString("f0") + "%",
+				Math.Truncate(su.Report.f_bat * 100f).ToString("f0") + "%",
 				new Vector2(startX + offX, startY + offY), null, (su.Report.f_bat > su.Report.f_bat_min ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
 			frame.Add(new MySprite(SpriteType.TEXT,
-				(su.Report.f_fuel * 100f).ToString("f0") + "%",
+				Math.Truncate(su.Report.f_fuel * 100f).ToString("f0") + "%",
 				new Vector2(startX + offX, startY + offY + fontHeight), null, (su.Report.f_fuel > su.Report.f_fuel_min ? Color.DarkKhaki : Color.DarkRed), "Debug", TextAlignment.CENTER, 0.5f));
 			offX += 22;
 			offX += 22;
