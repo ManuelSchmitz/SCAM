@@ -399,7 +399,8 @@ void Ctor()
 					"add-gui-controller", (parts) => {
 						List<IMyShipController> b = new List<IMyShipController>();
 						GridTerminalSystem.GetBlocksOfType(b, x => x.IsSameConstructAs(Me) && x.CustomName.Contains(parts[2]));
-						guiSeat = b.FirstOrDefault();
+						guiSeat                   = b.FirstOrDefault();
+						dispatcherService.guiSeat = b.FirstOrDefault();
 						if (guiSeat != null)
 							E.Log($"Added {guiSeat.CustomName} as GUI controller");
 					}
@@ -429,6 +430,12 @@ void Ctor()
 					"create-task-gps", (parts) => GPStaskHandler(parts)
 				},
 				{
+					"init-airspace", (parts) => {
+						Log("Warning: Initizing airspace by force. Possible undefined behaviour.", E.LogLevel.Warning);
+						dispatcherService?.InitializeAirspace();
+					}
+				},
+				{
 					"recall", (parts) => dispatcherService?.Recall()
 				},
 				{
@@ -456,7 +463,7 @@ void Ctor()
 		);
 
 	/* Create the main dispatcher object. */
-	dispatcherService = new Dispatcher(Me, GridTerminalSystem, IGC, stateWrapper);
+	dispatcherService = new Dispatcher(Me, GridTerminalSystem, IGC, stateWrapper, guiSeat);
 
 	if (stateWrapper.PState.ShaftStates.Count > 0)
 	{
@@ -617,6 +624,10 @@ public class PersistentState
 	public Vector3D? corePoint;
 	public float? shaftRadius;
 
+	/* Airspace geometry. */
+	public Vector3D n_Airspace;  ///< Normal vector of flight planes.
+	public Vector3D p_Airspace;  ///< Point at the minimum safe altitude (MSA).
+
 	/* Task parameters. */
 	public TaskLayout layout;    ///< Layout of the shaft arrangement. (future tasks)
 	public TaskLayout layout_cur;///< Layout of the shaft arrangement. (current task)
@@ -657,6 +668,11 @@ public class PersistentState
 				return (T)(object)long.Parse(res);
 			else if (typeof(T) == typeof(long?))
 				return (T)(object)long.Parse(res);
+			else if (typeof(T) == typeof(Vector3D))
+			{
+				var d = res.Split(':');
+				return (T)(object)new Vector3D(double.Parse(d[0]), double.Parse(d[1]), double.Parse(d[2]));
+			}
 			else if (typeof(T) == typeof(Vector3D?))
 			{
 				var d = res.Split(':');
@@ -701,6 +717,10 @@ public class PersistentState
 		corePoint = ParseValue<Vector3D?>(values, "corePoint");
 		shaftRadius = ParseValue<float?>(values, "shaftRadius");
 
+		/* Airspace geometry. */
+		n_Airspace = ParseValue<Vector3D>   (values, "n_Airspace");
+		p_Airspace = ParseValue<Vector3D>   (values, "p_Airspace");
+
 		/* Task Parameters. */
 		layout     = ParseValue<TaskLayout> (values, "layout");
 		layout_cur = ParseValue<TaskLayout> (values, "layout_cur");
@@ -740,6 +760,10 @@ public class PersistentState
 			"miningPlaneNormal=" + (miningPlaneNormal.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningPlaneNormal.Value) : ""),
 			"corePoint=" + (corePoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(corePoint.Value) : ""),
 			"shaftRadius=" + shaftRadius,
+
+			/* Airspace Geometry. */
+			"n_Airspace=" + VectorOpsHelper.V3DtoBroadcastString(n_Airspace),
+			"p_Airspace=" + VectorOpsHelper.V3DtoBroadcastString(p_Airspace),
 
 			/* Task Parameters. */
 			"layout=" + layout,
@@ -928,6 +952,9 @@ public void GPStaskHandler(string[] cmdString)
 		return;
 	}
 
+	/* Prepare the airspace (ATC). */
+	dispatcherService.InitializeAirspace();
+
 	var vdtoArr = cmdString.Skip(2).ToArray();
 	var pos = new Vector3D(double.Parse(vdtoArr[0]), double.Parse(vdtoArr[1]), double.Parse(vdtoArr[2]));
 	Vector3D n;
@@ -1053,6 +1080,9 @@ public void RaycastTaskHandler(string[] cmdString)
 								return;
 							}
 
+							/* Prepare the airspace (ATC). */
+							dispatcherService.InitializeAirspace();
+
 							dispatcherService.BroadcastStart(c);
 							dispatcherService.CreateTask(
 								Variables.Get<float>("circular-pattern-shaft-radius"),
@@ -1118,18 +1148,20 @@ public class Dispatcher
 	}
 
 	IMyIntergridCommunicationSystem IGC;
-
-	StateWrapper stateWrapper;
+	StateWrapper                    stateWrapper;
+	public IMyShipController        guiSeat;
 
 	public Dispatcher(
 		IMyProgrammableBlock me,
 		IMyGridTerminalSystem gts,
 		IMyIntergridCommunicationSystem igc,
-		StateWrapper stateWrapper
+		StateWrapper stateWrapper,
+		IMyShipController guiSeat
 	)
 	{
 		IGC = igc;
 		this.stateWrapper = stateWrapper;
+		this.guiSeat      = guiSeat;
 		
 		/* Create a docking port manager. */
 		dockHost = new DockHost(me, this, gts);
@@ -1325,10 +1357,12 @@ public class Dispatcher
 		Vector3D _n = dockHost.GetNormal();
 		var data = new MyTuple<string, Vector3D, Vector3D>(
 			cand.lockName,        // granted lock
-			dockHost.p_base       // point on the flight level
-			+ _n * Variables.Get<float>("getAbove-altitude")
-			+ _n * sub.Echelon,
-			_n                    // normal vector of the flight level
+			//dockHost.p_base       // point on the flight level
+			//+ _n * Variables.Get<float>("getAbove-altitude")
+			//+ _n * sub.Echelon,
+			stateWrapper.PState.p_Airspace
+			+ stateWrapper.PState.n_Airspace * sub.Echelon,
+			stateWrapper.PState.n_Airspace // normal vector of the flight level
 		);
 
 		IGC.SendUnicastMessage(cand.id, "miners", data);
@@ -1423,6 +1457,9 @@ public class Dispatcher
 					Log("Cannot start new task: All agents must be in Idle or Disabled state.");
 					continue;
 				}
+	
+				/* Prepare the airspace (ATC). */
+				InitializeAirspace();
 
 				var data = (MyTuple<float, Vector3D, Vector3D>)msg.Data;
 
@@ -1689,6 +1726,23 @@ public class Dispatcher
 			public Vector2 Point; ///< [m] Point in the mining plane
 			public int Id;
 		}
+	}
+
+	/**
+	 * \brief Constructs a local airspace geometry w.r.t. world coordinates.
+	 * \note To be called when all agents are either disabled or idle.
+	 */
+	public void InitializeAirspace()
+	{
+		Vector3D _n;
+		if (guiSeat != null && guiSeat.TryGetPlanetPosition(out _n))
+			_n = -Vector3D.Normalize(_n - guiSeat.WorldMatrix.Translation); // We are in a planetary gravity.
+		else
+			_n = dockHost.GetNormal(); // We are outside of planetary gravity.
+		stateWrapper.PState.n_Airspace = _n;
+		stateWrapper.PState.p_Airspace = dockHost.p_base
+		                               + _n * Variables.Get<float>("getAbove-altitude");
+		Log("Airspace initialised to current dispatcher location.", E.LogLevel.Notice);
 	}
 
 	/**

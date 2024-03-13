@@ -126,6 +126,8 @@ The recall command can be issued in four different ways:
 
 A recall flag `R` will show up on the GUI screen for the recalled agent.
 
+TBD: Do agents abandon the current job (if they have one)?
+
 ## Logging
 
 ### Dispatcher
@@ -166,11 +168,20 @@ Starts a mining task:
    4. The dispatcher will send a `command` / `mine` message to all same-group agents.
 8. The same-group agents will start mining ...
 
+A task can only be created when all agents are either `Disabled` or `Idle`.
+
+### `command:init-airspace`
+
+Forcibly re-initialises the airspace geometry. This usually leads to undefined agent flight behaviour, including possible collisions.
+
+This command exists for rare situations, and should only be called by experts. The airspace is automatically initialised when a new task is created.
+
+
 ## Air Traffic Control (ATC)
 
 ATC pevents collisions in mid-air. It grants permissions to the agents when it is safe for them to proceed into protected areas of the airspace.
 
-Generally, agents move along horizontal planes, so called _flight levels_. Each agent has its own flight level.
+Generally, agents move along horizontal planes, so called _flight levels_. Each agent has its own flight level. Flight levels are assigned when an agent requests any airspace lock.
 
 Agents can also move vertically, accross the flight levels of other agents. This happens at the
 mining site, or near the base. Agents must aquire a local airspace lock for that:
@@ -190,7 +201,23 @@ mining site, or near the base. Agents must aquire a local airspace lock for that
 
 Base and mining site must not overlap, or there will be undefined behaviour.
 
-There are two more airspace locks, "general" and "force-finish", which have legacy or special functionalities.
+### Airspace Geometry
+
+The position and orientation of the flight levels w.r.t. world coordinates is fixed when a new task is created. This is because a task can only be created, when all agents are either docked or under manual control. (state `Disabled` or `Idle`) This step is called _airspace initialization_.
+
+How exacly the airspace is initialized depends on the situation:
+
+| Setup            | Flight Level Orientation        | Flight Level Position |
+| ---------------- | ------------------------------- | --------------------- |
+| Planetary Base   | orthogonal to gravity           | `getAbove-altitude` above the highest docking port |
+| Rover            | orthogonal to gravity           | `getAbove-altitude` above the highest docking port |
+| Space (Carrier)  | orthogonal to docking port axis | `getAbove-altitude` away from the most protuding docking port |
+
+A re-initialization of the airspace can be forced by executing `command:init-airspace` on the dispatcher. Doing this while agents are on the air may yield undefined behaviour!
+
+It is important that mobile dispatchers are not moving during mining operations. However, a small deviation can be compensated.
+
+
 
 ### Docking
 
