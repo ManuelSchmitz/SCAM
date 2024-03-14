@@ -523,7 +523,21 @@ public enum MinerState : byte
 	ReturningHome        = 14, ///< Traveling from the point above the shaft to the base on a reserved flight level.
 	Docking              = 15  ///< Descending to the docking port through shared airspace. (docking final approach)
 }
-	
+
+
+/** \brief A slice of the sky. */
+public struct FlightLevelLease {
+	int  h0;   ///< [m] Lower altitude, measured from the get-above altitude.
+	int  h1;   ///< [m] Higher altitude, measured from the get-above altitude.
+	long agent;///< ID of the owning agent's PB.
+	public FlightLevelLease(int _h0, int _h1, long _id) { h0 = _h0; h1 = _h1; agent = _id; }
+	public override string ToString() { return $"{h0},{h1},{agent}"; }
+	public static FlightLevelLease Parse(string s) {
+		var t = s.Split(',');
+		return new FlightLevelLease(int.Parse(t[0]), int.Parse(t[1]), long.Parse(t[2]));
+	}
+}
+
 
 /** \brief The layout of the mining task's shaft. */
 public enum TaskLayout : byte {
@@ -620,6 +634,8 @@ public class PersistentState
 	public long logLCD;                            ///< Entity ID of the logging screen.
 	public List<LockRequest> airspaceLockRequests  ///< Airspace lock queue.
 	                         = new List<LockRequest>();
+	public List<FlightLevelLease> flightLevels     ///< Assigned flight levels, ordered in ascending order.
+	                         = new List<FlightLevelLease>();
 	public Vector3D? miningPlaneNormal;
 	public Vector3D? corePoint;
 	public float? shaftRadius;
@@ -695,6 +711,14 @@ public class PersistentState
 			{
 				return (T)Enum.Parse(typeof(TaskLayout), res);
 			}
+			else if (typeof(T) == typeof(List<FlightLevelLease>))
+			{
+				var d = res.Split(':');
+				var q = new List<FlightLevelLease>();
+				foreach (var f in d)
+					q.Add(FlightLevelLease.Parse(f));
+				return (T)(object)(q);
+			}
 		}
 		return default(T);
 	}
@@ -713,6 +737,7 @@ public class PersistentState
 		StaticDockOverride   = ParseValue<Vector3D?>        (values, "StaticDockOverride");
 		logLCD               = ParseValue<long>             (values, "logLCD");
 		airspaceLockRequests = ParseValue<List<LockRequest>>(values, "airspaceLockRequests") ?? new List<LockRequest>();
+		flightLevels         = ParseValue<List<FlightLevelLease>>(values, "flightLevels") ?? new List<FlightLevelLease>();
 		miningPlaneNormal    = ParseValue<Vector3D?>        (values, "miningPlaneNormal");
 		corePoint = ParseValue<Vector3D?>(values, "corePoint");
 		shaftRadius = ParseValue<float?>(values, "shaftRadius");
@@ -757,6 +782,7 @@ public class PersistentState
 			"StaticDockOverride=" + (StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(StaticDockOverride.Value) : ""),
 			"logLCD=" + logLCD,
 			"airspaceLockRequests=" + string.Join(":", airspaceLockRequests),
+			"flightLevels=" + string.Join(":", flightLevels),
 			"miningPlaneNormal=" + (miningPlaneNormal.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningPlaneNormal.Value) : ""),
 			"corePoint=" + (corePoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(corePoint.Value) : ""),
 			"shaftRadius=" + shaftRadius,
