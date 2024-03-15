@@ -526,7 +526,7 @@ public enum MinerState : byte
 
 
 /** \brief A slice of the sky. */
-public struct FlightLevelLease {
+public class FlightLevelLease {
 	public int  h0;   ///< [m] Lower altitude, measured from the get-above altitude.
 	public int  h1;   ///< [m] Higher altitude, measured from the get-above altitude.
 	public long agent;///< ID of the owning agent's PB.
@@ -1168,7 +1168,6 @@ public class Dispatcher
 	{
 		public long Id;               ///< Handle of the agent's programmable block.
 		public string ObtainedLock;
-		public float Echelon;         ///< [m]
 		public string Group;
 		public TransponderMsg Report; ///< Last received transponder status (position, velocity, ...).
 	}
@@ -1306,7 +1305,9 @@ public class Dispatcher
 						continue;
 
 					/* If the other agent is traveling on a higher flight level, no problem. */
-					if (applicant.Echelon < sb.Echelon)
+					int idx_fl_applicant = stateWrapper.PState.flightLevels.FindIndex(s => s.agent == agentId);
+					int idx_fl_other     = stateWrapper.PState.flightLevels.FindIndex(s => s.agent == sb.Id);
+					if (idx_fl_applicant >= 0 && idx_fl_applicant < idx_fl_other)
 						continue;
 
 					/* If the other agent is holding position and
@@ -1446,7 +1447,7 @@ public class Dispatcher
 			Subordinate sb;
 			if (!subordinates.Any(s => s.Id == msg.Source))
 			{
-				sb = new Subordinate { Id = msg.Source, Echelon = (subordinates.Count + 1) * Variables.Get<float>("echelon-offset") + 10f, Group = data.Item1 };
+				sb = new Subordinate { Id = msg.Source, Group = data.Item1 };
 				subordinates.Add(sb);
 				sb.Report = new TransponderMsg();
 			}
@@ -1551,7 +1552,9 @@ public class Dispatcher
 
 		foreach (var s in subordinates)
 		{
-			E.Echo(s.Report.name + ": F/L=" + s.Echelon + ", LCK: " + s.ObtainedLock);
+			var fl = stateWrapper.PState.flightLevels.FirstOrDefault(f => f.agent == s.Id);
+			string s_fl = (fl == null ? "n/a" : $"({fl.h0},{fl.h1})");
+			E.Echo(s.Report.name + ": F/L=" + s_fl + ", LCK: " + s.ObtainedLock);
 		}
 	}
 
