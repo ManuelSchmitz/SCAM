@@ -487,7 +487,8 @@ MinerState.WaitingForDocking:case MinerState.ReturningToShaft:case MinerState.Re
 Report.v)>0&&dist.Length()>50.0)continue;if(dist.Length()>600.0)continue;if(applicant.Echelon<sb.Echelon)continue;if(sb.Report
 .v.Length()<=0.1&&stateWrapper.PState.airspaceLockRequests.Any(s=>s.id==sb.Id))continue;return false;}}}return true;}
 public void GrantAirspaceLocks(){int pref=-1;Subordinate pref_sb=new Subordinate();for(int i=0;i<stateWrapper.PState.
-airspaceLockRequests.Count();++i){var sb=subordinates.First(s=>s.Id==stateWrapper.PState.airspaceLockRequests[i].id);if(sb==null){Log($"Agent {stateWrapper.PState.airspaceLockRequests[i].id} is no longer a subordinate. Dropping its request for airspace lock."
+airspaceLockRequests.Count();++i){var sb=subordinates.FirstOrDefault(s=>s.Id==stateWrapper.PState.airspaceLockRequests[i].id);if(sb==null){
+Log($"Agent {stateWrapper.PState.airspaceLockRequests[i].id} is no longer a subordinate. Dropping its request for airspace lock."
 ,E.LogLevel.Warning);stateWrapper.PState.airspaceLockRequests.RemoveAt(i);--i;continue;}if(!IsLockGranteable(stateWrapper
 .PState.airspaceLockRequests[i].lockName,stateWrapper.PState.airspaceLockRequests[i].id))continue;if(pref<0){pref=i;
 pref_sb=sb;continue;}if(pref_sb.Report.state==MinerState.Docked&&sb.Report.state!=MinerState.Docked){pref=i;pref_sb=sb;continue
