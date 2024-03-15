@@ -2363,7 +2363,7 @@ public class GuiHandler
 	Dispatcher _dispatcher;
 	StateWrapper _stateWrapper;
 	Vector2 viewPortSize;
-	int current_page = 0; ///< The page that is currently being displayed.
+	int current_page = 2; ///< The page that is currently being displayed.
 	const int agents_per_page = 8; ///< [-] Number of agents that can be listed per page. 
 
 
@@ -2388,7 +2388,7 @@ public class GuiHandler
 
 		x_btn += 20 + 10 + 42;
 
-		var bRecall = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Recall");
+		var bRecall = CreateButton(2, p, btnSize, new Vector2(x_btn, y_btn), "Recall");
 		bRecall.OnClick = xy => {
 			dispatcher.Recall();
 		};
@@ -2397,7 +2397,7 @@ public class GuiHandler
 		
 		x_btn += 42 + 10 + 42;
 
-		var bResume = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Resume");
+		var bResume = CreateButton(2, p, btnSize, new Vector2(x_btn, y_btn), "Resume");
 		bResume.OnClick = xy => {
 			dispatcher.BroadcastResume();
 		};
@@ -2406,7 +2406,7 @@ public class GuiHandler
 		
 		x_btn += 42 + 10 + 42;
 
-		var bClearLog = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Clear log");
+		var bClearLog = CreateButton(2, p, btnSize, new Vector2(x_btn, y_btn), "Clear log");
 		bClearLog.OnClick = xy => {
 			E.ClearLog();
 		};
@@ -2414,7 +2414,7 @@ public class GuiHandler
 		
 		x_btn += 42 + 10 + 42;
 
-		var bPurgeLocks = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Purge locks");
+		var bPurgeLocks = CreateButton(2, p, btnSize, new Vector2(x_btn, y_btn), "Purge locks");
 		bPurgeLocks.OnClick = xy => {
 			dispatcher.PurgeLocks();
 		};
@@ -2423,7 +2423,7 @@ public class GuiHandler
 		
 		x_btn += 42 + 10 + 42;
 
-		var bHalt = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "EMRG HALT");
+		var bHalt = CreateButton(2, p, btnSize, new Vector2(x_btn, y_btn), "EMRG HALT");
 		bHalt.OnClick = xy => {
 			dispatcher.BroadCastHalt();
 		};
@@ -2452,7 +2452,7 @@ public class GuiHandler
 
 		/* Buttons for the Task/Job parameters page. */
 
-		var bLayout = CreateButton(1, p, new Vector2(110, 30), new Vector2(300, 55), _stateWrapper.PState.layout.ToString(), 0.6f);
+		var bLayout = CreateButton(0, p, new Vector2(110, 30), new Vector2(300, 55), _stateWrapper.PState.layout.ToString(), 0.6f);
 		bLayout.OnClick = xy => {
 			_stateWrapper.PState.layout = (TaskLayout)(((byte)_stateWrapper.PState.layout + 1) % 2);
 			bLayout.fgSprite.Data = _stateWrapper.PState.layout.ToString();
@@ -2461,7 +2461,7 @@ public class GuiHandler
 		controls.Add(bLayout);
 
 		{
-			var chkDense = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,90));
+			var chkDense = CreateCheckbox(0, new Vector2(30, 30), new Vector2(300,90));
 			chkDense.bChecked = _stateWrapper.PState.bDense;
 			chkDense.OnClick = xy => {
 				chkDense.bChecked = (_stateWrapper.PState.bDense = !_stateWrapper.PState.bDense);
@@ -2470,56 +2470,56 @@ public class GuiHandler
 			controls.Add(chkDense);
 		}
 
-		var bIncMaxGen = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 125), "+", 1.2f);
+		var bIncMaxGen = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 125), "+", 1.2f);
 		bIncMaxGen.OnClick = xy => {
 			++_stateWrapper.PState.maxGen;
 		};
 		AddTipToAe(bIncMaxGen, "Increase size of next task. (0 is single shaft only)");
 		controls.Add(bIncMaxGen);
 
-		var bDecMaxGen = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 125), "-", 1.2f);
+		var bDecMaxGen = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 125), "-", 1.2f);
 		bDecMaxGen.OnClick = xy => {
 			_stateWrapper.PState.maxGen = Math.Max(0, --_stateWrapper.PState.maxGen);
 		};
 		AddTipToAe(bDecMaxGen, "Decrease size of next task. (0 is single shaft only)");
 		controls.Add(bDecMaxGen);
 
-		var bIncDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 195), "+", 1.2f);
+		var bIncDepthLimit = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 195), "+", 1.2f);
 		bIncDepthLimit.OnClick = xy => {
 			_stateWrapper.PState.maxDepth += 5f;
 		};
 		AddTipToAe(bIncDepthLimit, "Increase depth limit by 5 m");
 		controls.Add(bIncDepthLimit);
 
-		var bDecDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 195), "-", 1.2f);
+		var bDecDepthLimit = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 195), "-", 1.2f);
 		bDecDepthLimit.OnClick = xy => {
 			_stateWrapper.PState.maxDepth = Math.Max(_stateWrapper.PState.leastDepth, _stateWrapper.PState.maxDepth - 5f);
 		};
 		AddTipToAe(bDecDepthLimit, "Decrease depth limit by 5 m");
 		controls.Add(bDecDepthLimit);
 
-		var bIncSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 230), "+", 1.2f);
+		var bIncSkipDepth = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 230), "+", 1.2f);
 		bIncSkipDepth.OnClick = xy => {
 			_stateWrapper.PState.skipDepth = Math.Min(_stateWrapper.PState.maxDepth, _stateWrapper.PState.skipDepth + 5f);
 		};
 		AddTipToAe(bIncSkipDepth, "Increase skip-depth by 5 m");
 		controls.Add(bIncSkipDepth);
 
-		var bDecSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 230), "-", 1.2f);
+		var bDecSkipDepth = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 230), "-", 1.2f);
 		bDecSkipDepth.OnClick = xy => {
 			_stateWrapper.PState.skipDepth = Math.Max(0f, _stateWrapper.PState.skipDepth - 5f);
 		};
 		AddTipToAe(bDecSkipDepth, "Decrease skip-depth by 5 m");
 		controls.Add(bDecSkipDepth);
 
-		var bIncLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 265), "+", 1.2f);
+		var bIncLeastDepth = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 265), "+", 1.2f);
 		bIncLeastDepth.OnClick = xy => {
 			_stateWrapper.PState.leastDepth = Math.Min(_stateWrapper.PState.maxDepth, _stateWrapper.PState.leastDepth + 5f);
 		};
 		AddTipToAe(bIncLeastDepth, "Increase least-depth by 5 m");
 		controls.Add(bIncLeastDepth);
 
-		var bDecLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 265), "-", 1.2f);
+		var bDecLeastDepth = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 265), "-", 1.2f);
 		bDecLeastDepth.OnClick = xy => {
 			_stateWrapper.PState.leastDepth = Math.Max(0f, _stateWrapper.PState.leastDepth - 5f);
 		};
@@ -2527,7 +2527,7 @@ public class GuiHandler
 		controls.Add(bDecLeastDepth);
 
 		{
-			var chkAdaptive = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,300));
+			var chkAdaptive = CreateCheckbox(0, new Vector2(30, 30), new Vector2(300,300));
 			chkAdaptive.bChecked = Toggle.C.Check("adaptive-mining");
 			chkAdaptive.OnClick = xy => {
 				chkAdaptive.bChecked = Toggle.C.Invert("adaptive-mining");
@@ -2537,7 +2537,7 @@ public class GuiHandler
 		}
 
 		{
-			var chkAdjEntry = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,335));
+			var chkAdjEntry = CreateCheckbox(0, new Vector2(30, 30), new Vector2(300,335));
 			chkAdjEntry.bChecked = Toggle.C.Check("adjust-entry-by-elevation");
 			chkAdjEntry.OnClick = xy => {
 				chkAdjEntry.bChecked = Toggle.C.Invert("adjust-entry-by-elevation");
@@ -2546,14 +2546,14 @@ public class GuiHandler
 			controls.Add(chkAdjEntry);
 		}
 		
-		var bIncSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 370), "+", 1.2f);
+		var bIncSafetyDist = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 370), "+", 1.2f);
 		bIncSafetyDist.OnClick = xy => {
 			_stateWrapper.PState.safetyDist += 0.2f;
 		};
 		AddTipToAe(bIncSafetyDist, "Increase safety distance by 0.2 (multiple of the shaft diameter).");
 		controls.Add(bIncSafetyDist);
 
-		var bDecSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 370), "-", 1.2f);
+		var bDecSafetyDist = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 370), "-", 1.2f);
 		bDecSafetyDist.OnClick = xy => {
 			_stateWrapper.PState.safetyDist = Math.Max(1f, _stateWrapper.PState.safetyDist - 0.2f);
 		};
@@ -2649,7 +2649,7 @@ public class GuiHandler
 		/* Enable/disable buttons for controlling individual drones. */
 		for (int i = 0; i < 8; ++i)
 			//TODO: Take into account multiple pages of agents.
-			recallBtns[i].Visible = (current_page == 0
+			recallBtns[i].Visible = (current_page == 2
 			                      && i < _dispatcher.subordinates.Count()
 														&& _dispatcher.subordinates[i].Report.state != MinerState.Disabled
 														&& _dispatcher.subordinates[i].Report.state != MinerState.Idle
@@ -2660,7 +2660,7 @@ public class GuiHandler
 		using (var frame = panel.DrawFrame())
 		{
 			/* Render the agent status table. */
-			if (current_page == 0)
+			if (current_page == 2)
 				DrawReportRepeater(frame);
 
 			foreach (var ae in controls.Union(shaftControls).Union(recallBtns).Where(x => x.Visible && (x.page == current_page || x.page < 0)))
@@ -2676,17 +2676,17 @@ public class GuiHandler
 			foreach (var ae in controls.Union(shaftControls).Union(recallBtns).Where(x => x.Visible && (x.page == current_page || x.page < 0)))
 				frame.AddRange(ae.GetSprites());
 
-			if (current_page == 0)
+			if (current_page == 2)
 				frame.Add(shaftTip);
 
 			frame.Add(buttonTip);
 
-			if (current_page == 0) {
+			if (current_page == 2) {
 				frame.Add(taskSummary);
 
 				/* Draw the agent icons. */
 				DrawAgents(frame);
-			} else if (current_page == 1)
+			} else if (current_page == 0)
 				DrawDispatcherParameters(frame);
 
 			/* Render mouse cursor. */
@@ -2988,7 +2988,7 @@ public class GuiHandler
 
 			var hoverColor = Color.Red;
 			
-			var btn = new ActiveElement(0, btnSize, pos);
+			var btn = new ActiveElement(2, btnSize, pos);
 			btn.bkSprite0 = new MySprite(SpriteType.TEXTURE, "Circle", new Vector2(0, 0), btnSize, mainCol);
 			btn.bkSprite1 = new MySprite(SpriteType.TEXTURE, "Circle", new Vector2(0, 0), btnSize, hoverColor);
 
