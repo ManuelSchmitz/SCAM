@@ -527,9 +527,9 @@ public enum MinerState : byte
 
 /** \brief A slice of the sky. */
 public struct FlightLevelLease {
-	int  h0;   ///< [m] Lower altitude, measured from the get-above altitude.
-	int  h1;   ///< [m] Higher altitude, measured from the get-above altitude.
-	long agent;///< ID of the owning agent's PB.
+	public int  h0;   ///< [m] Lower altitude, measured from the get-above altitude.
+	public int  h1;   ///< [m] Higher altitude, measured from the get-above altitude.
+	public long agent;///< ID of the owning agent's PB.
 	public FlightLevelLease(int _h0, int _h1, long _id) { h0 = _h0; h1 = _h1; agent = _id; }
 	public override string ToString() { return $"{h0},{h1},{agent}"; }
 	public static FlightLevelLease Parse(string s) {
@@ -562,6 +562,10 @@ public class StateWrapper
 		PState.StaticDockOverride    = currentState.StaticDockOverride;
 		PState.LifetimeAcceptedTasks = currentState.LifetimeAcceptedTasks;
 		PState.airspaceLockRequests  = currentState.airspaceLockRequests;
+		PState.flightLevels          = currentState.flightLevels;
+		/* Airspace geometry */
+		PState.n_Airspace            = currentState.n_Airspace;
+		PState.p_Airspace            = currentState.p_Airspace;
 		/* Task Parameters */
 		PState.layout                = currentState.layout;
 		PState.bDense                = currentState.bDense;
@@ -1380,14 +1384,10 @@ public class Dispatcher
 		var sub = subordinates.First(s => s.Id == cand.id);
 		sub.ObtainedLock = cand.lockName;
 
-		Vector3D _n = dockHost.GetNormal();
 		var data = new MyTuple<string, Vector3D, Vector3D>(
 			cand.lockName,        // granted lock
-			//dockHost.p_base       // point on the flight level
-			//+ _n * Variables.Get<float>("getAbove-altitude")
-			//+ _n * sub.Echelon,
-			stateWrapper.PState.p_Airspace
-			+ stateWrapper.PState.n_Airspace * sub.Echelon,
+			stateWrapper.PState.p_Airspace // point on the flight level
+			+ stateWrapper.PState.n_Airspace * ReserveFlightLevel(cand.id),
 			stateWrapper.PState.n_Airspace // normal vector of the flight level
 		);
 
@@ -1768,7 +1768,45 @@ public class Dispatcher
 		stateWrapper.PState.n_Airspace = _n;
 		stateWrapper.PState.p_Airspace = dockHost.p_base
 		                               + _n * Variables.Get<float>("getAbove-altitude");
+
+		/* Invalidate all old flight levels (if existent). */
+		stateWrapper.PState.flightLevels.Clear();
+
 		Log("Airspace initialised to current dispatcher location.", E.LogLevel.Notice);
+	}
+
+	/**
+	 * \brief Reserves a flight level for a subordinate.
+	 * \details If the subordinate already has a flight level, it is returned,
+	 * regardless of its size.
+	 */
+	public float ReserveFlightLevel(long id)
+	{
+		/* Does the subordinate already have a lease? */
+		int ex = stateWrapper.PState.flightLevels.FindIndex(s => s.agent == id);
+		if (ex >= 0) {
+			var fl = stateWrapper.PState.flightLevels[ex];
+			Log($"Existing flight level [{fl.h0}, {fl.h1}] for " + GetSubordinateName(fl.agent));
+			return 0.5f * (float)(fl.h0 + fl.h1);
+		}
+
+		/* Try to find an available space between two leases. */
+		int d = (int)Variables.Get<float>("echelon-offset"); // [m] Thickness of a flight plane.
+		int h0 = 0; // [m] lower boundary
+		int i  = 0; // Position where to insert the new lease.
+		for (; i < stateWrapper.PState.flightLevels.Count(); ++i) {
+			if (stateWrapper.PState.flightLevels[i].h0 - h0 >= d)
+				break;
+			h0 = stateWrapper.PState.flightLevels[i].h1;
+		}
+
+		/* Reserve the space. */
+		var fll = new FlightLevelLease(h0, h0 + d, id);
+		stateWrapper.PState.flightLevels.Insert(i, fll);
+		Log($"Reserved flight level [{fll.h0}, {fll.h1}] for " + GetSubordinateName(id));
+
+		/* Return center of the reserved airspace slice. */
+		return .5f * (float)(fll.h0 + fll.h1);
 	}
 
 	/**
