@@ -1795,7 +1795,7 @@ public class Dispatcher
 		int ex = stateWrapper.PState.flightLevels.FindIndex(s => s.agent == id);
 		if (ex >= 0) {
 			var fl = stateWrapper.PState.flightLevels[ex];
-			Log($"Existing flight level [{fl.h0}, {fl.h1}] for " + GetSubordinateName(fl.agent));
+			Log($"Existing flight level [{fl.h0}, {fl.h1}] for " + GetSubordinateName(fl.agent), E.LogLevel.Debug);
 			return 0.5f * (float)(fl.h0 + fl.h1);
 		}
 
@@ -1812,7 +1812,7 @@ public class Dispatcher
 		/* Reserve the space. */
 		var fll = new FlightLevelLease(h0, h0 + d, id);
 		stateWrapper.PState.flightLevels.Insert(i, fll);
-		Log($"Reserved flight level [{fll.h0}, {fll.h1}] for " + GetSubordinateName(id));
+		Log($"Reserved flight level [{fll.h0}, {fll.h1}] for " + GetSubordinateName(id), E.LogLevel.Debug);
 
 		/* Return center of the reserved airspace slice. */
 		return .5f * (float)(fll.h0 + fll.h1);
@@ -1835,7 +1835,7 @@ public class Dispatcher
 			case MinerState.Docked:
 			case MinerState.Maintenance:
 			case MinerState.Docking:
-				Log($"Withdraw flight level [{lease.h0}, {lease.h1}] for " + subordinates[idx_sb].Report.name);
+				Log($"Withdraw flight level [{lease.h0}, {lease.h1}] for " + subordinates[idx_sb].Report.name, E.LogLevel.Debug);
 				stateWrapper.PState.flightLevels.RemoveAt(i);
 				--i;
 				break;
@@ -2559,6 +2559,10 @@ public class GuiHandler
 		};
 		AddTipToAe(bDecSafetyDist, "Decrease safety distance by 0.2 (multiple of shaft diameter).");
 		controls.Add(bDecSafetyDist);
+		
+		/* Buttons for the Airspace page. */
+
+		//TODO
 
 		shaftTip = new MySprite(SpriteType.TEXT, "", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y * 0.9f),
 			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
@@ -2688,6 +2692,8 @@ public class GuiHandler
 				DrawAgents(frame);
 			} else if (current_page == 0)
 				DrawDispatcherParameters(frame);
+			else if (current_page == 1)
+				DrawAirspace(frame);
 
 			/* Render mouse cursor. */
 			var cur = new MySprite(SpriteType.TEXTURE, "Triangle", cursP, new Vector2(7f, 10f), Color.White);
@@ -2840,6 +2846,108 @@ public class GuiHandler
 		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.safetyDist.ToString("f1"),  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
+	}
+	
+	/**
+	 * \brief Renders the airspace page.
+	 */
+	void DrawAirspace(MySpriteDrawFrame frame) {
+		int offY = 0, startY = 20;
+		int offX = 0, startX = 65;
+
+		offX += 145;
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY + offY    ), new Vector2(290 - 4, 30), Color.Black));
+		frame.Add(new MySprite(SpriteType.TEXT, "Airspace", new Vector2(startX + offX, startY + offY - 9), null, Color.White, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 145;
+		
+		offY += 35;
+		offX  = 0;
+		
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXT, "Flight Level Stride",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
+
+		offY = 0;
+		offX = 0;
+		startX += 400; // Right column
+		
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXT, "Get-above Altitude (Is)",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
+		
+		offY += 35;
+		offX  = 0;
+
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXT, "Get-above Altitude (Set)",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
+
+		/* Flight level diagram. */
+		int W = (int) viewPortSize.X - 40;          // [px] Width of the diagram
+		int H = (int)(viewPortSize.Y * 0.85f) - 120; // [px] Height of the diagram
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(20 + W / 2, 80 + H/2), new Vector2(W, H), Color.LightGray));
+		if (_stateWrapper.PState.flightLevels.Count() == 0)
+			return;
+
+		Vector3D _n = _dispatcher.dockHost.GetNormal();
+		Vector3D _p = _dispatcher.dockHost.p_base;
+		Vector3D _q = _dispatcher.CurrentTask.corePoint;
+		double l = Vector3D.Cross(_q - _p, _n).Length()
+		         + _dispatcher.CurrentTask.R;
+		
+		double dw = W / l; // [px/m] X-scale
+		int dh = Math.Min(4, H / _stateWrapper.PState.flightLevels.Last().h1); // [px/m] Y-scale
+		bool bBright = false;
+		foreach (var fl in _stateWrapper.PState.flightLevels) {
+		
+			int h = (fl.h1 - fl.h0) * dh; // [px]
+			int y = H - fl.h0 * dh - h/2; // [px]
+			int h_agent = (int)((float)h * .9f); 
+
+			frame.Add(new MySprite(
+				SpriteType.TEXTURE,
+				"SquareSimple",
+				new Vector2(20 + W / 2, 80 + y),
+				new Vector2(W, h),
+				(bBright ? Color.Darken(Color.CornflowerBlue, 0.4f) : Color.Darken(Color.CornflowerBlue, 0.5f))));
+
+			frame.Add(new MySprite(
+				SpriteType.TEXT,
+				_dispatcher.GetSubordinateName(fl.agent),
+				new Vector2(20 + W / 2, 80 + y),
+				null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
+			
+			frame.Add(new MySprite(
+				SpriteType.TEXT,
+				$"+[{fl.h0} - {fl.h1}] m",
+				new Vector2(20 + 10, 80 + y),
+				null, Color.DarkKhaki, "Debug", TextAlignment.LEFT, 0.5f));
+			
+			bBright = !bBright; // Alternating colors.
+
+			/* Subordinate position. */
+			var sb = _dispatcher.subordinates.FirstOrDefault(s => s.Id == fl.agent);
+			if (sb == null)
+				continue; // Lease holder is not a subordinate.
+
+			double d = Vector3D.Cross(sb.Report.WM.Translation - _p, _n).Length(); // [m]
+			int    x = (int)(d * dw); // [px]
+
+			var btnSpr = new MySprite(
+				SpriteType.TEXTURE,
+				"AH_BoreSight",
+				new Vector2(20 + x, 80 + y),
+				new Vector2(h_agent, h_agent), Color.Orange);
+			btnSpr.RotationOrScale = (float)Math.PI / 2f;
+			var btnSprBack = new MySprite(
+				SpriteType.TEXTURE,
+				"Textures\\FactionLogo\\Miners\\MinerIcon_3.dds",
+				new Vector2(20 + x, 80 + y),
+				new Vector2(h_agent, h_agent), Color.Black);
+			frame.Add(btnSprBack);
+			frame.Add(btnSpr);
+
+		}
 	}
 
 	/**
