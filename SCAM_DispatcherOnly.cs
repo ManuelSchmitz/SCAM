@@ -2376,12 +2376,13 @@ public class GuiHandler
 		int   x_btn = 20;
 
 		x_btn += 20;
-		var bCyclePage = CreateButton(-1, p, new Vector2(40,40), new Vector2(x_btn, y_btn), ">", 1.2f);
-		bCyclePage.OnClick = xy => {
-			current_page = (current_page + 1) % 2;
+
+		var bNextPage = CreateButton(-1, p, new Vector2(40,40), new Vector2(x_btn, y_btn), "<", 1.2f);
+		bNextPage.OnClick = xy => {
+			current_page = (current_page > 0 ? current_page - 1 : 1);
 		};
-		AddTipToAe(bCyclePage, "Next page ...");
-		controls.Add(bCyclePage);
+		AddTipToAe(bNextPage, "Previous page ...");
+		controls.Add(bNextPage);
 
 		x_btn += 20 + 10 + 42;
 
@@ -2426,6 +2427,15 @@ public class GuiHandler
 		};
 		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
 		controls.Add(bHalt);
+		
+		x_btn += 42 + 10 + 20;
+
+		var bPrevPage = CreateButton(-1, p, new Vector2(40,40), new Vector2(x_btn, y_btn), ">", 1.2f);
+		bPrevPage.OnClick = xy => {
+			current_page = (current_page + 1) % 2;
+		};
+		AddTipToAe(bPrevPage, "Next page ...");
+		controls.Add(bPrevPage);
 
 		/* Butons for recalling individual drones. */
 		for (int i = 0; i < 8; ++i) {
