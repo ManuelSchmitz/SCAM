@@ -2403,15 +2403,6 @@ public class GuiHandler
 		
 		x_btn += 42 + 10 + 42;
 
-		var bClearState = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Clear state");
-		bClearState.OnClick = xy => {
-			stateWrapper?.ClearPersistentState();
-		};
-		AddTipToAe(bClearState, "Clear Dispatcher state");
-		controls.Add(bClearState);
-		
-		x_btn += 42 + 10 + 42;
-
 		var bClearLog = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Clear log");
 		bClearLog.OnClick = xy => {
 			E.ClearLog();
