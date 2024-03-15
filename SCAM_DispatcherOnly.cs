@@ -2364,6 +2364,8 @@ public class GuiHandler
 	StateWrapper _stateWrapper;
 	Vector2 viewPortSize;
 	int current_page = 0; ///< The page that is currently being displayed.
+	const int agents_per_page = 8; ///< [-] Number of agents that can be listed per page. 
+
 
 	public GuiHandler(IMyTextSurface p, Dispatcher dispatcher, StateWrapper stateWrapper)
 	{
@@ -2379,7 +2381,7 @@ public class GuiHandler
 
 		var bNextPage = CreateButton(-1, p, new Vector2(40,40), new Vector2(x_btn, y_btn), "<", 1.2f);
 		bNextPage.OnClick = xy => {
-			current_page = (current_page > 0 ? current_page - 1 : 1);
+			current_page = (current_page > 0 ? current_page - 1 : PageCount() - 1);
 		};
 		AddTipToAe(bNextPage, "Previous page ...");
 		controls.Add(bNextPage);
@@ -2432,7 +2434,7 @@ public class GuiHandler
 
 		var bPrevPage = CreateButton(-1, p, new Vector2(40,40), new Vector2(x_btn, y_btn), ">", 1.2f);
 		bPrevPage.OnClick = xy => {
-			current_page = (current_page + 1) % 2;
+			current_page = (current_page + 1) % PageCount();
 		};
 		AddTipToAe(bPrevPage, "Next page ...");
 		controls.Add(bPrevPage);
@@ -2564,6 +2566,12 @@ public class GuiHandler
 			null, Color.White, "Debug", TextAlignment.LEFT, 0.5f);
 		taskSummary = new MySprite(SpriteType.TEXT, "No active task", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y / 20f),
 			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
+	}
+
+	/** \brief Returns the number of pages. */
+	int PageCount() {
+		return 2 // 1x task/job parameters, 1x flight levels
+		     + (_dispatcher.subordinates.Count() + agents_per_page - 1) / agents_per_page;
 	}
 
 	/**
