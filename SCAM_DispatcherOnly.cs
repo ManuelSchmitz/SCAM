@@ -509,7 +509,7 @@ public enum MinerState : byte
 	Disabled              = 0,
 	Idle                  = 1, 
 	GoingToEntry          = 2, ///< Descending to shaft, through shared airspace.
-	Drilling              = 3, ///< Descending into the shaft, until there is a reasong to leave.
+	Drilling              = 3, ///< Descending into the shaft, until there is a reason to leave.
 	//GettingOutTheShaft    = 4, (deprecated, was used for Lone mode) 
 	GoingToUnload         = 5, ///< Ascending from the shaft, through shared airspace, into assigned flight level.
 	WaitingForDocking     = 6, ///< Loitering above the shaft, waiting to be assign a docking port for returning home.
@@ -918,6 +918,12 @@ void Main(string param, UpdateType updateType)
 	E.Echo($"Version: {Ver}");
 	E.Echo(dispatcherService.ToString());
 	dispatcherService.HandleIGC(uniMsgs);
+
+	/* Clean stale flight levels.
+	 * (Don't do this immediately after start, because there may be some handshaking in progress.) */
+	//FIXME: This might be a performance problem. It is sufficient to only check every 1 s or so.
+	if (TickCount > 100)
+		dispatcherService.CleanFlightLevelLeases();
 
 	/* Check if we can grant airspace locks.
 	 * (Don't do this immediately after start, because there may be some handshaking in progress.) */
@@ -1807,6 +1813,31 @@ public class Dispatcher
 
 		/* Return center of the reserved airspace slice. */
 		return .5f * (float)(fll.h0 + fll.h1);
+	}
+
+	/**
+	 * \brief Cleans all outdated flight level leases.
+	 */
+	public void CleanFlightLevelLeases()
+	{
+		for (int i = 0; i < stateWrapper.PState.flightLevels.Count(); ++i) {
+			var lease  = stateWrapper.PState.flightLevels[i];
+			int idx_sb = subordinates.FindIndex(s => s.Id == lease.agent);
+			if (idx_sb < 0)
+				continue; // Lease granted to a non-subordinate. (?)
+			switch (subordinates[idx_sb].Report.state) {
+			case MinerState.Disabled:
+			case MinerState.Idle:
+			case MinerState.Drilling:
+			case MinerState.Docked:
+			case MinerState.Maintenance:
+			case MinerState.Docking:
+				Log($"Withdraw flight level [{lease.h0}, {lease.h1}] for " + subordinates[idx_sb].Report.name);
+				stateWrapper.PState.flightLevels.RemoveAt(i);
+				--i;
+				break;
+			}
+		}
 	}
 
 	/**
