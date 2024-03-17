@@ -934,6 +934,11 @@ void Main(string param, UpdateType updateType)
 	//FIXME: This might be a performance problem. It is sufficient to only check every 1 s or so.
 	if (TickCount > 100)
 		dispatcherService.CleanFlightLevelLeases();
+	
+	/* Adjust get-above altitude.
+	 * (Don't do this immediately after start, because there may be some handshaking in progress.) */
+	//FIXME: This might be a performance problem. It is sufficient to only check every 1 s or so.
+	dispatcherService.AdjustGetAboveAltitude();
 
 	/* Check if we can grant airspace locks.
 	 * (Don't do this immediately after start, because there may be some handshaking in progress.) */
@@ -1792,6 +1797,34 @@ public class Dispatcher
 		stateWrapper.PState.flightLevels.Clear();
 
 		Log("Airspace initialised to current dispatcher location.", E.LogLevel.Notice);
+	}
+
+	/** \brief Calculates the actual get-above altitude. */
+	public int CalcGetAboveAltitude()
+	{
+		Vector3D _n = stateWrapper.PState.n_Airspace;
+		Vector3D _d = stateWrapper.PState.p_Airspace - dockHost.p_base;
+		return (int)Math.Round( Vector3D.Dot(_n, _d), 0 );
+	}
+
+	/** \brief Checks if the get-above altitude is to be adjusted. */
+	public void AdjustGetAboveAltitude()
+	{
+		int h_is  = CalcGetAboveAltitude();
+		int h_set = (int)Math.Round( Variables.Get<float>("getAbove-altitude"), 0 );
+		if (h_is == h_set)
+			return; // Nothing to be done.
+
+		/* Transform coordinates of all existing flight levels. */
+		int d = h_set - h_is; // [m] Amount by which to shift up. (Negativ means down.)
+		if (stateWrapper.PState.flightLevels.Count() > 0) {
+			d = Math.Min(d, stateWrapper.PState.flightLevels.First().h0);
+			foreach (var fl in stateWrapper.PState.flightLevels) {
+				fl.h0 -= d;
+				fl.h1 -= d;
+			}
+		}
+		stateWrapper.PState.p_Airspace += stateWrapper.PState.n_Airspace * d;
 	}
 
 	/**
@@ -2920,7 +2953,7 @@ public class GuiHandler
 		offX += 90;
 		
 		offX += 55;
-		frame.Add(new MySprite(SpriteType.TEXT, "" + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXT, _dispatcher.CalcGetAboveAltitude() + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
 		offY += 35;
