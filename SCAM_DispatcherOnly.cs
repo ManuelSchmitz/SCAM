@@ -1266,7 +1266,7 @@ public class Dispatcher
 		for (int i = 0; i < stateWrapper.PState.airspaceLockRequests.Count(); ++i) {
 
 			/* Get some information about the applicant. */
-			var sb = subordinates.First(s => s.Id == stateWrapper.PState.airspaceLockRequests[i].id);
+			var sb = subordinates.FirstOrDefault(s => s.Id == stateWrapper.PState.airspaceLockRequests[i].id);
 			if (sb == null) {
 				/* Drop requests from obsolete agents. */
 				Log($"Agent {stateWrapper.PState.airspaceLockRequests[i].id} is no longer a subordinate. Dropping its request for airspace lock.", E.LogLevel.Warning);
