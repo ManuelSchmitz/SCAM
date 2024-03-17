@@ -48,7 +48,6 @@ static class Variables
 {
 	static Dictionary<string, object> v = new Dictionary<string, object> {
 		{ "circular-pattern-shaft-radius", new Variable<float> { value = 3.6f, parser = s => float.Parse(s) } },
-		{ "echelon-offset", new Variable<float> { value = 12f, parser = s => float.Parse(s) } },
 		{ "getAbove-altitude", new Variable<float> { value = 20, parser = s => float.Parse(s) } },
 		{ "ct-raycast-range", new Variable<float> { value = 1000, parser = s => float.Parse(s) } },
 		{ "preferred-container", new Variable<string> { value = "", parser = s => s } },
@@ -566,6 +565,7 @@ public class StateWrapper
 		/* Airspace geometry */
 		PState.n_Airspace            = currentState.n_Airspace;
 		PState.p_Airspace            = currentState.p_Airspace;
+		PState.flightLevelHeight     = currentState.flightLevelHeight;
 		/* Task Parameters */
 		PState.layout                = currentState.layout;
 		PState.bDense                = currentState.bDense;
@@ -647,6 +647,7 @@ public class PersistentState
 	/* Airspace geometry. */
 	public Vector3D n_Airspace;  ///< Normal vector of flight planes.
 	public Vector3D p_Airspace;  ///< Point at the minimum safe altitude (MSA).
+	public int flightLevelHeight;///< [m] Thickness of newly granted flight level leases.
 
 	/* Task parameters. */
 	public TaskLayout layout;    ///< Layout of the shaft arrangement. (future tasks)
@@ -749,6 +750,7 @@ public class PersistentState
 		/* Airspace geometry. */
 		n_Airspace = ParseValue<Vector3D>   (values, "n_Airspace");
 		p_Airspace = ParseValue<Vector3D>   (values, "p_Airspace");
+		flightLevelHeight = ParseValue<int> (values, "flightLevelHeight");
 
 		/* Task Parameters. */
 		layout     = ParseValue<TaskLayout> (values, "layout");
@@ -769,6 +771,13 @@ public class PersistentState
 		CurrentTaskGroup = ParseValue<string>(values, "CurrentTaskGroup");
 
 		ShaftStates = ParseValue<List<byte>>(values, "ShaftStates") ?? new List<byte>();
+
+		/* If some values are not found, set them to defaults. */
+		if (flightLevelHeight == 0)
+			flightLevelHeight = 14;
+		if (maxDepth == 0)
+			maxDepth = 10;
+
 		return this;
 	}
 #endregion
@@ -794,6 +803,7 @@ public class PersistentState
 			/* Airspace Geometry. */
 			"n_Airspace=" + VectorOpsHelper.V3DtoBroadcastString(n_Airspace),
 			"p_Airspace=" + VectorOpsHelper.V3DtoBroadcastString(p_Airspace),
+			"flightLevelHeight=" + flightLevelHeight,
 
 			/* Task Parameters. */
 			"layout=" + layout,
@@ -1800,7 +1810,7 @@ public class Dispatcher
 		}
 
 		/* Try to find an available space between two leases. */
-		int d = (int)Variables.Get<float>("echelon-offset"); // [m] Thickness of a flight plane.
+		int d  = stateWrapper.PState.flightLevelHeight; // [m] Thickness of a flight plane.
 		int h0 = 0; // [m] lower boundary
 		int i  = 0; // Position where to insert the new lease.
 		for (; i < stateWrapper.PState.flightLevels.Count(); ++i) {
@@ -2866,6 +2876,11 @@ public class GuiHandler
 		offX += 90;
 		frame.Add(new MySprite(SpriteType.TEXT, "Flight Level Stride",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
+		
+		offX += 55;
+		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.DarkGray));
+		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.flightLevelHeight + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 55;
 
 		offY = 0;
 		offX = 0;
