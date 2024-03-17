@@ -2585,6 +2585,22 @@ public class GuiHandler
 		};
 		AddTipToAe(bDecFlH, "Decrease vertical distance between flight levels.");
 		controls.Add(bDecFlH);
+		
+		var bIncGetAbove = CreateButton(1, p, new Vector2(30, 30), new Vector2(700 + 55 - 15, 55), "+", 1.2f);
+		bIncGetAbove.OnClick = xy => {
+			Variables.Set<float>("getAbove-altitude", Variables.Get<float>("getAbove-altitude") + 10f);
+			//++_stateWrapper.PState.flightLevelHeight;
+		};
+		AddTipToAe(bIncGetAbove, "Increase minimum safe altitude.");
+		controls.Add(bIncGetAbove);
+
+		var bDecGetAbove = CreateButton(1, p, new Vector2(30, 30), new Vector2(700 - 55 + 15, 55), "-", 1.2f);
+		bDecGetAbove.OnClick = xy => {
+			Variables.Set<float>("getAbove-altitude", Math.Max(0f, Variables.Get<float>("getAbove-altitude") - 10f));
+			//_stateWrapper.PState.maxGen = Math.Max(1, --_stateWrapper.PState.flightLevelHeight);
+		};
+		AddTipToAe(bDecGetAbove, "Decrease minimum safe altitude.");
+		controls.Add(bDecGetAbove);
 
 		//TODO
 
@@ -2892,7 +2908,6 @@ public class GuiHandler
 		offX += 90;
 		
 		offX += 55;
-		//frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(startX + offX, startY + offY), new Vector2(110 - 4, 30), Color.DarkGray));
 		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.flightLevelHeight + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
@@ -2904,17 +2919,25 @@ public class GuiHandler
 		frame.Add(new MySprite(SpriteType.TEXT, "Get-above Altitude (Is)",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 		
+		offX += 55;
+		frame.Add(new MySprite(SpriteType.TEXT, "" + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 55;
+
 		offY += 35;
 		offX  = 0;
 
 		offX += 90;
 		frame.Add(new MySprite(SpriteType.TEXT, "Get-above Altitude (Set)",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
+		
+		offX += 55;
+		frame.Add(new MySprite(SpriteType.TEXT, Variables.Get<float>("getAbove-altitude").ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 55;
 
 		/* Flight level diagram. */
 		int W = (int) viewPortSize.X - 40;          // [px] Width of the diagram
 		int H = (int)(viewPortSize.Y * 0.85f) - 120; // [px] Height of the diagram
-		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(20 + W / 2, 80 + H/2), new Vector2(W, H), Color.LightGray));
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(20 + W / 2, 80 + H/2), new Vector2(W, H), Color.DarkGray));
 		if (_stateWrapper.PState.flightLevels.Count() == 0)
 			return;
 
