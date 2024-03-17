@@ -2572,6 +2572,20 @@ public class GuiHandler
 		
 		/* Buttons for the Airspace page. */
 
+		var bIncFlH = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 55), "+", 1.2f);
+		bIncFlH.OnClick = xy => {
+			++_stateWrapper.PState.flightLevelHeight;
+		};
+		AddTipToAe(bIncFlH, "Increase vertical distance between flight levels.");
+		controls.Add(bIncFlH);
+
+		var bDecFlH = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 55), "-", 1.2f);
+		bDecFlH.OnClick = xy => {
+			_stateWrapper.PState.maxGen = Math.Max(1, --_stateWrapper.PState.flightLevelHeight);
+		};
+		AddTipToAe(bDecFlH, "Decrease vertical distance between flight levels.");
+		controls.Add(bDecFlH);
+
 		//TODO
 
 		shaftTip = new MySprite(SpriteType.TEXT, "", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y * 0.9f),
