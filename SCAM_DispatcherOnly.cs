@@ -48,7 +48,6 @@ static class Variables
 {
 	static Dictionary<string, object> v = new Dictionary<string, object> {
 		{ "circular-pattern-shaft-radius", new Variable<float> { value = 3.6f, parser = s => float.Parse(s) } },
-		{ "getAbove-altitude", new Variable<float> { value = 20, parser = s => float.Parse(s) } },
 		{ "ct-raycast-range", new Variable<float> { value = 1000, parser = s => float.Parse(s) } },
 		{ "preferred-container", new Variable<string> { value = "", parser = s => s } },
 		{ "group-constraint", new Variable<string> { value = "general", parser = s => s } },
@@ -565,6 +564,8 @@ public class StateWrapper
 		/* Airspace geometry */
 		PState.n_Airspace            = currentState.n_Airspace;
 		PState.p_Airspace            = currentState.p_Airspace;
+		PState.h_msa                 = currentState.h_msa;
+		PState.h_msa_cur             = currentState.h_msa_cur;
 		PState.flightLevelHeight     = currentState.flightLevelHeight;
 		/* Task Parameters */
 		PState.layout                = currentState.layout;
@@ -647,6 +648,8 @@ public class PersistentState
 	/* Airspace geometry. */
 	public Vector3D n_Airspace;  ///< Normal vector of flight planes.
 	public Vector3D p_Airspace;  ///< Point at the minimum safe altitude (MSA).
+	public float h_msa;          ///< Minimum safe altitude (MSA), set value.
+	public float h_msa_cur;      ///< Minimum safe altitude (MSA), value immediately before docking manager re-init.
 	public int flightLevelHeight;///< [m] Thickness of newly granted flight level leases.
 
 	/* Task parameters. */
@@ -750,6 +753,8 @@ public class PersistentState
 		/* Airspace geometry. */
 		n_Airspace = ParseValue<Vector3D>   (values, "n_Airspace");
 		p_Airspace = ParseValue<Vector3D>   (values, "p_Airspace");
+		h_msa      = ParseValue<float>      (values, "h_msa");
+		h_msa_cur  = ParseValue<float>      (values, "h_msa_cur");
 		flightLevelHeight = ParseValue<int> (values, "flightLevelHeight");
 
 		/* Task Parameters. */
@@ -803,6 +808,8 @@ public class PersistentState
 			/* Airspace Geometry. */
 			"n_Airspace=" + VectorOpsHelper.V3DtoBroadcastString(n_Airspace),
 			"p_Airspace=" + VectorOpsHelper.V3DtoBroadcastString(p_Airspace),
+			"h_msa=" + h_msa,
+			"h_msa_cur=" + h_msa_cur,
 			"flightLevelHeight=" + flightLevelHeight,
 
 			/* Task Parameters. */
@@ -840,6 +847,10 @@ public class PersistentState
 
 public void Save()
 {
+	/* Remember the MSA, so that we can adjust the MSA set value on reload. 
+	 * (Additional docking ports may be added, which are higher or lower.)  */
+	stateWrapper.PState.h_msa_cur = dispatcherService.CalcGetAboveAltitude();
+
 	stateWrapper.Save();
 }
 
@@ -1215,6 +1226,11 @@ public class Dispatcher
 		
 		/* Create a docking port manager. */
 		dockHost = new DockHost(me, this, gts);
+
+		/* Adjust the MSA set value.
+		 * (Assuming this is called on recompile / world reload only.) */
+		float delta = stateWrapper.PState.h_msa_cur - CalcGetAboveAltitude();
+		stateWrapper.PState.h_msa -= delta;
 	}
 
 	/**
@@ -1790,8 +1806,7 @@ public class Dispatcher
 		else
 			_n = dockHost.GetNormal(); // We are outside of planetary gravity.
 		stateWrapper.PState.n_Airspace = _n;
-		stateWrapper.PState.p_Airspace = dockHost.p_base
-		                               + _n * Variables.Get<float>("getAbove-altitude");
+		stateWrapper.PState.p_Airspace = dockHost.p_base + _n * stateWrapper.PState.h_msa;
 
 		/* Invalidate all old flight levels (if existent). */
 		stateWrapper.PState.flightLevels.Clear();
@@ -1811,7 +1826,7 @@ public class Dispatcher
 	public void AdjustGetAboveAltitude()
 	{
 		int h_is  = CalcGetAboveAltitude();
-		int h_set = (int)Math.Round( Variables.Get<float>("getAbove-altitude"), 0 );
+		int h_set = (int)Math.Round(stateWrapper.PState.h_msa, 0);
 		if (h_is == h_set)
 			return; // Nothing to be done.
 
@@ -2621,21 +2636,17 @@ public class GuiHandler
 		
 		var bIncGetAbove = CreateButton(1, p, new Vector2(30, 30), new Vector2(700 + 55 - 15, 55), "+", 1.2f);
 		bIncGetAbove.OnClick = xy => {
-			Variables.Set<float>("getAbove-altitude", Variables.Get<float>("getAbove-altitude") + 10f);
-			//++_stateWrapper.PState.flightLevelHeight;
+			_stateWrapper.PState.h_msa += 10f;
 		};
 		AddTipToAe(bIncGetAbove, "Increase minimum safe altitude.");
 		controls.Add(bIncGetAbove);
 
 		var bDecGetAbove = CreateButton(1, p, new Vector2(30, 30), new Vector2(700 - 55 + 15, 55), "-", 1.2f);
 		bDecGetAbove.OnClick = xy => {
-			Variables.Set<float>("getAbove-altitude", Math.Max(0f, Variables.Get<float>("getAbove-altitude") - 10f));
-			//_stateWrapper.PState.maxGen = Math.Max(1, --_stateWrapper.PState.flightLevelHeight);
+			_stateWrapper.PState.h_msa = Math.Max(0f, _stateWrapper.PState.h_msa - 10f);
 		};
 		AddTipToAe(bDecGetAbove, "Decrease minimum safe altitude.");
 		controls.Add(bDecGetAbove);
-
-		//TODO
 
 		shaftTip = new MySprite(SpriteType.TEXT, "", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y * 0.9f),
 			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
@@ -2949,7 +2960,7 @@ public class GuiHandler
 		startX += 400; // Right column
 		
 		offX += 90;
-		frame.Add(new MySprite(SpriteType.TEXT, "Get-above Altitude (Is)",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXT, "Min. Safe Altitude (MSA) (Is)",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 		
 		offX += 55;
@@ -2960,11 +2971,11 @@ public class GuiHandler
 		offX  = 0;
 
 		offX += 90;
-		frame.Add(new MySprite(SpriteType.TEXT, "Get-above Altitude (Set)",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXT, "Min. Safe Altitude (MSA) (Set)",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
 		offX += 90;
 		
 		offX += 55;
-		frame.Add(new MySprite(SpriteType.TEXT, Variables.Get<float>("getAbove-altitude").ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.h_msa.ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
 		offX += 55;
 
 		/* Flight level diagram. */
