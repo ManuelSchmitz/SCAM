@@ -437,9 +437,6 @@ void Ctor()
 					"recall", (parts) => dispatcherService?.Recall()
 				},
 				{
-					"clear-storage-state", (parts) => stateWrapper?.ClearPersistentState()
-				},
-				{
 					"save", (parts) => stateWrapper?.Save()
 				},
 				{
@@ -551,33 +548,6 @@ public class StateWrapper
 {
 	public PersistentState PState { get; private set; }
 
-	public void ClearPersistentState()
-	{
-		var currentState = PState;
-		PState = new PersistentState();
-
-		/* Preserve some of the values. */
-		PState.StaticDockOverride    = currentState.StaticDockOverride;
-		PState.LifetimeAcceptedTasks = currentState.LifetimeAcceptedTasks;
-		PState.airspaceLockRequests  = currentState.airspaceLockRequests;
-		PState.flightLevels          = currentState.flightLevels;
-		/* Airspace geometry */
-		PState.n_Airspace            = currentState.n_Airspace;
-		PState.p_Airspace            = currentState.p_Airspace;
-		PState.h_msa                 = currentState.h_msa;
-		PState.h_msa_cur             = currentState.h_msa_cur;
-		PState.flightLevelHeight     = currentState.flightLevelHeight;
-		/* Task Parameters */
-		PState.layout                = currentState.layout;
-		PState.bDense                = currentState.bDense;
-		PState.maxGen                = currentState.maxGen;
-		/* Job Parameters */
-		PState.maxDepth              = currentState.maxDepth;
-		PState.skipDepth             = currentState.skipDepth;
-		PState.leastDepth            = currentState.leastDepth;
-		PState.safetyDist            = currentState.safetyDist;
-	}
-
 	Action<string> stateSaver;
 	public StateWrapper(Action<string> stateSaver)
 	{
@@ -632,10 +602,6 @@ public class PersistentState
 {
 	public int LifetimeAcceptedTasks = 0;
 
-	// cleared by specific command
-	public Vector3D? StaticDockOverride { get; set; }
-
-	// cleared by clear-storage-state (task-dependent)
 	public long logLCD;                            ///< Entity ID of the logging screen.
 	public List<LockRequest> airspaceLockRequests  ///< Airspace lock queue.
 	                         = new List<LockRequest>();
@@ -742,7 +708,6 @@ public class PersistentState
 
 		LifetimeAcceptedTasks = ParseValue<int>(values, "LifetimeAcceptedTasks");
 
-		StaticDockOverride   = ParseValue<Vector3D?>        (values, "StaticDockOverride");
 		logLCD               = ParseValue<long>             (values, "logLCD");
 		airspaceLockRequests = ParseValue<List<LockRequest>>(values, "airspaceLockRequests") ?? new List<LockRequest>();
 		flightLevels         = ParseValue<List<FlightLevelLease>>(values, "flightLevels") ?? new List<FlightLevelLease>();
@@ -797,7 +762,6 @@ public class PersistentState
 		string[] pairs = new string[]
 		{
 			"LifetimeAcceptedTasks=" + LifetimeAcceptedTasks,
-			"StaticDockOverride=" + (StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(StaticDockOverride.Value) : ""),
 			"logLCD=" + logLCD,
 			"airspaceLockRequests=" + string.Join(":", airspaceLockRequests),
 			"flightLevels=" + string.Join(":", flightLevels),
@@ -1924,8 +1888,7 @@ public class Dispatcher
 			bDense
 		);
 		OnTaskUpdate?.Invoke(CurrentTask);
-
-		stateWrapper.ClearPersistentState();
+		
 		stateWrapper.PState.layout_cur        = stateWrapper.PState.layout;
 		stateWrapper.PState.bDense_cur        = stateWrapper.PState.bDense;
 		stateWrapper.PState.maxGen_cur        = stateWrapper.PState.maxGen;
