@@ -48,8 +48,6 @@ static class Variables
 {
 	static Dictionary<string, object> v = new Dictionary<string, object> {
 		{ "circular-pattern-shaft-radius", new Variable<float> { value = 3.6f, parser = s => float.Parse(s) } },
-		{ "echelon-offset", new Variable<float> { value = 12f, parser = s => float.Parse(s) } },
-		{ "getAbove-altitude", new Variable<float> { value = 20, parser = s => float.Parse(s) } },
 		{ "ct-raycast-range", new Variable<float> { value = 1000, parser = s => float.Parse(s) } },
 		{ "preferred-container", new Variable<string> { value = "", parser = s => s } },
 		{ "group-constraint", new Variable<string> { value = "general", parser = s => s } },
@@ -399,7 +397,8 @@ void Ctor()
 					"add-gui-controller", (parts) => {
 						List<IMyShipController> b = new List<IMyShipController>();
 						GridTerminalSystem.GetBlocksOfType(b, x => x.IsSameConstructAs(Me) && x.CustomName.Contains(parts[2]));
-						guiSeat = b.FirstOrDefault();
+						guiSeat                   = b.FirstOrDefault();
+						dispatcherService.guiSeat = b.FirstOrDefault();
 						if (guiSeat != null)
 							E.Log($"Added {guiSeat.CustomName} as GUI controller");
 					}
@@ -429,10 +428,13 @@ void Ctor()
 					"create-task-gps", (parts) => GPStaskHandler(parts)
 				},
 				{
-					"recall", (parts) => dispatcherService?.Recall()
+					"init-airspace", (parts) => {
+						Log("Warning: Initizing airspace by force. Possible undefined behaviour.", E.LogLevel.Warning);
+						dispatcherService?.InitializeAirspace();
+					}
 				},
 				{
-					"clear-storage-state", (parts) => stateWrapper?.ClearPersistentState()
+					"recall", (parts) => dispatcherService?.Recall()
 				},
 				{
 					"save", (parts) => stateWrapper?.Save()
@@ -456,7 +458,7 @@ void Ctor()
 		);
 
 	/* Create the main dispatcher object. */
-	dispatcherService = new Dispatcher(Me, GridTerminalSystem, IGC, stateWrapper);
+	dispatcherService = new Dispatcher(Me, GridTerminalSystem, IGC, stateWrapper, guiSeat);
 
 	if (stateWrapper.PState.ShaftStates.Count > 0)
 	{
@@ -502,7 +504,7 @@ public enum MinerState : byte
 	Disabled              = 0,
 	Idle                  = 1, 
 	GoingToEntry          = 2, ///< Descending to shaft, through shared airspace.
-	Drilling              = 3, ///< Descending into the shaft, until there is a reasong to leave.
+	Drilling              = 3, ///< Descending into the shaft, until there is a reason to leave.
 	//GettingOutTheShaft    = 4, (deprecated, was used for Lone mode) 
 	GoingToUnload         = 5, ///< Ascending from the shaft, through shared airspace, into assigned flight level.
 	WaitingForDocking     = 6, ///< Loitering above the shaft, waiting to be assign a docking port for returning home.
@@ -516,7 +518,21 @@ public enum MinerState : byte
 	ReturningHome        = 14, ///< Traveling from the point above the shaft to the base on a reserved flight level.
 	Docking              = 15  ///< Descending to the docking port through shared airspace. (docking final approach)
 }
-	
+
+
+/** \brief A slice of the sky. */
+public class FlightLevelLease {
+	public int  h0;   ///< [m] Lower altitude, measured from the get-above altitude.
+	public int  h1;   ///< [m] Higher altitude, measured from the get-above altitude.
+	public long agent;///< ID of the owning agent's PB.
+	public FlightLevelLease(int _h0, int _h1, long _id) { h0 = _h0; h1 = _h1; agent = _id; }
+	public override string ToString() { return $"{h0},{h1},{agent}"; }
+	public static FlightLevelLease Parse(string s) {
+		var t = s.Split(',');
+		return new FlightLevelLease(int.Parse(t[0]), int.Parse(t[1]), long.Parse(t[2]));
+	}
+}
+
 
 /** \brief The layout of the mining task's shaft. */
 public enum TaskLayout : byte {
@@ -531,26 +547,6 @@ StateWrapper stateWrapper;
 public class StateWrapper
 {
 	public PersistentState PState { get; private set; }
-
-	public void ClearPersistentState()
-	{
-		var currentState = PState;
-		PState = new PersistentState();
-
-		/* Preserve some of the values. */
-		PState.StaticDockOverride    = currentState.StaticDockOverride;
-		PState.LifetimeAcceptedTasks = currentState.LifetimeAcceptedTasks;
-		PState.airspaceLockRequests  = currentState.airspaceLockRequests;
-		/* Task Parameters */
-		PState.layout                = currentState.layout;
-		PState.bDense                = currentState.bDense;
-		PState.maxGen                = currentState.maxGen;
-		/* Job Parameters */
-		PState.maxDepth              = currentState.maxDepth;
-		PState.skipDepth             = currentState.skipDepth;
-		PState.leastDepth            = currentState.leastDepth;
-		PState.safetyDist            = currentState.safetyDist;
-	}
 
 	Action<string> stateSaver;
 	public StateWrapper(Action<string> stateSaver)
@@ -606,16 +602,21 @@ public class PersistentState
 {
 	public int LifetimeAcceptedTasks = 0;
 
-	// cleared by specific command
-	public Vector3D? StaticDockOverride { get; set; }
-
-	// cleared by clear-storage-state (task-dependent)
 	public long logLCD;                            ///< Entity ID of the logging screen.
 	public List<LockRequest> airspaceLockRequests  ///< Airspace lock queue.
 	                         = new List<LockRequest>();
+	public List<FlightLevelLease> flightLevels     ///< Assigned flight levels, ordered in ascending order.
+	                         = new List<FlightLevelLease>();
 	public Vector3D? miningPlaneNormal;
 	public Vector3D? corePoint;
 	public float? shaftRadius;
+
+	/* Airspace geometry. */
+	public Vector3D n_Airspace;  ///< Normal vector of flight planes.
+	public Vector3D p_Airspace;  ///< Point at the minimum safe altitude (MSA).
+	public float h_msa;          ///< Minimum safe altitude (MSA), set value.
+	public float h_msa_cur;      ///< Minimum safe altitude (MSA), value immediately before docking manager re-init.
+	public int flightLevelHeight;///< [m] Thickness of newly granted flight level leases.
 
 	/* Task parameters. */
 	public TaskLayout layout;    ///< Layout of the shaft arrangement. (future tasks)
@@ -657,6 +658,11 @@ public class PersistentState
 				return (T)(object)long.Parse(res);
 			else if (typeof(T) == typeof(long?))
 				return (T)(object)long.Parse(res);
+			else if (typeof(T) == typeof(Vector3D))
+			{
+				var d = res.Split(':');
+				return (T)(object)new Vector3D(double.Parse(d[0]), double.Parse(d[1]), double.Parse(d[2]));
+			}
 			else if (typeof(T) == typeof(Vector3D?))
 			{
 				var d = res.Split(':');
@@ -679,6 +685,14 @@ public class PersistentState
 			{
 				return (T)Enum.Parse(typeof(TaskLayout), res);
 			}
+			else if (typeof(T) == typeof(List<FlightLevelLease>))
+			{
+				var d = res.Split(':');
+				var q = new List<FlightLevelLease>();
+				foreach (var f in d)
+					q.Add(FlightLevelLease.Parse(f));
+				return (T)(object)(q);
+			}
 		}
 		return default(T);
 	}
@@ -694,12 +708,19 @@ public class PersistentState
 
 		LifetimeAcceptedTasks = ParseValue<int>(values, "LifetimeAcceptedTasks");
 
-		StaticDockOverride   = ParseValue<Vector3D?>        (values, "StaticDockOverride");
 		logLCD               = ParseValue<long>             (values, "logLCD");
 		airspaceLockRequests = ParseValue<List<LockRequest>>(values, "airspaceLockRequests") ?? new List<LockRequest>();
+		flightLevels         = ParseValue<List<FlightLevelLease>>(values, "flightLevels") ?? new List<FlightLevelLease>();
 		miningPlaneNormal    = ParseValue<Vector3D?>        (values, "miningPlaneNormal");
 		corePoint = ParseValue<Vector3D?>(values, "corePoint");
 		shaftRadius = ParseValue<float?>(values, "shaftRadius");
+
+		/* Airspace geometry. */
+		n_Airspace = ParseValue<Vector3D>   (values, "n_Airspace");
+		p_Airspace = ParseValue<Vector3D>   (values, "p_Airspace");
+		h_msa      = ParseValue<float>      (values, "h_msa");
+		h_msa_cur  = ParseValue<float>      (values, "h_msa_cur");
+		flightLevelHeight = ParseValue<int> (values, "flightLevelHeight");
 
 		/* Task Parameters. */
 		layout     = ParseValue<TaskLayout> (values, "layout");
@@ -720,6 +741,13 @@ public class PersistentState
 		CurrentTaskGroup = ParseValue<string>(values, "CurrentTaskGroup");
 
 		ShaftStates = ParseValue<List<byte>>(values, "ShaftStates") ?? new List<byte>();
+
+		/* If some values are not found, set them to defaults. */
+		if (flightLevelHeight == 0)
+			flightLevelHeight = 14;
+		if (maxDepth == 0)
+			maxDepth = 10;
+
 		return this;
 	}
 #endregion
@@ -734,12 +762,19 @@ public class PersistentState
 		string[] pairs = new string[]
 		{
 			"LifetimeAcceptedTasks=" + LifetimeAcceptedTasks,
-			"StaticDockOverride=" + (StaticDockOverride.HasValue ? VectorOpsHelper.V3DtoBroadcastString(StaticDockOverride.Value) : ""),
 			"logLCD=" + logLCD,
 			"airspaceLockRequests=" + string.Join(":", airspaceLockRequests),
+			"flightLevels=" + string.Join(":", flightLevels),
 			"miningPlaneNormal=" + (miningPlaneNormal.HasValue ? VectorOpsHelper.V3DtoBroadcastString(miningPlaneNormal.Value) : ""),
 			"corePoint=" + (corePoint.HasValue ? VectorOpsHelper.V3DtoBroadcastString(corePoint.Value) : ""),
 			"shaftRadius=" + shaftRadius,
+
+			/* Airspace Geometry. */
+			"n_Airspace=" + VectorOpsHelper.V3DtoBroadcastString(n_Airspace),
+			"p_Airspace=" + VectorOpsHelper.V3DtoBroadcastString(p_Airspace),
+			"h_msa=" + h_msa,
+			"h_msa_cur=" + h_msa_cur,
+			"flightLevelHeight=" + flightLevelHeight,
 
 			/* Task Parameters. */
 			"layout=" + layout,
@@ -776,6 +811,10 @@ public class PersistentState
 
 public void Save()
 {
+	/* Remember the MSA, so that we can adjust the MSA set value on reload. 
+	 * (Additional docking ports may be added, which are higher or lower.)  */
+	stateWrapper.PState.h_msa_cur = dispatcherService.CalcGetAboveAltitude();
+
 	stateWrapper.Save();
 }
 
@@ -865,6 +904,17 @@ void Main(string param, UpdateType updateType)
 	E.Echo(dispatcherService.ToString());
 	dispatcherService.HandleIGC(uniMsgs);
 
+	/* Clean stale flight levels.
+	 * (Don't do this immediately after start, because there may be some handshaking in progress.) */
+	//FIXME: This might be a performance problem. It is sufficient to only check every 1 s or so.
+	if (TickCount > 100)
+		dispatcherService.CleanFlightLevelLeases();
+	
+	/* Adjust get-above altitude.
+	 * (Don't do this immediately after start, because there may be some handshaking in progress.) */
+	//FIXME: This might be a performance problem. It is sufficient to only check every 1 s or so.
+	dispatcherService.AdjustGetAboveAltitude();
+
 	/* Check if we can grant airspace locks.
 	 * (Don't do this immediately after start, because there may be some handshaking in progress.) */
 	//FIXME: This might be a performance problem. It is sufficient to only check every 1 s or so.
@@ -927,6 +977,9 @@ public void GPStaskHandler(string[] cmdString)
 		E.Log("Cannot start new task: All agents must be in Idle or Disabled state.");
 		return;
 	}
+
+	/* Prepare the airspace (ATC). */
+	dispatcherService.InitializeAirspace();
 
 	var vdtoArr = cmdString.Skip(2).ToArray();
 	var pos = new Vector3D(double.Parse(vdtoArr[0]), double.Parse(vdtoArr[1]), double.Parse(vdtoArr[2]));
@@ -1053,6 +1106,9 @@ public void RaycastTaskHandler(string[] cmdString)
 								return;
 							}
 
+							/* Prepare the airspace (ATC). */
+							dispatcherService.InitializeAirspace();
+
 							dispatcherService.BroadcastStart(c);
 							dispatcherService.CreateTask(
 								Variables.Get<float>("circular-pattern-shaft-radius"),
@@ -1102,7 +1158,6 @@ public class Dispatcher
 	{
 		public long Id;               ///< Handle of the agent's programmable block.
 		public string ObtainedLock;
-		public float Echelon;         ///< [m]
 		public string Group;
 		public TransponderMsg Report; ///< Last received transponder status (position, velocity, ...).
 	}
@@ -1118,21 +1173,28 @@ public class Dispatcher
 	}
 
 	IMyIntergridCommunicationSystem IGC;
-
-	StateWrapper stateWrapper;
+	StateWrapper                    stateWrapper;
+	public IMyShipController        guiSeat;
 
 	public Dispatcher(
 		IMyProgrammableBlock me,
 		IMyGridTerminalSystem gts,
 		IMyIntergridCommunicationSystem igc,
-		StateWrapper stateWrapper
+		StateWrapper stateWrapper,
+		IMyShipController guiSeat
 	)
 	{
 		IGC = igc;
 		this.stateWrapper = stateWrapper;
+		this.guiSeat      = guiSeat;
 		
 		/* Create a docking port manager. */
 		dockHost = new DockHost(me, this, gts);
+
+		/* Adjust the MSA set value.
+		 * (Assuming this is called on recompile / world reload only.) */
+		float delta = stateWrapper.PState.h_msa_cur - CalcGetAboveAltitude();
+		stateWrapper.PState.h_msa -= delta;
 	}
 
 	/**
@@ -1238,7 +1300,9 @@ public class Dispatcher
 						continue;
 
 					/* If the other agent is traveling on a higher flight level, no problem. */
-					if (applicant.Echelon < sb.Echelon)
+					int idx_fl_applicant = stateWrapper.PState.flightLevels.FindIndex(s => s.agent == agentId);
+					int idx_fl_other     = stateWrapper.PState.flightLevels.FindIndex(s => s.agent == sb.Id);
+					if (idx_fl_applicant >= 0 && idx_fl_applicant < idx_fl_other)
 						continue;
 
 					/* If the other agent is holding position and
@@ -1322,13 +1386,11 @@ public class Dispatcher
 		var sub = subordinates.First(s => s.Id == cand.id);
 		sub.ObtainedLock = cand.lockName;
 
-		Vector3D _n = dockHost.GetNormal();
 		var data = new MyTuple<string, Vector3D, Vector3D>(
 			cand.lockName,        // granted lock
-			dockHost.p_base       // point on the flight level
-			+ _n * Variables.Get<float>("getAbove-altitude")
-			+ _n * sub.Echelon,
-			_n                    // normal vector of the flight level
+			stateWrapper.PState.p_Airspace // point on the flight level
+			+ stateWrapper.PState.n_Airspace * ReserveFlightLevel(cand.id),
+			stateWrapper.PState.n_Airspace // normal vector of the flight level
 		);
 
 		IGC.SendUnicastMessage(cand.id, "miners", data);
@@ -1380,7 +1442,7 @@ public class Dispatcher
 			Subordinate sb;
 			if (!subordinates.Any(s => s.Id == msg.Source))
 			{
-				sb = new Subordinate { Id = msg.Source, Echelon = (subordinates.Count + 1) * Variables.Get<float>("echelon-offset") + 10f, Group = data.Item1 };
+				sb = new Subordinate { Id = msg.Source, Group = data.Item1 };
 				subordinates.Add(sb);
 				sb.Report = new TransponderMsg();
 			}
@@ -1423,6 +1485,9 @@ public class Dispatcher
 					Log("Cannot start new task: All agents must be in Idle or Disabled state.");
 					continue;
 				}
+	
+				/* Prepare the airspace (ATC). */
+				InitializeAirspace();
 
 				var data = (MyTuple<float, Vector3D, Vector3D>)msg.Data;
 
@@ -1482,7 +1547,9 @@ public class Dispatcher
 
 		foreach (var s in subordinates)
 		{
-			E.Echo(s.Report.name + ": F/L=" + s.Echelon + ", LCK: " + s.ObtainedLock);
+			var fl = stateWrapper.PState.flightLevels.FirstOrDefault(f => f.agent == s.Id);
+			string s_fl = (fl == null ? "n/a" : $"({fl.h0},{fl.h1})");
+			E.Echo(s.Report.name + ": F/L=" + s_fl + ", LCK: " + s.ObtainedLock);
 		}
 	}
 
@@ -1692,6 +1759,113 @@ public class Dispatcher
 	}
 
 	/**
+	 * \brief Constructs a local airspace geometry w.r.t. world coordinates.
+	 * \note To be called when all agents are either disabled or idle.
+	 */
+	public void InitializeAirspace()
+	{
+		Vector3D _n;
+		if (guiSeat != null && guiSeat.TryGetPlanetPosition(out _n))
+			_n = -Vector3D.Normalize(_n - guiSeat.WorldMatrix.Translation); // We are in a planetary gravity.
+		else
+			_n = dockHost.GetNormal(); // We are outside of planetary gravity.
+		stateWrapper.PState.n_Airspace = _n;
+		stateWrapper.PState.p_Airspace = dockHost.p_base + _n * stateWrapper.PState.h_msa;
+
+		/* Invalidate all old flight levels (if existent). */
+		stateWrapper.PState.flightLevels.Clear();
+
+		Log("Airspace initialised to current dispatcher location.", E.LogLevel.Notice);
+	}
+
+	/** \brief Calculates the actual get-above altitude. */
+	public int CalcGetAboveAltitude()
+	{
+		Vector3D _n = stateWrapper.PState.n_Airspace;
+		Vector3D _d = stateWrapper.PState.p_Airspace - dockHost.p_base;
+		return (int)Math.Round( Vector3D.Dot(_n, _d), 0 );
+	}
+
+	/** \brief Checks if the get-above altitude is to be adjusted. */
+	public void AdjustGetAboveAltitude()
+	{
+		int h_is  = CalcGetAboveAltitude();
+		int h_set = (int)Math.Round(stateWrapper.PState.h_msa, 0);
+		if (h_is == h_set)
+			return; // Nothing to be done.
+
+		/* Transform coordinates of all existing flight levels. */
+		int d = h_set - h_is; // [m] Amount by which to shift up. (Negativ means down.)
+		if (stateWrapper.PState.flightLevels.Count() > 0) {
+			d = Math.Min(d, stateWrapper.PState.flightLevels.First().h0);
+			foreach (var fl in stateWrapper.PState.flightLevels) {
+				fl.h0 -= d;
+				fl.h1 -= d;
+			}
+		}
+		stateWrapper.PState.p_Airspace += stateWrapper.PState.n_Airspace * d;
+	}
+
+	/**
+	 * \brief Reserves a flight level for a subordinate.
+	 * \details If the subordinate already has a flight level, it is returned,
+	 * regardless of its size.
+	 */
+	public float ReserveFlightLevel(long id)
+	{
+		/* Does the subordinate already have a lease? */
+		int ex = stateWrapper.PState.flightLevels.FindIndex(s => s.agent == id);
+		if (ex >= 0) {
+			var fl = stateWrapper.PState.flightLevels[ex];
+			Log($"Existing flight level [{fl.h0}, {fl.h1}] for " + GetSubordinateName(fl.agent), E.LogLevel.Debug);
+			return 0.5f * (float)(fl.h0 + fl.h1);
+		}
+
+		/* Try to find an available space between two leases. */
+		int d  = stateWrapper.PState.flightLevelHeight; // [m] Thickness of a flight plane.
+		int h0 = 0; // [m] lower boundary
+		int i  = 0; // Position where to insert the new lease.
+		for (; i < stateWrapper.PState.flightLevels.Count(); ++i) {
+			if (stateWrapper.PState.flightLevels[i].h0 - h0 >= d)
+				break;
+			h0 = stateWrapper.PState.flightLevels[i].h1;
+		}
+
+		/* Reserve the space. */
+		var fll = new FlightLevelLease(h0, h0 + d, id);
+		stateWrapper.PState.flightLevels.Insert(i, fll);
+		Log($"Reserved flight level [{fll.h0}, {fll.h1}] for " + GetSubordinateName(id), E.LogLevel.Debug);
+
+		/* Return center of the reserved airspace slice. */
+		return .5f * (float)(fll.h0 + fll.h1);
+	}
+
+	/**
+	 * \brief Cleans all outdated flight level leases.
+	 */
+	public void CleanFlightLevelLeases()
+	{
+		for (int i = 0; i < stateWrapper.PState.flightLevels.Count(); ++i) {
+			var lease  = stateWrapper.PState.flightLevels[i];
+			int idx_sb = subordinates.FindIndex(s => s.Id == lease.agent);
+			if (idx_sb < 0)
+				continue; // Lease granted to a non-subordinate. (?)
+			switch (subordinates[idx_sb].Report.state) {
+			case MinerState.Disabled:
+			case MinerState.Idle:
+			case MinerState.Drilling:
+			case MinerState.Docked:
+			case MinerState.Maintenance:
+			case MinerState.Docking:
+				Log($"Withdraw flight level [{lease.h0}, {lease.h1}] for " + subordinates[idx_sb].Report.name, E.LogLevel.Debug);
+				stateWrapper.PState.flightLevels.RemoveAt(i);
+				--i;
+				break;
+			}
+		}
+	}
+
+	/**
 	 * \note Call only when all agents are docked!
 	 */
 	public void CreateTask(
@@ -1714,8 +1888,7 @@ public class Dispatcher
 			bDense
 		);
 		OnTaskUpdate?.Invoke(CurrentTask);
-
-		stateWrapper.ClearPersistentState();
+		
 		stateWrapper.PState.layout_cur        = stateWrapper.PState.layout;
 		stateWrapper.PState.bDense_cur        = stateWrapper.PState.bDense;
 		stateWrapper.PState.maxGen_cur        = stateWrapper.PState.maxGen;
@@ -2211,7 +2384,9 @@ public class GuiHandler
 	Dispatcher _dispatcher;
 	StateWrapper _stateWrapper;
 	Vector2 viewPortSize;
-	int current_page = 0; ///< The page that is currently being displayed.
+	int current_page = 2; ///< The page that is currently being displayed.
+	const int agents_per_page = 8; ///< [-] Number of agents that can be listed per page. 
+
 
 	public GuiHandler(IMyTextSurface p, Dispatcher dispatcher, StateWrapper stateWrapper)
 	{
@@ -2224,16 +2399,17 @@ public class GuiHandler
 		int   x_btn = 20;
 
 		x_btn += 20;
-		var bCyclePage = CreateButton(-1, p, new Vector2(40,40), new Vector2(x_btn, y_btn), ">", 1.2f);
-		bCyclePage.OnClick = xy => {
-			current_page = (current_page + 1) % 2;
+
+		var bNextPage = CreateButton(-1, p, new Vector2(40,40), new Vector2(x_btn, y_btn), "<", 1.2f);
+		bNextPage.OnClick = xy => {
+			current_page = (current_page > 0 ? current_page - 1 : PageCount() - 1);
 		};
-		AddTipToAe(bCyclePage, "Next page ...");
-		controls.Add(bCyclePage);
+		AddTipToAe(bNextPage, "Previous page ...");
+		controls.Add(bNextPage);
 
 		x_btn += 20 + 10 + 42;
 
-		var bRecall = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Recall");
+		var bRecall = CreateButton(2, p, btnSize, new Vector2(x_btn, y_btn), "Recall");
 		bRecall.OnClick = xy => {
 			dispatcher.Recall();
 		};
@@ -2242,7 +2418,7 @@ public class GuiHandler
 		
 		x_btn += 42 + 10 + 42;
 
-		var bResume = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Resume");
+		var bResume = CreateButton(2, p, btnSize, new Vector2(x_btn, y_btn), "Resume");
 		bResume.OnClick = xy => {
 			dispatcher.BroadcastResume();
 		};
@@ -2251,16 +2427,7 @@ public class GuiHandler
 		
 		x_btn += 42 + 10 + 42;
 
-		var bClearState = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Clear state");
-		bClearState.OnClick = xy => {
-			stateWrapper?.ClearPersistentState();
-		};
-		AddTipToAe(bClearState, "Clear Dispatcher state");
-		controls.Add(bClearState);
-		
-		x_btn += 42 + 10 + 42;
-
-		var bClearLog = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Clear log");
+		var bClearLog = CreateButton(2, p, btnSize, new Vector2(x_btn, y_btn), "Clear log");
 		bClearLog.OnClick = xy => {
 			E.ClearLog();
 		};
@@ -2268,7 +2435,7 @@ public class GuiHandler
 		
 		x_btn += 42 + 10 + 42;
 
-		var bPurgeLocks = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "Purge locks");
+		var bPurgeLocks = CreateButton(2, p, btnSize, new Vector2(x_btn, y_btn), "Purge locks");
 		bPurgeLocks.OnClick = xy => {
 			dispatcher.PurgeLocks();
 		};
@@ -2277,12 +2444,21 @@ public class GuiHandler
 		
 		x_btn += 42 + 10 + 42;
 
-		var bHalt = CreateButton(0, p, btnSize, new Vector2(x_btn, y_btn), "EMRG HALT");
+		var bHalt = CreateButton(2, p, btnSize, new Vector2(x_btn, y_btn), "EMRG HALT");
 		bHalt.OnClick = xy => {
 			dispatcher.BroadCastHalt();
 		};
 		AddTipToAe(bHalt, "Halt all activity, restore overrides, release control, clear states");
 		controls.Add(bHalt);
+		
+		x_btn += 42 + 10 + 20;
+
+		var bPrevPage = CreateButton(-1, p, new Vector2(40,40), new Vector2(x_btn, y_btn), ">", 1.2f);
+		bPrevPage.OnClick = xy => {
+			current_page = (current_page + 1) % PageCount();
+		};
+		AddTipToAe(bPrevPage, "Next page ...");
+		controls.Add(bPrevPage);
 
 		/* Butons for recalling individual drones. */
 		for (int i = 0; i < 8; ++i) {
@@ -2297,7 +2473,7 @@ public class GuiHandler
 
 		/* Buttons for the Task/Job parameters page. */
 
-		var bLayout = CreateButton(1, p, new Vector2(110, 30), new Vector2(300, 55), _stateWrapper.PState.layout.ToString(), 0.6f);
+		var bLayout = CreateButton(0, p, new Vector2(110, 30), new Vector2(300, 55), _stateWrapper.PState.layout.ToString(), 0.6f);
 		bLayout.OnClick = xy => {
 			_stateWrapper.PState.layout = (TaskLayout)(((byte)_stateWrapper.PState.layout + 1) % 2);
 			bLayout.fgSprite.Data = _stateWrapper.PState.layout.ToString();
@@ -2306,7 +2482,7 @@ public class GuiHandler
 		controls.Add(bLayout);
 
 		{
-			var chkDense = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,90));
+			var chkDense = CreateCheckbox(0, new Vector2(30, 30), new Vector2(300,90));
 			chkDense.bChecked = _stateWrapper.PState.bDense;
 			chkDense.OnClick = xy => {
 				chkDense.bChecked = (_stateWrapper.PState.bDense = !_stateWrapper.PState.bDense);
@@ -2315,56 +2491,56 @@ public class GuiHandler
 			controls.Add(chkDense);
 		}
 
-		var bIncMaxGen = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 125), "+", 1.2f);
+		var bIncMaxGen = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 125), "+", 1.2f);
 		bIncMaxGen.OnClick = xy => {
 			++_stateWrapper.PState.maxGen;
 		};
 		AddTipToAe(bIncMaxGen, "Increase size of next task. (0 is single shaft only)");
 		controls.Add(bIncMaxGen);
 
-		var bDecMaxGen = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 125), "-", 1.2f);
+		var bDecMaxGen = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 125), "-", 1.2f);
 		bDecMaxGen.OnClick = xy => {
 			_stateWrapper.PState.maxGen = Math.Max(0, --_stateWrapper.PState.maxGen);
 		};
 		AddTipToAe(bDecMaxGen, "Decrease size of next task. (0 is single shaft only)");
 		controls.Add(bDecMaxGen);
 
-		var bIncDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 195), "+", 1.2f);
+		var bIncDepthLimit = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 195), "+", 1.2f);
 		bIncDepthLimit.OnClick = xy => {
 			_stateWrapper.PState.maxDepth += 5f;
 		};
 		AddTipToAe(bIncDepthLimit, "Increase depth limit by 5 m");
 		controls.Add(bIncDepthLimit);
 
-		var bDecDepthLimit = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 195), "-", 1.2f);
+		var bDecDepthLimit = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 195), "-", 1.2f);
 		bDecDepthLimit.OnClick = xy => {
 			_stateWrapper.PState.maxDepth = Math.Max(_stateWrapper.PState.leastDepth, _stateWrapper.PState.maxDepth - 5f);
 		};
 		AddTipToAe(bDecDepthLimit, "Decrease depth limit by 5 m");
 		controls.Add(bDecDepthLimit);
 
-		var bIncSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 230), "+", 1.2f);
+		var bIncSkipDepth = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 230), "+", 1.2f);
 		bIncSkipDepth.OnClick = xy => {
 			_stateWrapper.PState.skipDepth = Math.Min(_stateWrapper.PState.maxDepth, _stateWrapper.PState.skipDepth + 5f);
 		};
 		AddTipToAe(bIncSkipDepth, "Increase skip-depth by 5 m");
 		controls.Add(bIncSkipDepth);
 
-		var bDecSkipDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 230), "-", 1.2f);
+		var bDecSkipDepth = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 230), "-", 1.2f);
 		bDecSkipDepth.OnClick = xy => {
 			_stateWrapper.PState.skipDepth = Math.Max(0f, _stateWrapper.PState.skipDepth - 5f);
 		};
 		AddTipToAe(bDecSkipDepth, "Decrease skip-depth by 5 m");
 		controls.Add(bDecSkipDepth);
 
-		var bIncLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 265), "+", 1.2f);
+		var bIncLeastDepth = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 265), "+", 1.2f);
 		bIncLeastDepth.OnClick = xy => {
 			_stateWrapper.PState.leastDepth = Math.Min(_stateWrapper.PState.maxDepth, _stateWrapper.PState.leastDepth + 5f);
 		};
 		AddTipToAe(bIncLeastDepth, "Increase least-depth by 5 m");
 		controls.Add(bIncLeastDepth);
 
-		var bDecLeastDepth = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 265), "-", 1.2f);
+		var bDecLeastDepth = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 265), "-", 1.2f);
 		bDecLeastDepth.OnClick = xy => {
 			_stateWrapper.PState.leastDepth = Math.Max(0f, _stateWrapper.PState.leastDepth - 5f);
 		};
@@ -2372,7 +2548,7 @@ public class GuiHandler
 		controls.Add(bDecLeastDepth);
 
 		{
-			var chkAdaptive = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,300));
+			var chkAdaptive = CreateCheckbox(0, new Vector2(30, 30), new Vector2(300,300));
 			chkAdaptive.bChecked = Toggle.C.Check("adaptive-mining");
 			chkAdaptive.OnClick = xy => {
 				chkAdaptive.bChecked = Toggle.C.Invert("adaptive-mining");
@@ -2382,7 +2558,7 @@ public class GuiHandler
 		}
 
 		{
-			var chkAdjEntry = CreateCheckbox(1, new Vector2(30, 30), new Vector2(300,335));
+			var chkAdjEntry = CreateCheckbox(0, new Vector2(30, 30), new Vector2(300,335));
 			chkAdjEntry.bChecked = Toggle.C.Check("adjust-entry-by-elevation");
 			chkAdjEntry.OnClick = xy => {
 				chkAdjEntry.bChecked = Toggle.C.Invert("adjust-entry-by-elevation");
@@ -2391,19 +2567,49 @@ public class GuiHandler
 			controls.Add(chkAdjEntry);
 		}
 		
-		var bIncSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 370), "+", 1.2f);
+		var bIncSafetyDist = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 370), "+", 1.2f);
 		bIncSafetyDist.OnClick = xy => {
 			_stateWrapper.PState.safetyDist += 0.2f;
 		};
 		AddTipToAe(bIncSafetyDist, "Increase safety distance by 0.2 (multiple of the shaft diameter).");
 		controls.Add(bIncSafetyDist);
 
-		var bDecSafetyDist = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 370), "-", 1.2f);
+		var bDecSafetyDist = CreateButton(0, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 370), "-", 1.2f);
 		bDecSafetyDist.OnClick = xy => {
 			_stateWrapper.PState.safetyDist = Math.Max(1f, _stateWrapper.PState.safetyDist - 0.2f);
 		};
 		AddTipToAe(bDecSafetyDist, "Decrease safety distance by 0.2 (multiple of shaft diameter).");
 		controls.Add(bDecSafetyDist);
+		
+		/* Buttons for the Airspace page. */
+
+		var bIncFlH = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 + 55 - 15, 55), "+", 1.2f);
+		bIncFlH.OnClick = xy => {
+			++_stateWrapper.PState.flightLevelHeight;
+		};
+		AddTipToAe(bIncFlH, "Increase vertical distance between flight levels.");
+		controls.Add(bIncFlH);
+
+		var bDecFlH = CreateButton(1, p, new Vector2(30, 30), new Vector2(300 - 55 + 15, 55), "-", 1.2f);
+		bDecFlH.OnClick = xy => {
+			_stateWrapper.PState.maxGen = Math.Max(1, --_stateWrapper.PState.flightLevelHeight);
+		};
+		AddTipToAe(bDecFlH, "Decrease vertical distance between flight levels.");
+		controls.Add(bDecFlH);
+		
+		var bIncGetAbove = CreateButton(1, p, new Vector2(30, 30), new Vector2(700 + 55 - 15, 55), "+", 1.2f);
+		bIncGetAbove.OnClick = xy => {
+			_stateWrapper.PState.h_msa += 10f;
+		};
+		AddTipToAe(bIncGetAbove, "Increase minimum safe altitude.");
+		controls.Add(bIncGetAbove);
+
+		var bDecGetAbove = CreateButton(1, p, new Vector2(30, 30), new Vector2(700 - 55 + 15, 55), "-", 1.2f);
+		bDecGetAbove.OnClick = xy => {
+			_stateWrapper.PState.h_msa = Math.Max(0f, _stateWrapper.PState.h_msa - 10f);
+		};
+		AddTipToAe(bDecGetAbove, "Decrease minimum safe altitude.");
+		controls.Add(bDecGetAbove);
 
 		shaftTip = new MySprite(SpriteType.TEXT, "", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y * 0.9f),
 			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
@@ -2411,6 +2617,12 @@ public class GuiHandler
 			null, Color.White, "Debug", TextAlignment.LEFT, 0.5f);
 		taskSummary = new MySprite(SpriteType.TEXT, "No active task", new Vector2(viewPortSize.X / 1.2f, viewPortSize.Y / 20f),
 			null, Color.White, "Debug", TextAlignment.CENTER, 0.5f);
+	}
+
+	/** \brief Returns the number of pages. */
+	int PageCount() {
+		return 2 // 1x task/job parameters, 1x flight levels
+		     + (_dispatcher.subordinates.Count() + agents_per_page - 1) / agents_per_page;
 	}
 
 	/**
@@ -2488,7 +2700,7 @@ public class GuiHandler
 		/* Enable/disable buttons for controlling individual drones. */
 		for (int i = 0; i < 8; ++i)
 			//TODO: Take into account multiple pages of agents.
-			recallBtns[i].Visible = (current_page == 0
+			recallBtns[i].Visible = (current_page == 2
 			                      && i < _dispatcher.subordinates.Count()
 														&& _dispatcher.subordinates[i].Report.state != MinerState.Disabled
 														&& _dispatcher.subordinates[i].Report.state != MinerState.Idle
@@ -2499,7 +2711,7 @@ public class GuiHandler
 		using (var frame = panel.DrawFrame())
 		{
 			/* Render the agent status table. */
-			if (current_page == 0)
+			if (current_page == 2)
 				DrawReportRepeater(frame);
 
 			foreach (var ae in controls.Union(shaftControls).Union(recallBtns).Where(x => x.Visible && (x.page == current_page || x.page < 0)))
@@ -2515,18 +2727,20 @@ public class GuiHandler
 			foreach (var ae in controls.Union(shaftControls).Union(recallBtns).Where(x => x.Visible && (x.page == current_page || x.page < 0)))
 				frame.AddRange(ae.GetSprites());
 
-			if (current_page == 0)
+			if (current_page == 2)
 				frame.Add(shaftTip);
 
 			frame.Add(buttonTip);
 
-			if (current_page == 0) {
+			if (current_page == 2) {
 				frame.Add(taskSummary);
 
 				/* Draw the agent icons. */
 				DrawAgents(frame);
-			} else if (current_page == 1)
+			} else if (current_page == 0)
 				DrawDispatcherParameters(frame);
+			else if (current_page == 1)
+				DrawAirspace(frame);
 
 			/* Render mouse cursor. */
 			var cur = new MySprite(SpriteType.TEXTURE, "Triangle", cursP, new Vector2(7f, 10f), Color.White);
@@ -2680,6 +2894,120 @@ public class GuiHandler
 		offX += 55;
 
 	}
+	
+	/**
+	 * \brief Renders the airspace page.
+	 */
+	void DrawAirspace(MySpriteDrawFrame frame) {
+		int offY = 0, startY = 20;
+		int offX = 0, startX = 65;
+
+		offX += 145;
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(startX + offX, startY + offY    ), new Vector2(290 - 4, 30), Color.Black));
+		frame.Add(new MySprite(SpriteType.TEXT, "Airspace", new Vector2(startX + offX, startY + offY - 9), null, Color.White, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 145;
+		
+		offY += 35;
+		offX  = 0;
+		
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXT, "Flight Level Stride",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
+		
+		offX += 55;
+		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.flightLevelHeight + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 55;
+
+		offY = 0;
+		offX = 0;
+		startX += 400; // Right column
+		
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXT, "Min. Safe Altitude (MSA) (Is)",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
+		
+		offX += 55;
+		frame.Add(new MySprite(SpriteType.TEXT, _dispatcher.CalcGetAboveAltitude() + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 55;
+
+		offY += 35;
+		offX  = 0;
+
+		offX += 90;
+		frame.Add(new MySprite(SpriteType.TEXT, "Min. Safe Altitude (MSA) (Set)",      new Vector2(startX + offX + 70, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.RIGHT, 0.6f));
+		offX += 90;
+		
+		offX += 55;
+		frame.Add(new MySprite(SpriteType.TEXT, _stateWrapper.PState.h_msa.ToString("f0") + " m",  new Vector2(startX + offX, startY + offY - 9), null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.6f));
+		offX += 55;
+
+		/* Flight level diagram. */
+		int W = (int) viewPortSize.X - 40;          // [px] Width of the diagram
+		int H = (int)(viewPortSize.Y * 0.85f) - 120; // [px] Height of the diagram
+		frame.Add(new MySprite(SpriteType.TEXTURE, "SquareSimple",  new Vector2(20 + W / 2, 80 + H/2), new Vector2(W, H), Color.DarkGray));
+		if (_stateWrapper.PState.flightLevels.Count() == 0)
+			return;
+
+		Vector3D _n = _dispatcher.dockHost.GetNormal();
+		Vector3D _p = _dispatcher.dockHost.p_base;
+		Vector3D _q = _dispatcher.CurrentTask.corePoint;
+		double l = Vector3D.Cross(_q - _p, _n).Length()
+		         + _dispatcher.CurrentTask.R;
+		
+		double dw = W / l; // [px/m] X-scale
+		int dh = Math.Min(4, H / _stateWrapper.PState.flightLevels.Last().h1); // [px/m] Y-scale
+		bool bBright = false;
+		foreach (var fl in _stateWrapper.PState.flightLevels) {
+		
+			int h = (fl.h1 - fl.h0) * dh; // [px]
+			int y = H - fl.h0 * dh - h/2; // [px]
+			int h_agent = (int)((float)h * .9f); 
+
+			frame.Add(new MySprite(
+				SpriteType.TEXTURE,
+				"SquareSimple",
+				new Vector2(20 + W / 2, 80 + y),
+				new Vector2(W, h),
+				(bBright ? Color.Darken(Color.CornflowerBlue, 0.4f) : Color.Darken(Color.CornflowerBlue, 0.5f))));
+
+			frame.Add(new MySprite(
+				SpriteType.TEXT,
+				_dispatcher.GetSubordinateName(fl.agent),
+				new Vector2(20 + W / 2, 80 + y),
+				null, Color.DarkKhaki, "Debug", TextAlignment.CENTER, 0.5f));
+			
+			frame.Add(new MySprite(
+				SpriteType.TEXT,
+				$"+[{fl.h0} - {fl.h1}] m",
+				new Vector2(20 + 10, 80 + y),
+				null, Color.DarkKhaki, "Debug", TextAlignment.LEFT, 0.5f));
+			
+			bBright = !bBright; // Alternating colors.
+
+			/* Subordinate position. */
+			var sb = _dispatcher.subordinates.FirstOrDefault(s => s.Id == fl.agent);
+			if (sb == null)
+				continue; // Lease holder is not a subordinate.
+
+			double d = Vector3D.Cross(sb.Report.WM.Translation - _p, _n).Length(); // [m]
+			int    x = (int)(d * dw); // [px]
+
+			var btnSpr = new MySprite(
+				SpriteType.TEXTURE,
+				"AH_BoreSight",
+				new Vector2(20 + x, 80 + y),
+				new Vector2(h_agent, h_agent), Color.Orange);
+			btnSpr.RotationOrScale = (float)Math.PI / 2f;
+			var btnSprBack = new MySprite(
+				SpriteType.TEXTURE,
+				"Textures\\FactionLogo\\Miners\\MinerIcon_3.dds",
+				new Vector2(20 + x, 80 + y),
+				new Vector2(h_agent, h_agent), Color.Black);
+			frame.Add(btnSprBack);
+			frame.Add(btnSpr);
+
+		}
+	}
 
 	/**
 	 * \brief Renders the agent table on the GUI screen.
@@ -2827,7 +3155,7 @@ public class GuiHandler
 
 			var hoverColor = Color.Red;
 			
-			var btn = new ActiveElement(0, btnSize, pos);
+			var btn = new ActiveElement(2, btnSize, pos);
 			btn.bkSprite0 = new MySprite(SpriteType.TEXTURE, "Circle", new Vector2(0, 0), btnSize, mainCol);
 			btn.bkSprite1 = new MySprite(SpriteType.TEXTURE, "Circle", new Vector2(0, 0), btnSize, hoverColor);
 
