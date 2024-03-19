@@ -219,6 +219,20 @@ A re-initialization of the airspace can be forced by executing `command:init-air
 
 It is important that mobile dispatchers are not moving during mining operations. However, a small deviation can be compensated.
 
+### Monitoring
+
+Airspace locks can be monitored on the LCD GUI on the agent list.
+
+For flight levels, there is a separate page on the GUI. (since v0.11.0)
+
+![flight levels GUI](FlightLevels.png "Flight Levels on the GUI screen")
+
+- The **Flight Level Stride** is the "thickness" of granted flight planes. It can be changed dynamically, while a task is being processed.
+- The **MSA** is the lowest possible point of any flight level. (formerly known as `getAbove-altitude`) It can be changed while the task is running, but already granted flight levels cannot be revoked.
+- The main area contains a schematic of the currently granted flight levels, from top to bottom.
+- An indicator depicts the position of the agent, where the right hand side is the mining area and the left hand side is the base.
+
+
 
 
 ### Docking
