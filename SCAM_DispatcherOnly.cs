@@ -1194,7 +1194,8 @@ public class Dispatcher
 		/* Adjust the MSA set value.
 		 * (Assuming this is called on recompile / world reload only.) */
 		float delta = stateWrapper.PState.h_msa_cur - CalcGetAboveAltitude();
-		stateWrapper.PState.h_msa -= delta;
+		if (delta < 30f) // If the delta has moved more than 30 m, it is carrier which has moved to the next site. (Not newly created docking ports.)
+			stateWrapper.PState.h_msa -= delta;
 	}
 
 	/**
@@ -1485,7 +1486,7 @@ public class Dispatcher
 					Log("Cannot start new task: All agents must be in Idle or Disabled state.");
 					continue;
 				}
-	
+
 				/* Prepare the airspace (ATC). */
 				InitializeAirspace();
 
@@ -1744,7 +1745,7 @@ public class Dispatcher
 
 			/* Transform the entry point into global coordinates. */
 			entry = corePoint + planeXunit * sh.Point.X + planeYunit * sh.Point.Y;
-			getAbove = entry.Value - miningPlaneNormal * Variables.Get<float>("getAbove-altitude");
+			getAbove = entry.Value - miningPlaneNormal * 10.0/*stateWrapper.PState.h_msa*/;//TODO: Probably unused now.
 			id = sh.Id;
 			sh.State = ShaftState.InProgress;
 			return true;
@@ -1765,12 +1766,15 @@ public class Dispatcher
 	public void InitializeAirspace()
 	{
 		Vector3D _n;
-		if (guiSeat != null && guiSeat.TryGetPlanetPosition(out _n))
+		if (guiSeat != null && guiSeat.TryGetPlanetPosition(out _n)) {
+			Log("We are on a planet.");//TODO: Remove
 			_n = -Vector3D.Normalize(_n - guiSeat.WorldMatrix.Translation); // We are in a planetary gravity.
-		else
+		} else {
+			Log("We are in space.");//TODO: Remove
 			_n = dockHost.GetNormal(); // We are outside of planetary gravity.
+		}
 		stateWrapper.PState.n_Airspace = _n;
-		stateWrapper.PState.p_Airspace = dockHost.p_base + _n * stateWrapper.PState.h_msa;
+		stateWrapper.PState.p_Airspace = dockHost.GetBasePoint() + _n * stateWrapper.PState.h_msa;
 
 		/* Invalidate all old flight levels (if existent). */
 		stateWrapper.PState.flightLevels.Clear();
@@ -1782,7 +1786,7 @@ public class Dispatcher
 	public int CalcGetAboveAltitude()
 	{
 		Vector3D _n = stateWrapper.PState.n_Airspace;
-		Vector3D _d = stateWrapper.PState.p_Airspace - dockHost.p_base;
+		Vector3D _d = stateWrapper.PState.p_Airspace - dockHost.GetBasePoint();
 		return (int)Math.Round( Vector3D.Dot(_n, _d), 0 );
 	}
 
@@ -2209,8 +2213,7 @@ public class DockHost
 {
 	Dispatcher             dispatcher;
 	List<IMyShipConnector> ports;      ///< All managed docking ports.
-	Dictionary<IMyShipConnector, Vector3D> pPositions = new Dictionary<IMyShipConnector, Vector3D>(); // Positions of `ports`.
-	public Vector3D        p_base;     ///< Location of the highest connector.
+	Dictionary<IMyShipConnector, Vector3D> pPositions = new Dictionary<IMyShipConnector, Vector3D>(); // Positions of `ports` during last timestep.
 
 	/**
 	 * \brief Detects all available docking ports for the dispatcher.
@@ -2242,10 +2245,6 @@ public class DockHost
 
 		/* Cache the docking port's positions. */
 		ports.ForEach(x => pPositions.Add(x, x.GetPosition()));
-		
-		/* Identify the "highest" docking port, as base point for the get-above altitude. */
-		p_base = ports.First().GetPosition();
-		ports.ForEach(port => p_base = (Vector3D.Dot(_n, port.GetPosition() - p_base) > 0 ? port.GetPosition() : p_base));
 	}
 
 	public void Handle(IMyIntergridCommunicationSystem i, int t)
@@ -2365,6 +2364,17 @@ public class DockHost
 	public Vector3D GetNormal()
 	{
 		return ports.First().WorldMatrix.Forward;
+	}
+
+	/**
+	 * \brief Returns the location of the highest connector.
+	 */
+	public Vector3D GetBasePoint()
+	{
+		Vector3D p_base = ports.First().GetPosition();
+		Vector3D _n     = this.GetNormal();
+		ports.ForEach(port => p_base = (Vector3D.Dot(_n, port.GetPosition() - p_base) > 0 ? port.GetPosition() : p_base));
+		return p_base;
 	}
 
 	public List<IMyShipConnector> GetPorts()
@@ -2949,7 +2959,7 @@ public class GuiHandler
 			return;
 
 		Vector3D _n = _dispatcher.dockHost.GetNormal();
-		Vector3D _p = _dispatcher.dockHost.p_base;
+		Vector3D _p = _dispatcher.dockHost.GetBasePoint();
 		Vector3D _q = _dispatcher.CurrentTask.corePoint;
 		double l = Vector3D.Cross(_q - _p, _n).Length()
 		         + _dispatcher.CurrentTask.R;

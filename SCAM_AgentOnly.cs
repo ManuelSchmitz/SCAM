@@ -157,7 +157,7 @@ void StartOfTick(string arg)
 	TickCount++;
 	Echo("Run count: " + TickCount);
 	Echo("Name: " + me.CubeGrid.CustomName);
-
+	
 	/* If this is the first cycle, and the game engine has loaded
 	 * all the blocks, then we need to do some more initialisation. */
 	if (pendingInitSequence && string.IsNullOrEmpty(arg)) {
@@ -1636,6 +1636,10 @@ public class MinerController
 
 		bool CurrentWpReached(double tolerance)
 		{
+			if (c.pState.currentWp.HasValue) {
+				double dist = (c.pState.currentWp.Value - c.fwReferenceBlock.WorldMatrix.Translation).Length();
+				E.Echo($"ds_WP: {dist:f2}");
+			}
 			return (!c.pState.currentWp.HasValue || (c.pState.currentWp.Value - c.fwReferenceBlock.WorldMatrix.Translation).Length() <= tolerance);
 		}
 
@@ -1660,6 +1664,7 @@ public class MinerController
 
 					/* We may not have been assigned a flight level at
 					 * this point. Simply start 15 m above the shaft.  */
+					//TODO: If we have received a lock (see above), then we have a flight level.
 					var depth = -15;
 					var pt = c.pState.miningEntryPoint.Value + c.GetMiningPlaneNormal() * depth;
 					var entryBeh = $"command:create-wp:Name=ChangingShaft,Ng=Forward,UpNormal=1;0;0," +
