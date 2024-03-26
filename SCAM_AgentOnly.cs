@@ -906,8 +906,6 @@ public class MinerController
 	public string WaitedSection = "";
 	public bool WaitingForLock;
 
-	public bool DockingHandled;
-
 	public Vector3D GetMiningPlaneNormal()
 	{
 		if (!pState.miningPlaneNormal.HasValue)
@@ -1096,7 +1094,7 @@ public class MinerController
 		case MinerState.Takeoff:
 		case MinerState.ReturningHome:
 		case MinerState.Docking:
-			break; // Cargo is definitely not changing in these sttes.
+			break; // Cargo is definitely not changing in these states.
 		}
 
 		E.Echo(embeddedUnit != null ? "Embedded APck" : pCore.CustomName);
@@ -1383,8 +1381,11 @@ public class MinerController
 			pState.lastAPckCommand = "";
 			SetState(MinerState.Disabled);
 		}
-		else
+		else {
 			pState.bRecalled = true;
+			if (WaitingForLock && WaitedSection == "")
+				Dispatch(); // We are waiting for a new job. Abort the wait and return.
+		}
 	}
 
 	public bool TryResumeFromDock()
@@ -1436,7 +1437,7 @@ public class MinerController
 	public void CommandAutoPillock(string cmd, Action<APckUnit> embeddedAction = null)
 	{
 		pState.lastAPckCommand = cmd;
-		E.DebugLog("CommandAutoPillock: " + cmd);
+		//E.DebugLog("CommandAutoPillock: " + cmd);
 		if (embeddedUnit != null)
 		{
 			if (embeddedAction != null)
@@ -1697,6 +1698,7 @@ public class MinerController
 				}
 			}
 
+			CargoIsGettingValuableOre(); // Account for all ore that has been accidentally picked up during ascent. (while drills were running)
 			AccountChangeShaft();
 			lastFoundOreDepth = null;
 
@@ -1842,12 +1844,11 @@ public class MinerController
 				else
 				{
 					/* Give up drilling 2 m below the last valuable ore. */
-					//TODO: Introduce variable "least-depth": A depth where ore is to be expected. 
-					if (lastFoundOreDepth.HasValue && (currentDepth - lastFoundOreDepth > 2))
+					if (lastFoundOreDepth.HasValue && (currentDepth - lastFoundOreDepth > 2)) {
 						GetOutTheShaft(); // No more ore expected in this shaft, job complete.
+					}
 				}
-			}
-
+			
 			if (state == MinerState.AscendingInShaft) {
 
 				if (!CurrentWpReached(0.5f))
@@ -2027,42 +2028,32 @@ public class MinerController
 
 			if (state == MinerState.Docking) {
 				/* Connect the connector, if not done already. */
-				if (c.docker.Status != MyShipConnectorStatus.Connected) {
-					if (c.DockingHandled)
-						c.DockingHandled = false;
+				if (c.docker.Status != MyShipConnectorStatus.Connected)
 					return;
-				}
 
 				/* If just connected, disable autopilot and release airspace lock.
 				 * Set fuel tanks to stockpile, and batteries to recharge.       */
-				if (!c.DockingHandled)
-				{
-					c.DockingHandled = true;
-					E.DebugLog("Regular docking handled");
+				c.CommandAutoPillock("command:pillock-mode:Disabled");
+				c.remCon.DampenersOverride = false;
+				c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
+				c.docker.OtherConnector.CustomData = "";
+				c.InvalidateDockingDto?.Invoke();
+				c.tanks.ForEach(b => b.Stockpile = true);
 
-					c.CommandAutoPillock("command:pillock-mode:Disabled");
-					c.remCon.DampenersOverride = false;
-					c.batteries.ForEach(b => b.ChargeMode = ChargeMode.Recharge);
-					c.docker.OtherConnector.CustomData = "";
-					c.InvalidateDockingDto?.Invoke();
-					c.tanks.ForEach(b => b.Stockpile = true);
+				/* We just left controlled airspace. Release the lock ("base"
+				 * or "general", whatever we have been granted).              */
+				if (c.ObtainedLock != null)
+					c.ReleaseLock(c.ObtainedLock);
 
-					/* We just left controlled airspace. Release the lock ("base"
-					 * or "general", whatever we have been granted).              */
-					if (c.ObtainedLock != null)
-						c.ReleaseLock(c.ObtainedLock);
-
-					c.SetState(MinerState.Docked);
-				}
+				c.SetState(MinerState.Docked);
 			}
 
 			if (state == MinerState.Docked)
 			{
-
 				E.Echo("Docking: Connected");
 				if (c.bUnloading = !CargoFlush()) {
 					/* Still unloading, remain docked. */
-					E.Echo("Docking: still have items"); //TODO: This information should be shown on the LCD screen, too.
+					E.Echo("Docking: still have items");
 					return;
 				}
 						
@@ -2120,7 +2111,7 @@ public class MinerController
 					Scheduler.C.After(10000).RepeatWhile(() => c.GetState() == MinerState.Maintenance).RunCmd(() => {
 						if (c.CheckBatteriesAndIntegrity(Variables.Get<float>("battery-full-factor"), 0.99f))
 						{
-							c.SetState(MinerState.Docking);
+							c.SetState(MinerState.Docked);
 						}
 					});
 				}
@@ -2282,12 +2273,14 @@ public class MinerController
 
 		float currentShaftValTotal = 0;
 		float preShaftValTotal = 0;
-		float prevTickValCount = 0;
+		float prevTickValCount = 0; // [l] On-board ore at last timestep. (For delta calculation.)
+
+		/** \note May only be called once per cycle! */
 		bool CargoIsGettingValuableOre()
 		{
+			/* Count all ore on board. */
 			float totalAmount = 0;
-			for (int i = 0; i < c.allContainers.Count; i++)
-			{
+			for (int i = 0; i < c.allContainers.Count; ++i) {
 				var inv = c.allContainers[i].GetInventory(0);
 				if (inv == null)
 					continue;
@@ -2296,11 +2289,7 @@ public class MinerController
 				items.Where(ix => ix.Type.ToString().Contains("Ore") && !ix.Type.ToString().Contains("Stone")).ToList().ForEach(x => totalAmount += (float)x.Amount);
 			}
 
-			bool gain = false;
-			if ((prevTickValCount > 0) && (totalAmount > prevTickValCount))
-			{
-				gain = true;
-			}
+			bool gain = ((prevTickValCount > 0) && (totalAmount > prevTickValCount));
 
 			prevTickValCount = totalAmount;
 
@@ -2550,7 +2539,7 @@ public static class E
 {
 	static string debugTag = "";
 	static Action<string> e;
-	static IMyTextSurface p;
+	static IMyTextSurface p; // LCD of the current PB
 	static IMyTextSurface l;
 	public static double T;
 	public static void Init(Action<string> echo, IMyGridTerminalSystem g)
@@ -2576,10 +2565,12 @@ public static class E
 			linesToLog.Add(s);
 		}
 	}
+
 	public static void AddLogger(IMyTextSurface s)
 	{
 		l = s;
 	}
+
 	public static void EndOfTick()
 	{
 		if (!string.IsNullOrEmpty(buff))
