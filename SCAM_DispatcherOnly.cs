@@ -2960,9 +2960,13 @@ public class GuiHandler
 
 		Vector3D _n = _dispatcher.dockHost.GetNormal();
 		Vector3D _p = _dispatcher.dockHost.GetBasePoint();
-		Vector3D _q = _dispatcher.CurrentTask.corePoint;
-		double l = Vector3D.Cross(_q - _p, _n).Length()
-		         + _dispatcher.CurrentTask.R;
+		double l;
+		if (_dispatcher.CurrentTask != null) {
+			Vector3D _q = _dispatcher.CurrentTask.corePoint;
+			l = Vector3D.Cross(_q - _p, _n).Length()
+			  + _dispatcher.CurrentTask.R;
+		} else
+			l = 1;
 		
 		double dw = W / l; // [px/m] X-scale
 		int dh = Math.Min(4, H / _stateWrapper.PState.flightLevels.Last().h1); // [px/m] Y-scale
