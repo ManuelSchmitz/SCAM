@@ -1848,6 +1848,7 @@ public class MinerController
 						GetOutTheShaft(); // No more ore expected in this shaft, job complete.
 					}
 				}
+			}
 			
 			if (state == MinerState.AscendingInShaft) {
 
