@@ -12,10 +12,9 @@ command:set-value:circular-pattern-shaft-radius:3.6
 command:add-panel:feed-panel
 command:set-value:gas-low-factor:0.6
 command:set-value:cargo-full-factor:0.85
-command:set-value:preferred-container:Springfield BigCargo A
 ```
 
-6. Install this (TODO: Link) script on the drone's PB.
+6. Install [this script](/bin/script_agent.cs) on the drone's PB.
 7. Connect the drone to the docking port at the base.
 
 [Previous Step](step2.md) | [Next Step](step4.md)
